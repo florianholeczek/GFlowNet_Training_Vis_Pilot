@@ -54,10 +54,59 @@ def update_state_space_t(data_trajectories, method, param_value, n_trajectories)
     # Create figure
     fig = go.Figure()
 
-    # Get unique trajectory IDs and assign colors
+    """# Get unique trajectory IDs and assign colors
     unique_ids = plot_data['final_id'].unique()
     colors = px.colors.qualitative.Dark24
     color_map = {tid: colors[i % len(colors)] for i, tid in enumerate(unique_ids)}
+
+    # Add trajectory lines
+    for final_id in unique_ids:
+        traj_data = plot_data[plot_data['final_id'] == final_id].sort_values('step')
+
+        fig.add_trace(go.Scatter(
+            x=traj_data['X'],
+            y=traj_data['Y'],
+            mode='lines',
+            line=dict(color=color_map[final_id], width=2),
+            opacity=0.15,
+            name=f'Trajectory {final_id}',
+            showlegend=False,
+            hoverinfo='skip'
+        ))"""
+    # Get unique trajectory IDs and their iterations
+    unique_ids = plot_data['final_id'].unique()
+
+    # Create color mapping based on iteration values
+    iteration_values = plot_data.groupby('final_id')['iteration'].first()
+    min_iter = iteration_values.min()
+    max_iter = iteration_values.max()
+
+    # Normalize iteration values to [0, 1] for colorscale
+    import plotly.colors as pc
+    emrld_colors = pc.sample_colorscale('Emrld',
+                                        [(iteration_values[tid] - min_iter) / (max_iter - min_iter)
+                                         for tid in unique_ids])
+    color_map = {tid: emrld_colors[i] for i, tid in enumerate(unique_ids)}
+
+    # Add a colorbar legend for iterations
+    fig.add_trace(go.Scatter(
+        x=[None],
+        y=[None],
+        mode='markers',
+        marker=dict(
+            colorscale='Emrld',
+            showscale=True,
+            cmin=min_iter,
+            cmax=max_iter,
+            colorbar=dict(
+                title="Iteration",
+                thickness=15,
+                len=0.7
+            )
+        ),
+        hoverinfo='none',
+        showlegend=False
+    ))
 
     # Add trajectory lines
     for final_id in unique_ids:

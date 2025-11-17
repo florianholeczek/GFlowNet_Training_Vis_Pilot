@@ -127,9 +127,9 @@ app.layout = html.Div([
             html.Div([
                 html.Div([
                     html.Div([
-                        html.Div("Flow attribute", style={"textAlign": "center", "flex": 1}),
+                        html.Div("Edge coloring", style={"textAlign": "center", "flex": 1}),
                         html.Div("Trajectories", style={"textAlign": "center", "flex": 1}),
-                        html.Div("Edges (%)", style={"textAlign": "center", "flex": 1}),
+                        html.Div("Truncate Edges", style={"textAlign": "center", "flex": 1}),
                         html.Div("Layout", style={"textAlign": "center", "flex": 1}),
                     ], style={"display": "flex", "gap": "20px"}),
                     html.Div([

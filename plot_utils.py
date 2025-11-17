@@ -586,9 +586,10 @@ def update_bump(df, color_map, metric, method, w1, w2, w3, n_top):
                             w3 * tmp["reward3"]) / (w1 + w2 + w3)
         else:
             tmp["value"] = np.exp(
-                np.log(w1 * tmp["reward1"]) +
-                np.log(w2 * tmp["reward2"]) +
-                np.log(w3 * tmp["reward3"])
+                (w1 * np.log(tmp["reward1"]) +
+                w2 * np.log(tmp["reward2"]) +
+                w3 * np.log(tmp["reward3"]))
+                /(w1 + w2 + w3)
             )
         tmp = tmp[["iteration", "smiles", "value"]]
 

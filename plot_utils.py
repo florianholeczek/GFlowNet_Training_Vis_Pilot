@@ -374,7 +374,7 @@ def update_DAG(dag_data, flow_attr='flow_forward', truncation_pct=0):
                 'width': '60px',
                 'height': '60px',
                 'border-width': '2px',
-                'border-color': '#969696',
+                'border-color': '#000000',
                 'text-wrap': 'wrap',
                 'text-max-width': '55px'
             }
@@ -383,11 +383,11 @@ def update_DAG(dag_data, flow_attr='flow_forward', truncation_pct=0):
         {
             'selector': 'node[node_type = "start"]',
             'style': {
-                'background-color': '#ffe366',
+                'background-color': '#BAEB9D',
                 'shape': 'diamond',
                 'width': '60px',
                 'height': '60px',
-                'border-color': '#e3ca5b',
+                'border-color': '#000000',
                 'font-weight': 'bold',
                 'font-size': '12px'
             }
@@ -396,11 +396,11 @@ def update_DAG(dag_data, flow_attr='flow_forward', truncation_pct=0):
         {
             'selector': 'node[node_type = "final"]',
             'style': {
-                'background-color': '#838bff',
+                'background-color': '#60B388',
                 'shape': 'rectangle',
                 'width': '80px',
                 'height': '60px',
-                'border-color': '#7279de',
+                'border-color': '#000000',
                 'font-weight': 'bold'
             }
         },
@@ -492,8 +492,7 @@ def update_state_space(metadata, features, method="umap", param_value=15):
         #title=f"{method.upper()} Projection"
     )
     fig.update_layout(
-        height=None,
-        margin=dict(l=20, r=20, t=40, b=20),
+        autosize=True,
         coloraxis_colorbar=dict(title="Iteration")
     )
     return fig

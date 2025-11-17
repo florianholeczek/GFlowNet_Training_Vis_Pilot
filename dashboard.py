@@ -68,7 +68,7 @@ app.layout = html.Div([
                     style={"display": "none", "marginTop": "15px"}
                 ),
                 html.Div(
-                    dcc.Graph(id="bumpchart"), style={"height": "100%", "width": "100%"}),
+                    dcc.Graph(id="bumpchart"), style={"height": "90%", "width": "100%"}),
             ], style={
                 "flex": 1, "border": "1px solid #ddd", "padding": "5px",
                 "height": "49vh", "box-sizing": "border-box", "overflow": "hidden",
@@ -109,13 +109,14 @@ app.layout = html.Div([
                         )
                     ], style={"display": "flex", "gap": "20px"})
                 ], style={"display": "block", "marginTop": "15px"}),
-                dcc.Graph(id="state-space-plot")
+                html.Div(dcc.Graph(id="state-space-plot"), style={"height": "90%", "width": "100%"})
             ], style={
                 "flex": 1,
                 "border": "1px solid #ddd",
                 "padding": "5px",
                 "height": "49vh",
-                "box-sizing": "border-box"
+                "box-sizing": "border-box",
+                "overflow": "hidden",
             }),
         ], style={
             "display": "flex", "flex-direction": "row", "width": "100%",

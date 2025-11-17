@@ -7,6 +7,125 @@ from umap import UMAP
 from collections import defaultdict
 
 
+def update_state_space_t(data_trajectories, method, param_value, n_trajectories):
+    """
+    Create a trajectory visualization in state space with dimensionality reduction.
+
+    Parameters:
+    -----------
+    data_trajectories : pd.DataFrame
+        The trajectory data with metadata in first 9 columns
+    method : str
+        'umap' or 'tsne'
+    param_value : int
+        n_neighbors for UMAP or perplexity for t-SNE
+    n_trajectories : int
+        Number of trajectories to visualize
+
+    Returns:
+    --------
+    plotly.graph_objects.Figure
+    """
+    metadata_to = 9
+
+    # Filter trajectories
+    data = data_trajectories[
+        data_trajectories["final_id"] <= min(n_trajectories, max(data_trajectories["final_id"]))].copy()
+
+    # Split metadata and features
+    metadata = data.iloc[:, :metadata_to]
+    features = data.iloc[:, metadata_to:]
+
+    # Apply dimensionality reduction
+    if method == 'tsne':
+        reduced = manifold.TSNE(perplexity=param_value, random_state=42).fit_transform(features)
+    elif method == "umap":
+        reducer = UMAP(n_neighbors=param_value, random_state=42)
+        reduced = reducer.fit_transform(features)
+    else:
+        raise NotImplementedError('Method not implemented')
+
+    # Combine back with metadata
+    plot_data = pd.concat([
+        metadata.reset_index(drop=True),
+        pd.DataFrame(reduced, columns=['X', 'Y'])
+    ], axis=1)
+
+    # Create figure
+    fig = go.Figure()
+
+    # Get unique trajectory IDs and assign colors
+    unique_ids = plot_data['final_id'].unique()
+    colors = px.colors.qualitative.Dark24
+    color_map = {tid: colors[i % len(colors)] for i, tid in enumerate(unique_ids)}
+
+    # Add trajectory lines
+    for final_id in unique_ids:
+        traj_data = plot_data[plot_data['final_id'] == final_id].sort_values('step')
+
+        fig.add_trace(go.Scatter(
+            x=traj_data['X'],
+            y=traj_data['Y'],
+            mode='lines',
+            line=dict(color=color_map[final_id], width=2),
+            opacity=0.15,
+            name=f'Trajectory {final_id}',
+            showlegend=False,
+            hoverinfo='skip'
+        ))
+
+    # Add start points
+    start_data = plot_data[plot_data['state'] == 'start']
+    for final_id in start_data['final_id'].unique():
+        fd = start_data[start_data['final_id'] == final_id]
+        fig.add_trace(go.Scatter(
+            x=fd['X'],
+            y=fd['Y'],
+            mode='markers',
+            marker=dict(
+                symbol='circle',
+                size=8,
+                color=color_map[final_id],
+                line=dict(width=1, color='white')
+            ),
+            name=f'Start {final_id}',
+            showlegend=False,
+            hovertemplate='<b>Start</b><br>SMILES: %{customdata[0]}<extra></extra>',
+            customdata=fd[['smiles']].values
+        ))
+
+    # Add final points
+    final_data = plot_data[plot_data['state'] == 'final']
+    for final_id in final_data['final_id'].unique():
+        fd = final_data[final_data['final_id'] == final_id]
+        fig.add_trace(go.Scatter(
+            x=fd['X'],
+            y=fd['Y'],
+            mode='markers',
+            marker=dict(
+                symbol='square',
+                size=8,
+                color=color_map[final_id],
+                line=dict(width=1, color='white')
+            ),
+            name=f'Final {final_id}',
+            showlegend=False,
+            hovertemplate='<b>Final</b><br>SMILES: %{customdata[0]}<extra></extra>',
+            customdata=fd[['smiles']].values
+        ))
+
+    # Update layout
+    fig.update_layout(
+        title="Trajectories in State Space",
+        xaxis_title="X",
+        yaxis_title="Y",
+        hovermode='closest',
+        template='plotly_white',
+        margin=dict(l=40, r=40, t=40, b=40)
+    )
+
+    return fig
+
 def create_dag_legend(vmin, vmax, colorscale, flow_attr):
     """
     Create a plotly figure showing a colorbar legend for the DAG.

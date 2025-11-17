@@ -209,16 +209,19 @@ app.layout = html.Div([
                 "overflow": "hidden"
             }),
 
-            # ---------- BOTTOM RIGHT ----------
+            # ---------- BOTTOM RIGHT (TRAJECTORY VISUALIZATION) ----------
             html.Div([
-                html.H3("Bottom-right quadrant"),
-                html.Div("Placeholder for plot 4...")
+                html.Div(
+                    dcc.Graph(id="trajectory-plot"),
+                    style={"height": "100%", "width": "100%"}
+                )
             ], style={
                 "flex": 1,
                 "border": "1px solid #ddd",
                 "padding": "5px",
                 "height": "49vh",
-                "box-sizing": "border-box"
+                "box-sizing": "border-box",
+                "overflow": "hidden"
             })
         ], style={
             "display": "flex", "flex-direction": "row", "width": "100%",
@@ -259,6 +262,17 @@ def chart_callback(metric, method, w1, w2, w3):
 )
 def update_projection(method, param_value):
     return update_state_space(metadata_objects, features_objects, method=method, param_value=param_value)
+
+
+# Trajectory Visualization Callback
+@app.callback(
+    Output("trajectory-plot", "figure"),
+    Input("projection-method", "value"),
+    Input("projection-param", "value"),
+    Input("trajectory-truncation", "value")
+)
+def update_trajectory_plot(method, param_value, n_trajectories):
+    return update_state_space_t(data_trajectories, method, param_value, n_trajectories)
 
 
 # DAG Callback

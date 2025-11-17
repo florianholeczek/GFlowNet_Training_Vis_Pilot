@@ -1,5 +1,5 @@
 import dash
-from dash import dcc, html, Input, Output
+from dash import dcc, html, Input, Output, State
 import dash_cytoscape as cyto
 from plot_utils import *
 
@@ -12,7 +12,8 @@ data_bump, color_map = prepare_bump(data_objects)
 metadata_objects, features_objects = prepare_state_space(data_objects, metadata_to=7)
 
 # Prepare DAG
-dag_data = prepare_DAG('data_trajectories.csv', n_trajectories=200)
+global dag_data
+dag_data = prepare_DAG('data_trajectories.csv', n_trajectories=100)
 
 app = dash.Dash(__name__)
 
@@ -27,6 +28,7 @@ flow_options = ["flow_forward", "flow_backward",
 
 # Layout
 app.layout = html.Div([
+    dcc.Store(id="prev-node-truncation", data=0),
     html.Div([
         html.Div([
             # ---------- TOP LEFT ----------
@@ -124,7 +126,8 @@ app.layout = html.Div([
                 html.Div([
                     html.Div([
                         html.Div("Flow attribute", style={"textAlign": "center", "flex": 1}),
-                        html.Div("Truncation (%)", style={"textAlign": "center", "flex": 1}),
+                        html.Div("Trajectories", style={"textAlign": "center", "flex": 1}),
+                        html.Div("Edges (%)", style={"textAlign": "center", "flex": 1}),
                         html.Div("Layout", style={"textAlign": "center", "flex": 1}),
                     ], style={"display": "flex", "gap": "20px"}),
                     html.Div([
@@ -139,7 +142,19 @@ app.layout = html.Div([
                         ),
                         html.Div(
                             dcc.Slider(
-                                id="truncation-pct",
+                                id="node-truncation-pct",
+                                min=1,
+                                max=200,
+                                step=5,
+                                value=10,
+                                marks={0: '0', 100: '100', 200: '200'},
+                                tooltip={"placement": "bottom", "always_visible": True}
+                            ),
+                            style={"flex": 1}
+                        ),
+                        html.Div(
+                            dcc.Slider(
+                                id="edge-truncation-pct",
                                 min=0,
                                 max=100,
                                 step=5,
@@ -165,18 +180,24 @@ app.layout = html.Div([
                     ], style={"display": "flex", "gap": "20px", "marginBottom": "10px"})
                 ], style={"display": "block", "marginTop": "10px"}),
 
-                cyto.Cytoscape(
-                    id='dag-graph',
-                    layout={
-                        'name': 'klay',
-                        'directed': True,
-                        'spacingFactor': 1.0,
-                        'animate': False
-                    },
-                    style={'width': '100%', 'height': '45vh'},
-                    elements=[],
-                    stylesheet=[]
-                )
+                html.Div([
+                    cyto.Cytoscape(
+                        id='dag-graph',
+                        layout={
+                            'name': 'klay',
+                            'directed': True,
+                            'spacingFactor': 1.0,
+                            'animate': False
+                        },
+                        style={'width': '100%', 'height': '45vh'},
+                        elements=[],
+                        stylesheet=[]
+                    ),
+                    dcc.Graph(
+                        id='dag-legend',
+                        style={'width': '7%', 'height': '45vh'}
+                    )
+                ], style={"display": "flex", "flex-direction": "row", "width": "100%"})
             ], style={
                 "flex": 1,
                 "border": "1px solid #ddd",
@@ -242,13 +263,28 @@ def update_projection(method, param_value):
 @app.callback(
     [Output("dag-graph", "elements"),
      Output("dag-graph", "stylesheet"),
-     Output("dag-graph", "layout")],
+     Output("dag-graph", "layout"),
+     Output("dag-legend", "figure"),
+     Output("prev-node-truncation", "data")],
     Input("flow-attr", "value"),
-    Input("truncation-pct", "value"),
-    Input("dag-layout", "value")
+    Input("node-truncation-pct", "value"),
+    Input("edge-truncation-pct", "value"),
+    Input("dag-layout", "value"),
+    State("prev-node-truncation", "data")
 )
-def update_dag_callback(flow_attr, truncation_pct, layout_name):
-    result = update_DAG(dag_data, flow_attr=flow_attr, truncation_pct=truncation_pct)
+def update_dag_callback(flow_attr, node_truncation_pct, edge_truncation_pct, layout_name, prev_node):
+    global dag_data
+    if node_truncation_pct != prev_node:
+        dag_data = prepare_DAG(
+            "data_trajectories.csv",
+            n_trajectories=int(node_truncation_pct)
+        )
+
+    result = update_DAG(
+        dag_data,
+        flow_attr=flow_attr,
+        truncation_pct=edge_truncation_pct
+    )
 
     # Configure layout based on selection
     layout_config = {
@@ -267,7 +303,7 @@ def update_dag_callback(flow_attr, truncation_pct, layout_name):
         layout_config['spacingFactor'] = 1.5
         layout_config['roots'] = '[id = "START"]'
 
-    return result['elements'], result['stylesheet'], layout_config
+    return result['elements'], result['stylesheet'], layout_config, result['legend'], node_truncation_pct
 
 
 # Run the dashboard

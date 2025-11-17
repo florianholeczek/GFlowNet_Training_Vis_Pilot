@@ -7,6 +7,61 @@ from umap import UMAP
 from collections import defaultdict
 
 
+def create_dag_legend(vmin, vmax, colorscale, flow_attr):
+    """
+    Create a plotly figure showing a colorbar legend for the DAG.
+
+    Parameters:
+    -----------
+    vmin : float
+        Minimum value for the colorscale
+    vmax : float
+        Maximum value for the colorscale
+    colorscale : list
+        Plotly colorscale
+    flow_attr : str
+        Name of the flow attribute
+
+    Returns:
+    --------
+    plotly.graph_objects.Figure
+    """
+    # Create a dummy scatter plot with just the colorbar
+    fig = go.Figure(data=go.Scatter(
+        x=[None],
+        y=[None],
+        mode='markers',
+        marker=dict(
+            colorscale=colorscale,
+            showscale=True,
+            cmin=vmin,
+            cmax=vmax,
+            colorbar=dict(
+                title=dict(
+                    text=flow_attr.replace('_', ' ').title(),
+                    side='right'
+                ),
+                thickness=20,
+                len=0.9,
+                x=0.5,
+                xanchor='center'
+            )
+        ),
+        hoverinfo='none'
+    ))
+
+    fig.update_layout(
+        showlegend=False,
+        xaxis=dict(visible=False),
+        yaxis=dict(visible=False),
+        margin=dict(l=0, r=0, t=0, b=0),
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)'
+    )
+
+    return fig
+
+
 def prepare_DAG(csv_path, n_trajectories=8):
     """
     Prepare DAG data structure from trajectory CSV.
@@ -290,6 +345,9 @@ def update_DAG(dag_data, flow_attr='flow_forward', truncation_pct=0):
     else:  # flow_forward_change or flow_backward_change
         colorscale = px.colors.diverging.BrBG
 
+    # Create legend
+    legend_fig = create_dag_legend(vmin, vmax, colorscale, flow_attr)
+
     # Create color mapping
     def get_color(value, vmin, vmax, colorscale):
         if vmax == vmin:
@@ -377,7 +435,8 @@ def update_DAG(dag_data, flow_attr='flow_forward', truncation_pct=0):
 
     return {
         'elements': elements,
-        'stylesheet': stylesheet
+        'stylesheet': stylesheet,
+        'legend': legend_fig
     }
 
 

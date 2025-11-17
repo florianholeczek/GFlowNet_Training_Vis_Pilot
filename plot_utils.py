@@ -492,6 +492,7 @@ def update_state_space(metadata, features, method="umap", param_value=15):
         #title=f"{method.upper()} Projection"
     )
     fig.update_layout(
+        height=None,
         margin=dict(l=20, r=20, t=40, b=20),
         coloraxis_colorbar=dict(title="Iteration")
     )
@@ -637,7 +638,7 @@ def update_bump(df, color_map, metric, method, w1, w2, w3, n_top):
         )
 
     fig.update_layout(
-        #height=450,
+        autosize=True,
         title=f"Bump Chart: {metric}",
         showlegend=False,
         xaxis_title="Iteration",

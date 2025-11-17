@@ -67,10 +67,11 @@ app.layout = html.Div([
                     ],
                     style={"display": "none", "marginTop": "15px"}
                 ),
-                dcc.Graph(id="bumpchart"),
+                html.Div(
+                    dcc.Graph(id="bumpchart"), style={"height": "100%", "width": "100%"}),
             ], style={
-                "flex": 1, "border": "1px solid #ddd", "padding": "1px",
-                "height": "50vh", "box-sizing": "border-box"
+                "flex": 1, "border": "1px solid #ddd", "padding": "5px",
+                "height": "49vh", "box-sizing": "border-box", "overflow": "hidden",
             }),
 
             # ---------- TOP RIGHT ----------
@@ -112,8 +113,8 @@ app.layout = html.Div([
             ], style={
                 "flex": 1,
                 "border": "1px solid #ddd",
-                "padding": "1px",
-                "height": "50vh",
+                "padding": "5px",
+                "height": "49vh",
                 "box-sizing": "border-box"
             }),
         ], style={
@@ -189,20 +190,20 @@ app.layout = html.Div([
                             'spacingFactor': 1.0,
                             'animate': False
                         },
-                        style={'flex': '1',  'height': '45vh', 'width': 'auto'},
+                        style={'flex': '1',  'height': '42vh', 'width': '0px'},
                         elements=[],
                         stylesheet=[]
                     ),
                     dcc.Graph(
                         id='dag-legend',
-                        style={'width': '75px', 'height': '45vh', 'flex': '0 0 75px'}
+                        style={'width': '75px', 'height': '42vh', 'flex': '0 0 75px'}
                     )
                 ], style={"display": "flex", "flex-direction": "row", "width": "100%"})
             ], style={
                 "flex": 1,
                 "border": "1px solid #ddd",
-                "padding": "10px",
-                "height": "50vh",
+                "padding": "5px",
+                "height": "49vh",
                 "box-sizing": "border-box",
                 "overflow": "hidden"
             }),
@@ -214,8 +215,8 @@ app.layout = html.Div([
             ], style={
                 "flex": 1,
                 "border": "1px solid #ddd",
-                "padding": "1px",
-                "height": "50vh",
+                "padding": "5px",
+                "height": "49vh",
                 "box-sizing": "border-box"
             })
         ], style={

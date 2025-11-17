@@ -142,7 +142,7 @@ app.layout = html.Div([
                         ),
                         html.Div(
                             dcc.Slider(
-                                id="node-truncation-pct",
+                                id="trajectory-truncation",
                                 min=1,
                                 max=200,
                                 step=5,
@@ -154,7 +154,7 @@ app.layout = html.Div([
                         ),
                         html.Div(
                             dcc.Slider(
-                                id="edge-truncation-pct",
+                                id="edge-truncation",
                                 min=0,
                                 max=100,
                                 step=5,
@@ -189,13 +189,13 @@ app.layout = html.Div([
                             'spacingFactor': 1.0,
                             'animate': False
                         },
-                        style={'width': '100%', 'height': '45vh'},
+                        style={'flex': '1',  'height': '45vh', 'width': 'auto'},
                         elements=[],
                         stylesheet=[]
                     ),
                     dcc.Graph(
                         id='dag-legend',
-                        style={'width': '7%', 'height': '45vh'}
+                        style={'width': '75px', 'height': '45vh', 'flex': '0 0 75px'}
                     )
                 ], style={"display": "flex", "flex-direction": "row", "width": "100%"})
             ], style={
@@ -267,23 +267,23 @@ def update_projection(method, param_value):
      Output("dag-legend", "figure"),
      Output("prev-node-truncation", "data")],
     Input("flow-attr", "value"),
-    Input("node-truncation-pct", "value"),
-    Input("edge-truncation-pct", "value"),
+    Input("trajectory-truncation", "value"),
+    Input("edge-truncation", "value"),
     Input("dag-layout", "value"),
     State("prev-node-truncation", "data")
 )
-def update_dag_callback(flow_attr, node_truncation_pct, edge_truncation_pct, layout_name, prev_node):
+def update_dag_callback(flow_attr, trajectory_truncation, edge_truncation, layout_name, prev_node):
     global dag_data
-    if node_truncation_pct != prev_node:
+    if trajectory_truncation != prev_node:
         dag_data = prepare_DAG(
             "data_trajectories.csv",
-            n_trajectories=int(node_truncation_pct)
+            n_trajectories=int(trajectory_truncation)
         )
 
     result = update_DAG(
         dag_data,
         flow_attr=flow_attr,
-        truncation_pct=edge_truncation_pct
+        truncation_pct=edge_truncation
     )
 
     # Configure layout based on selection
@@ -303,7 +303,7 @@ def update_dag_callback(flow_attr, node_truncation_pct, edge_truncation_pct, lay
         layout_config['spacingFactor'] = 1.5
         layout_config['roots'] = '[id = "START"]'
 
-    return result['elements'], result['stylesheet'], layout_config, result['legend'], node_truncation_pct
+    return result['elements'], result['stylesheet'], layout_config, result['legend'], trajectory_truncation
 
 
 # Run the dashboard

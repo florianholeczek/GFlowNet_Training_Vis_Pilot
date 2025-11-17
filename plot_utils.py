@@ -293,7 +293,7 @@ def update_DAG(dag_data, flow_attr='flow_forward', truncation_pct=0):
             norm = (value - vmin) / (vmax - vmin)
 
         # Viridis colormap approximation
-        colors = px.colors.sequential.Viridis
+        colors = px.colors.sequential.Redor
         idx = int(norm * (len(colors) - 1))
         return colors[idx]
 
@@ -423,7 +423,7 @@ def update_state_space(metadata, features, method="umap", param_value=15):
         size='reward_total',
         hover_data=['smiles', 'reward_total'],
         opacity=0.6,
-        color_continuous_scale="burg",
+        color_continuous_scale="redor",
         #height=500,
         #width=500,
         #title=f"{method.upper()} Projection"

@@ -1,7 +1,8 @@
 import dash
 from dash import dcc, html, Input, Output
+import dash_cytoscape as cyto
 from plot_utils import *
-
+cyto.load_extra_layouts()
 
 # Load data
 data_objects = pd.read_csv('data_objects.csv')
@@ -11,12 +12,16 @@ data_trajectories = pd.read_csv('data_trajectories.csv')
 data_bump, color_map = prepare_bump(data_objects)
 metadata_objects, features_objects = prepare_state_space(data_objects, metadata_to=7)
 
-
+# Prepare DAG
+dag_data = prepare_DAG('data_trajectories.csv', n_trajectories=200)
 
 app = dash.Dash(__name__)
 
 metrics = ["reward_ranked", "frequency", "reward1", "reward2",
            "reward3", "reward_total", "Custom Reward"]
+
+flow_options = ["flow_forward", "flow_backward",
+                "flow_forward_change", "flow_backward_change"]
 
 # Layout
 app.layout = html.Div([
@@ -55,12 +60,9 @@ app.layout = html.Div([
                             html.Div(dcc.Slider(id="w3", min=0, max=2, value=1),
                                      style={"flex": 1}),
                         ], style={"display": "flex", "gap": "20px", "marginBottom": "15px"}),
-
-
                     ],
                     style={"display": "none", "marginTop": "15px"}
                 ),
-
                 dcc.Graph(id="bumpchart"),
             ], style={
                 "flex": 1, "border": "1px solid #ddd", "padding": "1px",
@@ -68,13 +70,14 @@ app.layout = html.Div([
             }),
 
             # ---------- TOP RIGHT ----------
-            html.Div([ #top right
-                html.Div([ #controls
-                    html.Div([ #r1
+            html.Div([
+                html.Div([
+                    html.Div([
                         html.Div("Projection method", style={"textAlign": "center", "flex": 1}),
-                        html.Div("n_neighbors (UMAP) / perplexity (t-SNE)", style={"textAlign": "center", "flex": 1}),
+                        html.Div("n_neighbors (UMAP) / perplexity (t-SNE)",
+                                 style={"textAlign": "center", "flex": 1}),
                     ], style={"display": "flex", "gap": "20px"}),
-                    html.Div([ #r2
+                    html.Div([
                         html.Div(
                             dcc.Dropdown(
                                 id="projection-method",
@@ -84,8 +87,8 @@ app.layout = html.Div([
                                 ],
                                 value="umap",
                                 clearable=False
-                            )
-                            ,style={"flex": 1}
+                            ),
+                            style={"flex": 1}
                         ),
                         html.Div(
                             dcc.Slider(
@@ -96,8 +99,8 @@ app.layout = html.Div([
                                 value=15,
                                 marks=None,
                                 tooltip={"placement": "bottom", "always_visible": True}
-                            )
-                            ,style={"flex": 1}
+                            ),
+                            style={"flex": 1}
                         )
                     ], style={"display": "flex", "gap": "20px"})
                 ], style={"display": "block", "marginTop": "15px"}),
@@ -110,16 +113,61 @@ app.layout = html.Div([
                 "box-sizing": "border-box"
             }),
         ], style={
-                "display": "flex", "flex-direction": "row", "width": "100%",
+            "display": "flex", "flex-direction": "row", "width": "100%",
         }),
+
         html.Div([
-            # ---------- BOTTOM LEFT ----------
+            # ---------- BOTTOM LEFT (DAG) ----------
             html.Div([
-                html.H3("Bottom-left quadrant"),
-                html.Div("Placeholder for plot 3...")
+                html.Div([
+                    html.Div([
+                        html.Div("Flow attribute", style={"textAlign": "center", "flex": 1}),
+                        html.Div("Truncation (%)", style={"textAlign": "center", "flex": 1}),
+                    ], style={"display": "flex", "gap": "20px"}),
+                    html.Div([
+                        html.Div(
+                            dcc.Dropdown(
+                                id="flow-attr",
+                                options=[{"label": f, "value": f} for f in flow_options],
+                                value="flow_forward",
+                                clearable=False
+                            ),
+                            style={"flex": 1}
+                        ),
+                        html.Div(
+                            dcc.Slider(
+                                id="truncation-pct",
+                                min=0,
+                                max=100,
+                                step=5,
+                                value=0,
+                                marks={0: '0%', 50: '50%', 100: '100%'},
+                                tooltip={"placement": "bottom", "always_visible": True}
+                            ),
+                            style={"flex": 1}
+                        )
+                    ], style={"display": "flex", "gap": "20px", "marginBottom": "10px"})
+                ], style={"display": "block", "marginTop": "10px"}),
+
+                cyto.Cytoscape(
+                    id='dag-graph',
+                    layout={
+                        'name': 'dagre',
+                        'directed': True,
+                        'spacingFactor': 1.0,
+                        'animate': False
+                    },
+                    style={'width': '100%', 'height': '45vh'},
+                    elements=[],
+                    stylesheet=[]
+                )
             ], style={
-                    "flex": 1, "border": "1px solid #ddd", "padding": "1px",
-                    "height": "50vh", "box-sizing": "border-box"
+                "flex": 1,
+                "border": "1px solid #ddd",
+                "padding": "10px",
+                "height": "50vh",
+                "box-sizing": "border-box",
+                "overflow": "hidden"
             }),
 
             # ---------- BOTTOM RIGHT ----------
@@ -127,16 +175,17 @@ app.layout = html.Div([
                 html.H3("Bottom-right quadrant"),
                 html.Div("Placeholder for plot 4...")
             ], style={
-                "width": "50%", "height":"50vh", "float": "left",
-                "border": "1px solid #ddd", "padding": "1px"
+                "flex": 1,
+                "border": "1px solid #ddd",
+                "padding": "1px",
+                "height": "50vh",
+                "box-sizing": "border-box"
             })
         ], style={
-                "display": "flex", "flex-direction": "row", "width": "100%",
+            "display": "flex", "flex-direction": "row", "width": "100%",
         }),
     ])
 ])
-
-
 
 
 # Bump custom weights logic
@@ -148,7 +197,6 @@ def toggle_custom_weights(metric):
     if metric == "Custom Reward":
         return {"display": "block"}
     return {"display": "none"}
-
 
 
 # Bump Callback
@@ -172,6 +220,18 @@ def chart_callback(metric, method, w1, w2, w3):
 )
 def update_projection(method, param_value):
     return update_state_space(metadata_objects, features_objects, method=method, param_value=param_value)
+
+
+# DAG Callback
+@app.callback(
+    [Output("dag-graph", "elements"),
+     Output("dag-graph", "stylesheet")],
+    Input("flow-attr", "value"),
+    Input("truncation-pct", "value")
+)
+def update_dag_callback(flow_attr, truncation_pct):
+    result = update_DAG(dag_data, flow_attr=flow_attr, truncation_pct=truncation_pct)
+    return result['elements'], result['stylesheet']
 
 
 # Run the dashboard

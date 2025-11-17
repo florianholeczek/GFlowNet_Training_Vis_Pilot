@@ -2,7 +2,6 @@ import dash
 from dash import dcc, html, Input, Output
 import dash_cytoscape as cyto
 from plot_utils import *
-cyto.load_extra_layouts()
 
 # Load data
 data_objects = pd.read_csv('data_objects.csv')
@@ -16,6 +15,9 @@ metadata_objects, features_objects = prepare_state_space(data_objects, metadata_
 dag_data = prepare_DAG('data_trajectories.csv', n_trajectories=200)
 
 app = dash.Dash(__name__)
+
+# Load extra layouts for cytoscape
+cyto.load_extra_layouts()
 
 metrics = ["reward_ranked", "frequency", "reward1", "reward2",
            "reward3", "reward_total", "Custom Reward"]
@@ -123,6 +125,7 @@ app.layout = html.Div([
                     html.Div([
                         html.Div("Flow attribute", style={"textAlign": "center", "flex": 1}),
                         html.Div("Truncation (%)", style={"textAlign": "center", "flex": 1}),
+                        html.Div("Layout", style={"textAlign": "center", "flex": 1}),
                     ], style={"display": "flex", "gap": "20px"}),
                     html.Div([
                         html.Div(
@@ -145,6 +148,19 @@ app.layout = html.Div([
                                 tooltip={"placement": "bottom", "always_visible": True}
                             ),
                             style={"flex": 1}
+                        ),
+                        html.Div(
+                            dcc.Dropdown(
+                                id="dag-layout",
+                                options=[
+                                    {"label": "Klay", "value": "klay"},
+                                    {"label": "Dagre", "value": "dagre"},
+                                    {"label": "Breadthfirst", "value": "breadthfirst"}
+                                ],
+                                value="klay",
+                                clearable=False
+                            ),
+                            style={"flex": 1}
                         )
                     ], style={"display": "flex", "gap": "20px", "marginBottom": "10px"})
                 ], style={"display": "block", "marginTop": "10px"}),
@@ -152,7 +168,7 @@ app.layout = html.Div([
                 cyto.Cytoscape(
                     id='dag-graph',
                     layout={
-                        'name': 'dagre',
+                        'name': 'klay',
                         'directed': True,
                         'spacingFactor': 1.0,
                         'animate': False
@@ -225,13 +241,33 @@ def update_projection(method, param_value):
 # DAG Callback
 @app.callback(
     [Output("dag-graph", "elements"),
-     Output("dag-graph", "stylesheet")],
+     Output("dag-graph", "stylesheet"),
+     Output("dag-graph", "layout")],
     Input("flow-attr", "value"),
-    Input("truncation-pct", "value")
+    Input("truncation-pct", "value"),
+    Input("dag-layout", "value")
 )
-def update_dag_callback(flow_attr, truncation_pct):
+def update_dag_callback(flow_attr, truncation_pct, layout_name):
     result = update_DAG(dag_data, flow_attr=flow_attr, truncation_pct=truncation_pct)
-    return result['elements'], result['stylesheet']
+
+    # Configure layout based on selection
+    layout_config = {
+        'name': layout_name,
+        'directed': True,
+        'animate': False
+    }
+
+    # Add layout-specific parameters
+    if layout_name == 'klay':
+        layout_config['spacingFactor'] = 1.0
+    elif layout_name == 'dagre':
+        layout_config['spacingFactor'] = 1.0
+        layout_config['rankDir'] = 'LR'  # Left to right
+    elif layout_name == 'breadthfirst':
+        layout_config['spacingFactor'] = 1.5
+        layout_config['roots'] = '[id = "START"]'
+
+    return result['elements'], result['stylesheet'], layout_config
 
 
 # Run the dashboard

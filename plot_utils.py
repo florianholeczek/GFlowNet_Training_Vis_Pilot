@@ -7,7 +7,6 @@ from umap import UMAP
 from collections import defaultdict
 
 
-
 def prepare_DAG(csv_path, n_trajectories=8):
     """
     Prepare DAG data structure from trajectory CSV.
@@ -252,7 +251,7 @@ def update_DAG(dag_data, flow_attr='flow_forward', truncation_pct=0):
     flow_values = []
     for edge in edges:
         flow_val = edge['data'].get(flow_attr, 0)
-        flow_values.append(flow_val)
+        flow_values.append(abs(flow_val))
 
     edges_to_keep = set()
     if truncation_pct < 100:
@@ -265,7 +264,7 @@ def update_DAG(dag_data, flow_attr='flow_forward', truncation_pct=0):
             threshold = sorted_flows[min(threshold_idx - 1, len(sorted_flows) - 1)]
 
             for edge in edges:
-                if edge['data'].get(flow_attr, 0) >= threshold:
+                if abs(edge['data'].get(flow_attr, 0)) >= threshold:
                     edges_to_keep.add(edge['data']['id'])
 
     # Apply truncation if needed
@@ -285,17 +284,21 @@ def update_DAG(dag_data, flow_attr='flow_forward', truncation_pct=0):
     else:
         vmin, vmax = 0, 1
 
-    # Create color mapping using viridis
-    def get_color(value, vmin, vmax):
+    # Select colorscale based on flow attribute
+    if flow_attr in ['flow_forward', 'flow_backward']:
+        colorscale = px.colors.sequential.Emrld
+    else:  # flow_forward_change or flow_backward_change
+        colorscale = px.colors.diverging.BrBG
+
+    # Create color mapping
+    def get_color(value, vmin, vmax, colorscale):
         if vmax == vmin:
             norm = 0.5
         else:
             norm = (value - vmin) / (vmax - vmin)
 
-        # Viridis colormap approximation
-        colors = px.colors.sequential.Redor
-        idx = int(norm * (len(colors) - 1))
-        return colors[idx]
+        idx = int(norm * (len(colorscale) - 1))
+        return colorscale[idx]
 
     # Build stylesheet
     elements = nodes + edges
@@ -362,7 +365,7 @@ def update_DAG(dag_data, flow_attr='flow_forward', truncation_pct=0):
             color = '#999999'
         else:
             flow_val = edge['data'].get(flow_attr, 0)
-            color = get_color(flow_val, vmin, vmax)
+            color = get_color(flow_val, vmin, vmax, colorscale)
 
         stylesheet.append({
             'selector': f'edge[id = "{edge_id}"]',
@@ -376,6 +379,7 @@ def update_DAG(dag_data, flow_attr='flow_forward', truncation_pct=0):
         'elements': elements,
         'stylesheet': stylesheet
     }
+
 
 def prepare_state_space(data_objects, metadata_to=7):
     """
@@ -423,7 +427,7 @@ def update_state_space(metadata, features, method="umap", param_value=15):
         size='reward_total',
         hover_data=['smiles', 'reward_total'],
         opacity=0.6,
-        color_continuous_scale="redor",
+        color_continuous_scale="emrld",
         #height=500,
         #width=500,
         #title=f"{method.upper()} Projection"

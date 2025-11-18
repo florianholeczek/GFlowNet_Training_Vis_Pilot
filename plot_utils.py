@@ -295,7 +295,8 @@ def prepare_DAG(csv_path, n_trajectories=8):
                         'smiles': row['smiles'],
                         'node_type': "final" if state == "final" else "intermediate",
                         'step': step,
-                        'valid': row['valid']
+                        'valid': row['valid'],
+                        'image': row['image'],
                     }
                 })
                 node_set.add(node_id)

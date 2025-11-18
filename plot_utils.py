@@ -663,17 +663,24 @@ def update_state_space(metadata, features, method="umap", param_value=15):
         y='Y',
         color='iteration',
         size='reward_total',
-        hover_data=['smiles', 'reward_total'],
+        #hover_data=['smiles', 'reward_total'],
         opacity=0.6,
         color_continuous_scale="emrld",
         #height=500,
         #width=500,
         #title=f"{method.upper()} Projection"
     )
+    fig.update_traces(
+        customdata=df[['iteration', 'reward_total', 'images']].values,
+        hoverinfo="none",
+        hovertemplate=None,
+    ),
+
     fig.update_layout(
         autosize=True,
         coloraxis_colorbar=dict(title="Iteration")
     )
+
     return fig
 
 

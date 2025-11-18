@@ -90,7 +90,7 @@ app.layout = html.Div([
                                     {"label": "UMAP", "value": "umap"},
                                     {"label": "t-SNE", "value": "tsne"}
                                 ],
-                                value="umap",
+                                value="tsne",
                                 clearable=False
                             ),
                             style={"flex": 1}
@@ -109,7 +109,9 @@ app.layout = html.Div([
                         )
                     ], style={"display": "flex", "gap": "20px"})
                 ], style={"display": "block", "marginTop": "15px"}),
-                html.Div(dcc.Graph(id="state-space-plot"), style={"height": "90%", "width": "100%"})
+                html.Div(dcc.Graph(id="state-space-plot", clear_on_unhover=True),
+                         style={"height": "90%", "width": "100%"}),
+                dcc.Tooltip(id="image-tooltip", direction="right"),
             ], style={
                 "flex": 1,
                 "border": "1px solid #ddd",
@@ -321,6 +323,35 @@ def update_dag_callback(flow_attr, trajectory_truncation, edge_truncation, layou
 
     return result['elements'], result['stylesheet'], layout_config, result['legend'], trajectory_truncation
 
+@app.callback(
+    Output("image-tooltip", "show"),
+    Output("image-tooltip", "bbox"),
+    Output("image-tooltip", "children"),
+    Input("state-space-plot", "hoverData"),
+)
+def display_image_tooltip(hoverData):
+    if hoverData is None:
+        return False, None, None
+
+    # Extract bounding box for positioning
+    bbox = hoverData["points"][0]["bbox"]
+
+    # Extract base64 image saved in customdata
+    iteration, reward, image_b64 = hoverData["points"][0]["customdata"]
+
+    # Build HTML content
+    children = [
+        html.Div([
+            html.Img(
+                src=f"data:image/svg+xml;base64,{image_b64}",
+                style={"width": "150px", "height": "150px"}
+            ),
+            html.Div(f"Iteration: {iteration}"),
+            html.Div(f"Reward: {reward:.3f}"),
+        ])
+    ]
+
+    return True, bbox, children
 
 # Run the dashboard
 if __name__ == "__main__":

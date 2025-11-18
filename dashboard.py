@@ -68,7 +68,8 @@ app.layout = html.Div([
                     style={"display": "none", "marginTop": "15px"}
                 ),
                 html.Div(
-                    dcc.Graph(id="bumpchart"), style={"height": "90%", "width": "100%"}),
+                    dcc.Graph(id="bumpchart", clear_on_unhover=True), style={"height": "90%", "width": "100%"}),
+                dcc.Tooltip(id="image-tooltip3", direction='left'),
             ], style={
                 "flex": 1, "border": "1px solid #ddd", "padding": "5px",
                 "height": "49vh", "box-sizing": "border-box", "overflow": "hidden",
@@ -331,7 +332,7 @@ def update_dag_callback(flow_attr, trajectory_truncation, edge_truncation, layou
     Output("image-tooltip1", "children"),
     Input("state-space-plot", "hoverData"),
 )
-def display_image_tooltip(hoverData):
+def display_image_tooltip1(hoverData):
     if hoverData is None:
         return False, None, None
 
@@ -362,7 +363,7 @@ def display_image_tooltip(hoverData):
     Output("image-tooltip2", "children"),
     Input("trajectory-plot", "hoverData"),
 )
-def display_image_tooltip(hoverData):
+def display_image_tooltip2(hoverData):
     if hoverData is None:
         return False, None, None
 
@@ -379,6 +380,37 @@ def display_image_tooltip(hoverData):
                 src=f"data:image/svg+xml;base64,{image_b64}",
                 style={"width": "150px", "height": "150px"}
             ),
+        ])
+    ]
+
+    return True, bbox, children
+
+
+#hover bump plot
+@app.callback(
+    Output("image-tooltip3", "show"),
+    Output("image-tooltip3", "bbox"),
+    Output("image-tooltip3", "children"),
+    Input("bumpchart", "hoverData"),
+)
+def display_image_tooltip3(hoverData):
+    if hoverData is None:
+        return False, None, None
+
+    # Extract bounding box for positioning
+    bbox = hoverData["points"][0]["bbox"]
+
+    # Extract base64 image saved in customdata
+    value, image_b64 = hoverData["points"][0]["customdata"]
+
+    # Build HTML content
+    children = [
+        html.Div([
+            html.Img(
+                src=f"data:image/svg+xml;base64,{image_b64}",
+                style={"width": "150px", "height": "150px"}
+            ),
+            html.Div(f"Value: {value:.3f}"),
         ])
     ]
 

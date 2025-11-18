@@ -791,6 +791,12 @@ def update_bump(df, color_map, metric, method, w1, w2, w3, n_top):
             .max() \
             .reset_index(name="value")
 
+    tmp = tmp.merge(
+        df_local[['smiles', 'images']].drop_duplicates(subset='smiles'),
+        on='smiles',
+        how='left'
+    )
+
     # ------------ select top objects ------------
     if metric != "reward_ranked":
         top_objects = (
@@ -825,8 +831,11 @@ def update_bump(df, color_map, metric, method, w1, w2, w3, n_top):
                 name=obj,
                 line=dict(color=color_map.get(obj, "black")),
                 marker=dict(color=color_map.get(obj, "black")),
-                hovertemplate='Smiles: %{text}<br>Iteration: %{x}<br>Value: %{y}<extra></extra>',
-                text=obj_df["smiles"],
+                #hovertemplate='Smiles: %{text}<br>Iteration: %{x}<br>Value: %{y}<extra></extra>',
+                #text=obj_df["smiles"],
+                hoverinfo='none',
+                hovertemplate='',
+                customdata=obj_df[['value', 'images']].values  # only images
             )
         )
 

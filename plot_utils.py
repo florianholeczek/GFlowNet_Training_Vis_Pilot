@@ -120,7 +120,8 @@ def update_state_space_t(data_trajectories, method, param_value, n_trajectories)
             opacity=0.15,
             name=f'Trajectory {final_id}',
             showlegend=False,
-            hoverinfo='skip'
+            #hoverinfo='skip'
+            customdata=traj_data[['images']].values
         ))
 
     # Add start points
@@ -140,7 +141,7 @@ def update_state_space_t(data_trajectories, method, param_value, n_trajectories)
             name=f'Start {final_id}',
             showlegend=False,
             hovertemplate='<b>Start</b><br>SMILES: %{customdata[0]}<extra></extra>',
-            customdata=fd[['smiles']].values
+            customdata=fd[['images']].values
         ))
 
     # Add final points
@@ -160,8 +161,14 @@ def update_state_space_t(data_trajectories, method, param_value, n_trajectories)
             name=f'Final {final_id}',
             showlegend=False,
             hovertemplate='<b>Final</b><br>SMILES: %{customdata[0]}<extra></extra>',
-            customdata=fd[['smiles']].values
+            customdata=fd[['images']].values
         ))
+
+    fig.update_traces(
+        #customdata=plot_data[['images']].values,
+        hoverinfo="none",
+        hovertemplate=None,
+    )
 
     # Update layout
     fig.update_layout(

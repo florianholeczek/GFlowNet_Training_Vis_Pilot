@@ -111,7 +111,7 @@ app.layout = html.Div([
                 ], style={"display": "block", "marginTop": "15px"}),
                 html.Div(dcc.Graph(id="state-space-plot", clear_on_unhover=True),
                          style={"height": "90%", "width": "100%"}),
-                dcc.Tooltip(id="image-tooltip", direction="right"),
+                dcc.Tooltip(id="image-tooltip1"),
             ], style={
                 "flex": 1,
                 "border": "1px solid #ddd",
@@ -214,9 +214,10 @@ app.layout = html.Div([
             # ---------- BOTTOM RIGHT (TRAJECTORY VISUALIZATION) ----------
             html.Div([
                 html.Div(
-                    dcc.Graph(id="trajectory-plot"),
+                    dcc.Graph(id="trajectory-plot", clear_on_unhover=True),
                     style={"height": "100%", "width": "100%"}
-                )
+                ),
+                dcc.Tooltip(id="image-tooltip2"),
             ], style={
                 "flex": 1,
                 "border": "1px solid #ddd",
@@ -323,10 +324,11 @@ def update_dag_callback(flow_attr, trajectory_truncation, edge_truncation, layou
 
     return result['elements'], result['stylesheet'], layout_config, result['legend'], trajectory_truncation
 
+#hover state space
 @app.callback(
-    Output("image-tooltip", "show"),
-    Output("image-tooltip", "bbox"),
-    Output("image-tooltip", "children"),
+    Output("image-tooltip1", "show"),
+    Output("image-tooltip1", "bbox"),
+    Output("image-tooltip1", "children"),
     Input("state-space-plot", "hoverData"),
 )
 def display_image_tooltip(hoverData):
@@ -348,6 +350,35 @@ def display_image_tooltip(hoverData):
             ),
             html.Div(f"Iteration: {iteration}"),
             html.Div(f"Reward: {reward:.3f}"),
+        ])
+    ]
+
+    return True, bbox, children
+
+#hover state space trajectories
+@app.callback(
+    Output("image-tooltip2", "show"),
+    Output("image-tooltip2", "bbox"),
+    Output("image-tooltip2", "children"),
+    Input("trajectory-plot", "hoverData"),
+)
+def display_image_tooltip(hoverData):
+    if hoverData is None:
+        return False, None, None
+
+    # Extract bounding box for positioning
+    bbox = hoverData["points"][0]["bbox"]
+
+    # Extract base64 image saved in customdata
+    image_b64 = hoverData["points"][0]["customdata"][0]
+
+    # Build HTML content
+    children = [
+        html.Div([
+            html.Img(
+                src=f"data:image/svg+xml;base64,{image_b64}",
+                style={"width": "150px", "height": "150px"}
+            ),
         ])
     ]
 

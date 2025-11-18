@@ -205,7 +205,11 @@ def create_molecule_dataset(
     data['id'] = range(1, len(data) + 1)
     data['iteration'] = data['id']%20 * 500
     data["images"] = data["smiles"].apply(
-        lambda s: Draw.MolsToGridImage([Chem.MolFromSmiles(s)], useSVG=True)
+        lambda s: Draw.MolsToGridImage(
+            [Chem.MolFromSmiles(s, sanitize=False)],
+            molsPerRow=1,
+            subImgSize=(200, 200),
+            useSVG=True)
     ).apply(
         lambda svg: base64.b64encode(svg.encode()).decode()
     )
@@ -294,7 +298,11 @@ def create_molecule_dataset(
 
     # images
     data_trajectories["images"] = data_trajectories["smiles"].apply(
-        lambda s: Draw.MolsToGridImage([Chem.MolFromSmiles(s)], useSVG=True)
+        lambda s: Draw.MolsToGridImage(
+            [Chem.MolFromSmiles(s, sanitize=False)],
+            molsPerRow=1,
+            subImgSize=(200, 200),
+            useSVG=True)
     ).apply(
         lambda svg: base64.b64encode(svg.encode()).decode()
     )

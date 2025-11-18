@@ -296,7 +296,7 @@ def prepare_DAG(csv_path, n_trajectories=8):
                         'node_type': "final" if state == "final" else "intermediate",
                         'step': step,
                         'valid': row['valid'],
-                        'image': row['image'],
+                        'image': f"data:image/svg+xml;base64,{row['images']}",
                     }
                 })
                 node_set.add(node_id)
@@ -535,42 +535,52 @@ def update_DAG(dag_data, flow_attr='flow_forward', truncation_pct=0):
         {
             'selector': 'node',
             'style': {
-                'background-color': '#bababa',
-                'label': 'data(label)',
-                'text-valign': 'center',
-                'text-halign': 'center',
-                'font-size': '8px',
-                'width': '60px',
-                'height': '60px',
-                'border-width': '2px',
-                'border-color': '#000000',
-                'text-wrap': 'wrap',
-                'text-max-width': '55px'
+                'background-color': '#fff',
+                'background-image': 'data(image)',
+                'background-fit': 'contain',
+                'background-clip': 'none',
+                'label': '',  # Hide label when showing image
+                'shape': 'round-rectangle',
+                'width': '40px',
+                'height': '40px',
+                'border-width': '1px',
+                'border-color': '#616161'
             }
         },
-        # START node
+        # START node (keep text label)
         {
             'selector': 'node[node_type = "start"]',
             'style': {
                 'background-color': '#BAEB9D',
+                'background-image': 'none',  # No image for start node
+                'label': 'data(label)',
+                'text-valign': 'center',
+                'text-halign': 'center',
+                'font-size': '12px',
                 'shape': 'diamond',
-                'width': '60px',
-                'height': '60px',
+                'width': '40px',
+                'height': '40px',
                 'border-color': '#000000',
+                'border-width': '2px',
                 'font-weight': 'bold',
-                'font-size': '12px'
+                'text-wrap': 'wrap',
+                'text-max-width': '55px'
             }
         },
-        # Final node
+        # Final node (show image)
         {
             'selector': 'node[node_type = "final"]',
             'style': {
-                'background-color': '#60B388',
-                'shape': 'rectangle',
-                'width': '80px',
-                'height': '60px',
-                'border-color': '#000000',
-                'font-weight': 'bold'
+                'background-color': '#fff',
+                'background-image': 'data(image)',
+                'background-fit': 'contain',
+                'background-clip': 'none',
+                'label': '',  # Hide label for final nodes
+                'shape': 'round-rectangle',
+                'width': '60px',
+                'height': '45px',
+                'border-width': '2px',
+                'border-color': '#000000'
             }
         },
         # Default edge style

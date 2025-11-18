@@ -9,7 +9,7 @@ data_trajectories = pd.read_csv('data_trajectories.csv')
 
 # Prepare Charts
 data_bump, color_map = prepare_bump(data_objects)
-metadata_objects, features_objects = prepare_state_space(data_objects, metadata_to=7)
+metadata_objects, features_objects = prepare_state_space(data_objects, metadata_to=8)
 
 # Prepare DAG
 global dag_data

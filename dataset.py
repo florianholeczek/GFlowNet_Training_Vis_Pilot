@@ -1,13 +1,12 @@
 import numpy as np
 import pandas as pd
-import random
 
 from rdkit import Chem
-from rdkit.Chem import AllChem
-from rdkit.Chem import rdmolops
+from rdkit.Chem import Draw
 from rdkit import DataStructs
 import random
 import os
+import base64
 from tqdm import tqdm
 from rdkit.Chem import rdFingerprintGenerator
 from rdkit import RDLogger
@@ -202,9 +201,14 @@ def create_molecule_dataset(
         duplicates = data.iloc[dup_indices].copy()
         data = pd.concat([data, duplicates], ignore_index=True)
 
-    # Assign unique IDs
+    # Assign unique IDs and images
     data['id'] = range(1, len(data) + 1)
     data['iteration'] = data['id']%20 * 500
+    data["images"] = data["smiles"].apply(
+        lambda s: Draw.MolsToGridImage([Chem.MolFromSmiles(s)], useSVG=True)
+    ).apply(
+        lambda svg: base64.b64encode(svg.encode()).decode()
+    )
 
     # --- Step 4: Generate fingerprints ---
     print("4. fingerprints")
@@ -219,7 +223,7 @@ def create_molecule_dataset(
     data_objects = pd.concat([data, fp_df], axis=1)
 
     # --- Step 5: Deconstruct molecules to build trajectories ---
-    print("5. deconstruct")
+    print("5. deconstruct and images")
     traj_records = []
 
     for _, row in tqdm(data_objects.iterrows()):
@@ -234,6 +238,7 @@ def create_molecule_dataset(
             'step': step,
             'smiles': smi,
             'iteration': row['iteration'],
+            'reward': row['reward_total'],
             'state': 'final',
             'valid': True
         })
@@ -287,6 +292,13 @@ def create_molecule_dataset(
     data_trajectories['flows_backward'] = np.random.exponential(scale=2, size=len(data_trajectories)).clip(0.01, 10)
     #data_trajectories.loc[data_trajectories["state"] == "final", ["flows_forward", "flows_backward"]] = np.nan
 
+    # images
+    data_trajectories["images"] = data_trajectories["smiles"].apply(
+        lambda s: Draw.MolsToGridImage([Chem.MolFromSmiles(s)], useSVG=True)
+    ).apply(
+        lambda svg: base64.b64encode(svg.encode()).decode()
+    )
+
     # --- Step 6: Fingerprints for trajectory molecules ---
     print("6. trajectories fingerprints")
     fps_traj = []
@@ -329,7 +341,7 @@ if __name__ == "__main__":
     create_molecule_dataset(
         "smiles_start.txt",
         n_unique=100,
-        repeat_fraction=1.2,
+        repeat_fraction=1,
         output_dir='.',
         fingerprint_bits=1024,
         fingerprint_radius=2,

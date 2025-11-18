@@ -26,7 +26,7 @@ def update_state_space_t(data_trajectories, method, param_value, n_trajectories)
     --------
     plotly.graph_objects.Figure
     """
-    metadata_to = 9
+    metadata_to = 11
 
     # Filter trajectories
     data = data_trajectories[
@@ -608,7 +608,7 @@ def update_DAG(dag_data, flow_attr='flow_forward', truncation_pct=0):
     }
 
 
-def prepare_state_space(data_objects, metadata_to=7):
+def prepare_state_space(data_objects, metadata_to=8):
     """
     Prepares the data for downprojection
     :param data_objects: data_objects

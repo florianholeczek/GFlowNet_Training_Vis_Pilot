@@ -668,10 +668,10 @@ def update_state_space(metadata, features, method="umap", param_value=15):
         df,
         x='X',
         y='Y',
-        color='iteration',
-        size='reward_total',
+        color='reward_total',
+        #size='reward_total',
         #hover_data=['smiles', 'reward_total'],
-        opacity=0.6,
+        opacity=0.9,
         color_continuous_scale="emrld",
         #height=500,
         #width=500,
@@ -685,7 +685,7 @@ def update_state_space(metadata, features, method="umap", param_value=15):
 
     fig.update_layout(
         autosize=True,
-        coloraxis_colorbar=dict(title="Iteration")
+        coloraxis_colorbar=dict(title="Reward")
     )
 
     return fig

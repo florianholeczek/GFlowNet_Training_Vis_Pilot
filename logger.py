@@ -26,11 +26,14 @@ class VisLogger:
         :param fn_state_to_image: Optional.
             Function to convert a batch of states to a list of images.
             The images are expected to be base64 encoded strings in png or svg format.
-            Their size can be small (<=300x300)
+            Their size can be small (<=200x200)
         :param fn_compute_features: Optional.
             Function to compute features from the states.
             Should take the states in the same format as given (torch Tensor, np array or list)
-            and return a np array of size (sum(trajectory_lengths), n_features).
+            and return a tuple consisting of:
+                1. A np array of size (sum(trajectory_lengths), n_features) containing the features
+                2. A list(bool) that tells for each state if the feature computation was successful.
+                Unsuccessful states are skipped in the trajectory visualizations
             These will be used for the downprojections.
             Additional features can also be logged with the features parameter
         :param rewards: Optional.
@@ -44,7 +47,7 @@ class VisLogger:
             The features will be used for the downprojections.
             If features can be calculated from the states you can additionally use the fn_compute_features parameter.
         """
-        self.csv = f"{path}data_trajectories.csv"
+        self.csv = f"{path}logdata.csv"
         self.rewards = rewards
         self.features = features
         self.top_n = top_n
@@ -89,12 +92,11 @@ class VisLogger:
         }
         self.top.update({name: None for name in rewards or []})
         self.top.update({name: None for name in features or []})
-        print(self.current, self.top)
 
     def log(
             self,
             batch_idx: np.ndarray | torch.Tensor | None,
-            states: np.ndarray | torch.Tensor | None,
+            states: np.ndarray | torch.Tensor | list | None,
             total_rewards: np.ndarray | torch.Tensor | None,
             iteration: int | None,
             logprobs_forward: np.ndarray | torch.Tensor | None,
@@ -138,7 +140,9 @@ class VisLogger:
         if batch_idx is not None:
             self.current["batch_idx"] = to_np(batch_idx, np.int16)
         if states is not None:
-            if isinstance(self.current["states"], torch.Tensor):
+            if isinstance(states, list):
+                self.current["states"] = states
+            elif isinstance(states, torch.Tensor):
                 self.current["states"] = states.detach().cpu()
             else:
                 self.current["states"] = to_np(states, np.float16)
@@ -195,8 +199,14 @@ class VisLogger:
                 self.top["batch_idx"] = combined[idx]
                 self.current["iteration"] = np.array([self.current["iteration"]]*datalength)
 
+                if isinstance(self.current["states"], list):
+                    masked = [x for x, keep in zip(self.current["states"], mask_t) if keep]
+                    combined = self.top["states"] + masked
+                    self.top["states"] = [x for x, keep in zip(combined, idx) if keep]
+                else:
+                    self.top["states"] = np.concatenate((self.top["states"], self.current["states"][mask_t]), axis=0)[idx]
+
                 for i in [
-                    "states",
                     "logprobs_forward",
                     "logprobs_backward",
                     "iteration",
@@ -211,8 +221,13 @@ class VisLogger:
 
             trajectory_idx = np.isin(self.current["batch_idx"], idx)
             self.top["iteration"] = np.array([self.current["iteration"]]*datalength)[trajectory_idx]
+
+            if isinstance(self.current["states"], list):
+                self.top["states"] = [x for x, keep in zip(self.current["states"], trajectory_idx) if keep]
+            else:
+                self.top["states"] = self.current["states"][trajectory_idx]
+
             for i in  [
-                "states",
                 "logprobs_forward",
                 "logprobs_backward",
                 "batch_idx",
@@ -258,7 +273,8 @@ class VisLogger:
             data["image"] = self.fn_state_to_image(self.top["states"])
 
         if self.fn_compute_features is not None:
-            features = self.fn_compute_features(self.top["states"])
+            features, features_valid = self.fn_compute_features(self.top["states"])
+            data["features_valid"] = features_valid
             for i in range(features.shape[1]):
                 data[f"computed_features_{i}"] = features[:, i]
 

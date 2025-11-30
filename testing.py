@@ -1,8 +1,14 @@
-# Let's import the stuff we need
-import torch
-from gflownet.config import init_empty, Config
-#from gflownet.models.graph_transformer import GraphTransformerGFN
-#from gflownet.envs.graph_building_env import GraphBuildingEnv
-#from gflownet.envs.frag_mol_env import FragMolBuildingEnvContext
-#from gflownet.algo.trajectory_balance import TrajectoryBalance
-print(12)
+import pandas as pd
+
+"""df = pd.read_csv('testset.csv')
+print(len(df))
+df = df[df["final_object"]==True]
+print(len(df))
+df = df.drop(["step", "final_object", "iteration", "logprobs_forward", "logprobs_backward"], axis=1)
+
+print(df.head())
+df.to_csv('testset.csv', index=False)"""
+df = pd.read_csv('train_data.csv')
+print(len(df))
+df = df[df["step"]!=0]
+print(len(df))

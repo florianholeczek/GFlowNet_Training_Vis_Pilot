@@ -9,6 +9,7 @@ class VisLogger:
             self,
             path: str ="./",
             top_n: int = 50,
+            s0_included: bool = True,
             fn_state_to_text: Callable | None = None,
             fn_state_to_image: Callable | None = None,
             fn_compute_features: Callable | None = None,
@@ -19,6 +20,8 @@ class VisLogger:
         A Logger for the visualizations
         :param path: path to save the data
         :param top_n: the top n objects based on total reward will be written to the database.
+        :param s0_included: if True, the trajectories are expected to have the start state included.
+            These will then be removed before writing to the database.
         :param fn_state_to_text: Optional.
             Function to convert a batch of states to a list of readable strings
             to identify a single state.
@@ -51,6 +54,7 @@ class VisLogger:
         self.rewards = rewards
         self.features = features
         self.top_n = top_n
+        self. s0_included = s0_included
         self.fn_state_to_text = fn_state_to_text
         self.fn_state_to_image = fn_state_to_image
         self.fn_compute_features = fn_compute_features
@@ -120,8 +124,15 @@ class VisLogger:
             Expected size: (sum(trajectory_lengths), ).
         :param logprobs_forward: array or tensor of forward logprobabilities.
             Expected size: (sum(trajectory_lengths), ).
+            The logprob of a state s is expected to be the logprob of reaching s, see example in lobprobs_backward.
         :param logprobs_backward: array or tensor of backward logprobabilities.
             Expected size: (sum(trajectory_lengths), ).
+            The lobprob of a state s is expected to be the logprob of reaching s, eg.:
+            state       | logprob_forward   | logprobs_backward
+            s0          | 0                 | logprob(s1->s0)=0
+            s1          | logprob(s0->s1)   | logprob(s2->s1)
+            s2          | logprob(s1->s2)   | logprob(s3->s2)
+            s3 (final)  | logprob(s2->s3)   | 0
         :param rewards: Optional. Additionally logged rewards based on the initialized rewards.
             Total reward is logged seperately.
             A torch Tensor or np array of shape (len(rewards), sum(trajectory_lengths)) or
@@ -285,6 +296,10 @@ class VisLogger:
         if self.features is not None:
             for i in self.features:
                 data[i] = self.top[i]
+
+        # delete s0
+        if self.s0_included:
+            data = data[data["step"]!=0]
 
         # shift final ids for unique identifiers and write
         prev_data = pd.read_csv(self.csv)

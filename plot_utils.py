@@ -711,131 +711,140 @@ def prepare_bump(data):
     return df, color_map
 
 
-
-def update_bump(df, color_map, metric, method, w1, w2, w3, n_top):
+def update_bump(df, metric, n_top):
     """
     Updates the bump chart
     :param df: prepared dataframe
-    :param color_map: prepared color map
-    :param metric: selected metric
-    :param method: selected method
-    :param w1: weight for reward 1
-    :param w2: weight for reward 2
-    :param w3: weight for reward 3
-    :param n_top: number of displayed items based on metric. For ranked nit will be int(n_top/3)*distinct iterations
+    :param metric: selected metric ("reward_total" or "reward_ranked")
+    :param n_top: number of displayed items
     :return: updated plot
     """
+
+    if metric not in ["reward_total", "reward_ranked"]:
+        raise ValueError("metric must be 'reward_total' or 'reward_ranked'")
+
     fig = go.Figure()
     df_local = df.copy()
 
     # ------------ metric handling ------------
-    if metric == "reward_ranked":
-        top5_per_iter = (
-            df_local.groupby("iteration", observed=False)
-            .apply(lambda g: g.nlargest(int(n_top/3), "reward_total"))
-            .reset_index(drop=True)
+
+    # ---------- NORMAL METRIC ----------
+    if metric == "reward_total":
+
+        tmp = (
+            df_local.groupby(["iteration", "smiles"], observed=False)["reward_total"]
+            .max()
+            .reset_index(name="value")
         )
 
-        iters = df_local["iteration"].cat.categories
-        records = []
-        seen = set()
-
-        for it in iters:
-            this_iter = top5_per_iter[top5_per_iter["iteration"] == it]
-            new_objs = this_iter["smiles"].unique()
-            seen.update(new_objs)
-
-            seen_df = df_local[df_local["smiles"].isin(seen)]
-            rank_df = (
-                seen_df[seen_df["iteration"] <= it]
-                .groupby("smiles", observed=False)["reward_total"]
-                .max()
-                .reset_index()
-            )
-            rank_df["rank"] = rank_df["reward_total"].rank(method="first", ascending=False)
-            rank_df["iteration"] = it
-            records.append(rank_df[["iteration", "smiles", "rank"]])
-
-        tmp = pd.concat(records, ignore_index=True)
-        tmp = tmp.rename(columns={"rank": "value"})
-
-    elif metric == "frequency":
-        all_iters = df_local["iteration"].cat.categories
-        all_objs = df_local["smiles"].unique()
-        full_grid = pd.MultiIndex.from_product(
-            [all_iters, all_objs], names=["iteration", "smiles"]
-        ).to_frame(index=False)
-        freq = df_local.groupby(
-            ["iteration", "smiles"], observed=False
-        ).size().reset_index(name="value")
-
-        tmp = pd.merge(full_grid, freq, on=["iteration", "smiles"], how="left").fillna(0)
-
-    elif metric == "Custom Reward":
-        tmp = df_local.copy()
-        if method == "addition":
-            tmp["value"] = (w1 * tmp["reward1"] +
-                            w2 * tmp["reward2"] +
-                            w3 * tmp["reward3"]) / (w1 + w2 + w3)
-        else:
-            tmp["value"] = np.exp(
-                (w1 * np.log(tmp["reward1"]) +
-                w2 * np.log(tmp["reward2"]) +
-                w3 * np.log(tmp["reward3"]))
-                /(w1 + w2 + w3)
-            )
-        tmp = tmp[["iteration", "smiles", "value"]]
-
-    else:
-        tmp = df_local.groupby(["iteration", "smiles"], observed=False)[metric] \
-            .max() \
-            .reset_index(name="value")
-
-    tmp = tmp.merge(
-        df_local[['smiles', 'images']].drop_duplicates(subset='smiles'),
-        on='smiles',
-        how='left'
-    )
-
-    # ------------ select top objects ------------
-    if metric != "reward_ranked":
         top_objects = (
             tmp.groupby("smiles", observed=False)["value"]
             .max()
             .nlargest(n_top)
             .index
         )
+
         tmp = tmp[tmp["smiles"].isin(top_objects)]
+
         sorted_objects = (
             tmp.groupby("smiles", observed=False)["value"]
             .max()
             .sort_values(ascending=False)
             .index
         )
-    else:
+
+    # ---------- RANKED METRIC ----------
+    else:  # reward_ranked
+
+        iters = df_local["iteration"].cat.categories
+
+        records = []
+        seen = set()
+
+        for it in iters:
+            this_iter = df_local[df_local["iteration"] <= it]
+
+            # top_n of ALL iterations seen so far
+            current_top = (
+                this_iter.groupby("smiles", observed=False)["reward_total"]
+                .max()
+                .nlargest(n_top)
+                .index
+            )
+
+            current_top = (
+                this_iter.groupby("smiles", observed=False)["reward_total"]
+                .max()
+                .nlargest(n_top)
+                .index
+            )
+
+            # IMPORTANT: No "seen" anymore
+            current_df = this_iter[this_iter["smiles"].isin(current_top)]
+
+            rank_df = (
+                current_df.groupby("smiles", observed=False)["reward_total"]
+                .max()
+                .reset_index()
+            )
+
+            rank_df["rank"] = rank_df["reward_total"].rank(
+                method="first", ascending=False
+            )
+
+            rank_df["iteration"] = it
+
+            records.append(rank_df[["iteration", "smiles", "rank"]])
+
+        tmp = pd.concat(records, ignore_index=True)
+        tmp = tmp.rename(columns={"rank": "value"})
+
         sorted_objects = (
             tmp.groupby("smiles", observed=False)["value"]
             .min()
-            .sort_values(ascending=False)
+            .sort_values()
             .index
         )
 
-    # ------------ Plot lines ------------
+    # Attach images for hover/marker logic
+    tmp = tmp.merge(
+        df_local[['smiles', 'images']].drop_duplicates(subset='smiles'),
+        on='smiles',
+        how='left'
+    )
+
+    # ----------------- Plot -----------------
+
     for obj in sorted_objects:
+
         obj_df = tmp[tmp["smiles"] == obj].sort_values("iteration")
+
+        # identify where the object is actually present in the iteration
+        present_mask = df_local["smiles"] == obj
+        present_iters = set(df_local[present_mask]["iteration"])
+
+        markers = [
+            "circle" if it in present_iters else None
+            for it in obj_df["iteration"]
+        ]
+
         fig.add_trace(
             go.Scatter(
                 x=obj_df["iteration"],
                 y=obj_df["value"],
                 mode="lines+markers",
+                marker=dict(
+                    symbol="circle",
+                    size=[
+                        10 if ((df_local["smiles"] == obj) & (df_local["iteration"] == it)).any()
+                        else 0
+                        for it in obj_df["iteration"]
+                    ]
+                ),
                 name=obj,
-                line=dict(color=color_map.get(obj, "black")),
-                marker=dict(color=color_map.get(obj, "black")),
-                #hovertemplate='Smiles: %{text}<br>Iteration: %{x}<br>Value: %{y}<extra></extra>',
-                #text=obj_df["smiles"],
-                hoverinfo='none',
-                hovertemplate='',
-                customdata=obj_df[['value', 'images']].values  # only images
+                #marker=dict(symbol='circle-open', size=10),
+                customdata=obj_df[['value', 'images']].values,
+                hovertemplate="Iteration: %{x}<br>Value: %{y}<extra></extra>"
             )
         )
 
@@ -844,7 +853,7 @@ def update_bump(df, color_map, metric, method, w1, w2, w3, n_top):
         title=f"Bump Chart: {metric}",
         showlegend=False,
         xaxis_title="Iteration",
-        yaxis_title="Rank" if metric == "reward ranked" else "Value",
+        yaxis_title="Rank" if metric == "reward_ranked" else "Value",
     )
 
     if metric == "reward_ranked":

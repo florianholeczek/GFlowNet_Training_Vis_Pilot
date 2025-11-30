@@ -255,7 +255,7 @@ def toggle_custom_weights(metric):
     Input("w3", "value"),
 )
 def chart_callback(metric, method, w1, w2, w3):
-    return update_bump(data_bump, color_map, metric, method, w1, w2, w3, n_top=10)
+    return update_bump(data_bump, metric, n_top=10)
 
 
 # State Space Callback

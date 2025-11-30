@@ -275,8 +275,9 @@ class VisLogger:
         if self.fn_compute_features is not None:
             features, features_valid = self.fn_compute_features(self.top["states"])
             data["features_valid"] = features_valid
-            for i in range(features.shape[1]):
-                data[f"computed_features_{i}"] = features[:, i]
+            feature_cols = [f"computed_features_{i}" for i in range(features.shape[1])]
+            features_df = pd.DataFrame(features, columns=feature_cols, index=data.index)
+            data = pd.concat([data, features_df], axis=1)
 
         if self.rewards is not None:
             for i in self.rewards:

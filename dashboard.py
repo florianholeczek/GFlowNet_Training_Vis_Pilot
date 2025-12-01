@@ -42,7 +42,7 @@ app.layout = html.Div([
                     min=0,
                     max=100,
                     step=25,
-                    value=[50, 100],
+                    value=[0, 100],
                     #marks={500: "500", 5000: "5000", 10000: "10000"},
                     tooltip={"placement": "bottom", "always_visible": False}
                 ),
@@ -386,11 +386,14 @@ def chart_callback(iteration):
 @app.callback(
     Output("state-space-plot", "figure"),
     Input("projection-method", "value"),
-    Input("projection-param", "value")
+    Input("projection-param", "value"),
+    Input(  "iteration", "value")
 )
-def update_projection(method, param_value):
+def update_projection(method, param_value, iteration):
     objs = data[data["final_object"] == True]
     objs = objs[objs["features_valid"] == True]
+    objs = objs[objs["iteration"] <= iteration[1]]
+    objs = objs[objs["iteration"] > iteration[0]]
     metadata = objs.iloc[:, :11].reset_index(drop=True)
     features = objs.iloc[:, 11:].reset_index(drop=True)
     #return metadata.reset_index(drop=True), features.reset_index(drop=True)
@@ -403,9 +406,12 @@ def update_projection(method, param_value):
     Input("projection-method", "value"),
     Input("projection-param", "value"),
     Input("limit-trajectories", "value"),
+    Input(  "iteration", "value")
 )
-def update_trajectory_plot(method, param_value, trajectories):
+def update_trajectory_plot(method, param_value, trajectories, iteration):
     tmp = data[data["features_valid"] == True]
+    tmp = tmp[tmp["iteration"] <= iteration[1]]
+    tmp = tmp[tmp["iteration"] > iteration[0]]
     top_ranks = sorted(tmp['reward_ranked'].dropna().unique())[:trajectories]
     tmp = tmp[tmp["reward_ranked"].isin(top_ranks)]
     return update_state_space_t(tmp, method, param_value)
@@ -420,10 +426,13 @@ def update_trajectory_plot(method, param_value, trajectories):
     Input("flow-attr", "value"),
     Input("edge-truncation", "value"),
     Input("dag-layout", "value"),
-    Input("limit-trajectories", "value")
+    Input("limit-trajectories", "value"),
+    Input(  "iteration", "value")
 )
-def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories):
-    tmp = data[data["features_valid"] == True]
+def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories, iteration):
+    tmp = data.iloc[:, :10]
+    tmp = tmp[tmp["iteration"] <= iteration[1]]
+    tmp = tmp[tmp["iteration"] > iteration[0]]
     top_ranks = sorted(tmp['reward_ranked'].dropna().unique())[:trajectories]
     tmp = tmp[tmp["reward_ranked"].isin(top_ranks)]
     graph = prepare_graph(tmp)

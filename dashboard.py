@@ -278,7 +278,7 @@ app.layout = html.Div([
                             'spacingFactor': 1.0,
                             'animate': False
                         },
-                        style={'flex': '1', 'height': '49vh', 'width': '0px'},
+                        style={'flex': '1', 'height': '49vh', 'width': '0px', 'background-color': '#5e5e5e'},
                         elements=[],
                         stylesheet=[]
                     ),

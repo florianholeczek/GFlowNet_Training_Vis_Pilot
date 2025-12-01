@@ -194,6 +194,42 @@ def create_dag_legend(vmin, vmax, colorscale, flow_attr):
     return fig
 
 
+def collapse_consecutive_texts(df, sum_cols=['logprobs_forward', 'logprobs_backward']):
+    """
+    Collapse consecutive identical texts within each trajectory.
+    Sums specified numeric columns and keeps the last value for other columns.
+    """
+    collapsed_rows = []
+
+    for final_id, group in df.groupby('final_id'):
+        group = group.sort_values('step', ascending=True)
+
+        prev_text = None
+        agg_row = None
+
+        for _, row in group.iterrows():
+            if row['text'] == prev_text:
+                # Aggregate sum columns
+                for col in sum_cols:
+                    agg_row[col] += row[col]
+                # Keep the last value for other columns
+                for col in row.index:
+                    if col not in sum_cols + ['text', 'final_id']:
+                        agg_row[col] = row[col]
+            else:
+                # Save previous aggregated row
+                if agg_row is not None:
+                    collapsed_rows.append(agg_row)
+                # Start new aggregation
+                agg_row = row.to_dict()
+                prev_text = row['text']
+
+        # Add the last row
+        if agg_row is not None:
+            collapsed_rows.append(agg_row)
+
+    return pd.DataFrame(collapsed_rows)
+
 
 def prepare_graph(df):
     """
@@ -207,6 +243,7 @@ def prepare_graph(df):
 
     # Sort by final_id and step
     df = df.sort_values(['final_id', 'step'], ascending=[True, True])
+    df = collapse_consecutive_texts(df)
 
     # Create nodes and edges
     nodes = []
@@ -448,6 +485,11 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', truncation_pct=0):
     nodes = dag_data['nodes'].copy()
     edges = dag_data['edges'].copy()
 
+    if flow_attr in ['logprobs_backward', 'logprobs_backward_change']:
+        for edge in edges:
+            edge['data']['source'], edge['data']['target'] = \
+                edge['data']['target'], edge['data']['source']
+
     # Calculate flow values and determine edges to keep
     flow_values = []
     for edge in edges:
@@ -517,10 +559,10 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', truncation_pct=0):
                 'background-clip': 'none',
                 'label': '',  # Hide label when showing image
                 'shape': 'round-rectangle',
-                'width': '40px',
+                'width': '50px',
                 'height': '40px',
                 'border-width': '1px',
-                'border-color': '#616161'
+                'border-color': '#000000'
             }
         },
         # START node (keep text label)
@@ -555,7 +597,7 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', truncation_pct=0):
                 'shape': 'round-rectangle',
                 'width': '60px',
                 'height': '45px',
-                'border-width': '2px',
+                'border-width': '3px',
                 'border-color': '#000000'
             }
         },

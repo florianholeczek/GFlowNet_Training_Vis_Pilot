@@ -26,88 +26,182 @@ metrics = ["reward_ranked", "frequency", "reward1", "reward2",
 flow_options = ["flow_forward", "flow_backward",
                 "flow_forward_change", "flow_backward_change"]
 
-# Layout
 app.layout = html.Div([
-    dcc.Store(id="prev-node-truncation", data=0),
+
+    # ================= LEFT COLUMN (12%) =================
     html.Div([
+
+        html.H4("Controls"),
+
         html.Div([
+
+            # -------- Iterations --------
+            html.Div([
+                html.Div("Iterations", style={"textAlign": "center"}),
+                dcc.RangeSlider(
+                    id="iterations",
+                    min=500,
+                    max=10000,
+                    step=500,
+                    value=[9000, 10000],
+                    marks={500: "500", 5000: "5000", 10000: "10000"},
+                    tooltip={"placement": "bottom", "always_visible": False}
+                ),
+            ], style={
+                "display": "flex",
+                "flexDirection": "column",
+                "gap": "6px"
+            }),
+
+            # -------- Projection method --------
+            html.Div([
+                html.Div("Projection method", style={"textAlign": "center"}),
+                dcc.Dropdown(
+                    id="projection-method",
+                    options=[
+                        {"label": "UMAP", "value": "umap"},
+                        {"label": "t-SNE", "value": "tsne"}
+                    ],
+                    value="tsne",
+                    clearable=False
+                )
+            ], style={
+                "display": "flex",
+                "flexDirection": "column",
+                "gap": "6px"
+            }),
+
+            # -------- Projection param --------
+            html.Div([
+                html.Div(
+                    id="projection-param-label",
+                    style={"textAlign": "center"}
+                ),
+                dcc.Slider(
+                    id="projection-param",
+                    min=5,
+                    max=50,
+                    step=1,
+                    value=15,
+                    marks=None,
+                    tooltip={"placement": "bottom", "always_visible": False}
+                )
+            ], style={
+                "display": "flex",
+                "flexDirection": "column",
+                "gap": "6px"
+            }),
+
+            # -------- Trajectories --------
+            html.Div([
+                html.Div("Trajectories", style={"textAlign": "center"}),
+                dcc.Slider(
+                    id="trajectory-truncation",
+                    min=1,
+                    max=200,
+                    step=5,
+                    value=10,
+                    marks={0: '0', 100: '100', 200: '200'},
+                    tooltip={"placement": "bottom", "always_visible": False}
+                )
+            ], style={
+                "display": "flex",
+                "flexDirection": "column",
+                "gap": "6px"
+            }),
+
+        ], style={
+            "display": "flex",
+            "flexDirection": "column",
+            "gap": "50px"
+        })
+
+    ], style={
+        "width": "12%",
+        "minWidth": "180px",
+        "padding": "12px",
+        "height": "100vh",
+        "borderRight": "1px solid #ddd",
+        "overflow": "auto"
+    })
+    ,
+
+
+    # ================= RIGHT COLUMN (88%) =================
+    html.Div([
+
+        dcc.Store(id="prev-node-truncation", data=0),
+
+        # ================= TOP ROW =================
+        html.Div([
+
             # ---------- TOP LEFT ----------
             html.Div([
                 html.Label("Metric"),
+
                 dcc.Dropdown(
                     id="metric",
                     options=[{"label": m, "value": m} for m in metrics],
                     value="reward_ranked",
                     clearable=False
                 ),
-                html.Div(
-                    dcc.Graph(id="bumpchart", clear_on_unhover=True), style={"height": "90%", "width": "100%"}),
-                dcc.Tooltip(id="image-tooltip3", direction='left'),
-            ], style={
-                "flex": 1, "border": "1px solid #ddd", "padding": "5px",
-                "height": "49vh", "box-sizing": "border-box", "overflow": "hidden",
-            }),
 
-            # ---------- TOP RIGHT ----------
-            html.Div([
-                html.Div([
-                    html.Div([
-                        html.Div("Projection method", style={"textAlign": "center", "flex": 1}),
-                        html.Div("n_neighbors (UMAP) / perplexity (t-SNE)",
-                                 style={"textAlign": "center", "flex": 1}),
-                    ], style={"display": "flex", "gap": "20px"}),
-                    html.Div([
-                        html.Div(
-                            dcc.Dropdown(
-                                id="projection-method",
-                                options=[
-                                    {"label": "UMAP", "value": "umap"},
-                                    {"label": "t-SNE", "value": "tsne"}
-                                ],
-                                value="tsne",
-                                clearable=False
-                            ),
-                            style={"flex": 1}
-                        ),
-                        html.Div(
-                            dcc.Slider(
-                                id="projection-param",
-                                min=5,
-                                max=50,
-                                step=1,
-                                value=15,
-                                marks=None,
-                                tooltip={"placement": "bottom", "always_visible": True}
-                            ),
-                            style={"flex": 1}
-                        )
-                    ], style={"display": "flex", "gap": "20px"})
-                ], style={"display": "block", "marginTop": "15px"}),
-                html.Div(dcc.Graph(id="state-space-plot", clear_on_unhover=True),
-                         style={"height": "90%", "width": "100%"}),
-                dcc.Tooltip(id="image-tooltip1"),
+                html.Div(
+                    dcc.Graph(id="bumpchart", clear_on_unhover=True),
+                    style={"height": "90%", "width": "100%"}
+                ),
+
+                dcc.Tooltip(id="image-tooltip3"),
+
             ], style={
                 "flex": 1,
                 "border": "1px solid #ddd",
                 "padding": "5px",
                 "height": "49vh",
-                "box-sizing": "border-box",
-                "overflow": "hidden",
+                "boxSizing": "border-box",
+                "overflow": "hidden"
             }),
+
+
+            # ---------- TOP RIGHT ----------
+            html.Div([
+
+                html.Div(
+                    dcc.Graph(id="state-space-plot", clear_on_unhover=True),
+                    style={"height": "100%", "width": "100%"}
+                ),
+
+                dcc.Tooltip(id="image-tooltip1"),
+
+            ], style={
+                "flex": 1,
+                "border": "1px solid #ddd",
+                "padding": "5px",
+                "height": "49vh",
+                "boxSizing": "border-box",
+                "overflow": "hidden"
+            }),
+
         ], style={
-            "display": "flex", "flex-direction": "row", "width": "100%",
+            "display": "flex",
+            "flexDirection": "row",
+            "width": "100%"
         }),
 
+
+        # ================= BOTTOM ROW =================
         html.Div([
+
             # ---------- BOTTOM LEFT (DAG) ----------
             html.Div([
+
                 html.Div([
                     html.Div([
                         html.Div("Edge coloring", style={"textAlign": "center", "flex": 1}),
-                        html.Div("Trajectories", style={"textAlign": "center", "flex": 1}),
                         html.Div("Truncate Edges", style={"textAlign": "center", "flex": 1}),
                         html.Div("Layout", style={"textAlign": "center", "flex": 1}),
                     ], style={"display": "flex", "gap": "20px"}),
+
                     html.Div([
                         html.Div(
                             dcc.Dropdown(
@@ -118,18 +212,7 @@ app.layout = html.Div([
                             ),
                             style={"flex": 1}
                         ),
-                        html.Div(
-                            dcc.Slider(
-                                id="trajectory-truncation",
-                                min=1,
-                                max=200,
-                                step=5,
-                                value=10,
-                                marks={0: '0', 100: '100', 200: '200'},
-                                tooltip={"placement": "bottom", "always_visible": True}
-                            ),
-                            style={"flex": 1}
-                        ),
+
                         html.Div(
                             dcc.Slider(
                                 id="edge-truncation",
@@ -142,6 +225,7 @@ app.layout = html.Div([
                             ),
                             style={"flex": 1}
                         ),
+
                         html.Div(
                             dcc.Dropdown(
                                 id="dag-layout",
@@ -155,10 +239,17 @@ app.layout = html.Div([
                             ),
                             style={"flex": 1}
                         )
-                    ], style={"display": "flex", "gap": "20px", "marginBottom": "10px"})
+
+                    ], style={
+                        "display": "flex",
+                        "gap": "20px",
+                        "marginBottom": "10px"
+                    })
+
                 ], style={"display": "block", "marginTop": "10px"}),
 
                 html.Div([
+
                     cyto.Cytoscape(
                         id='dag-graph',
                         layout={
@@ -167,44 +258,90 @@ app.layout = html.Div([
                             'spacingFactor': 1.0,
                             'animate': False
                         },
-                        style={'flex': '1',  'height': '42vh', 'width': '0px'},
+                        style={'flex': '1', 'height': '42vh', 'width': '0px'},
                         elements=[],
                         stylesheet=[]
                     ),
+
                     dcc.Graph(
                         id='dag-legend',
                         style={'width': '75px', 'height': '42vh', 'flex': '0 0 75px'}
                     )
-                ], style={"display": "flex", "flex-direction": "row", "width": "100%"})
+
+                ], style={
+                    "display": "flex",
+                    "flexDirection": "row",
+                    "width": "100%"
+                })
+
             ], style={
                 "flex": 1,
                 "border": "1px solid #ddd",
                 "padding": "5px",
                 "height": "49vh",
-                "box-sizing": "border-box",
+                "boxSizing": "border-box",
                 "overflow": "hidden"
             }),
 
+
             # ---------- BOTTOM RIGHT (TRAJECTORY VISUALIZATION) ----------
             html.Div([
+
                 html.Div(
                     dcc.Graph(id="trajectory-plot", clear_on_unhover=True),
                     style={"height": "100%", "width": "100%"}
                 ),
+
                 dcc.Tooltip(id="image-tooltip2"),
+
             ], style={
                 "flex": 1,
                 "border": "1px solid #ddd",
                 "padding": "5px",
                 "height": "49vh",
-                "box-sizing": "border-box",
+                "boxSizing": "border-box",
                 "overflow": "hidden"
-            })
+            }),
+
         ], style={
-            "display": "flex", "flex-direction": "row", "width": "100%",
-        }),
-    ])
-])
+            "display": "flex",
+            "flexDirection": "row",
+            "width": "100%"
+        })
+
+    ], style={
+        "width": "88%",
+        "height": "100vh",
+        "overflow": "hidden"
+    })
+
+], style={
+    "display": "flex",
+    "flexDirection": "row",
+    "width": "100vw",
+    "height": "100vh"
+})
+
+
+# Downprojection parameter header
+@app.callback(
+    Output("projection-param-label", "children"),
+    Output("projection-param", "min"),
+    Output("projection-param", "max"),
+    Output("projection-param", "step"),
+    Output("projection-param", "marks"),
+    Output("projection-param", "value"),
+    Input("projection-method", "value")
+)
+def update_projection_param(method):
+
+    if method == "umap":
+        # UMAP wants n_neighbors (usually 2–200)
+        return "n_neighbors", 2, 200, 1, {2: "2", 50: "50", 100: "100", 200: "200"}, 15
+
+    else:
+        # t-SNE wants perplexity (usually 5–50)
+        return "perplexity", 5, 50, 1, {5: "5", 25: "25", 50: "50"}, 30
 
 
 

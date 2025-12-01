@@ -41,33 +41,6 @@ app.layout = html.Div([
                     clearable=False
                 ),
                 html.Div(
-                    id="custom-weights",
-                    children=[
-                        html.Div([
-                            html.Div("Method", style={"textAlign": "center", "flex": 1}),
-                            html.Div("Weight1", style={"textAlign": "center", "flex": 1}),
-                            html.Div("Weight2", style={"textAlign": "center", "flex": 1}),
-                            html.Div("Weight3", style={"textAlign": "center", "flex": 1}),
-                        ], style={"display": "flex", "gap": "20px"}),
-
-                        html.Div([
-                            html.Div(dcc.Dropdown(
-                                id="method",
-                                options=["addition", "multiplication"],
-                                value="addition",
-                                clearable=False
-                            ), style={"flex": 1}),
-                            html.Div(dcc.Slider(id="w1", min=0, max=2, value=1),
-                                     style={"flex": 1}),
-                            html.Div(dcc.Slider(id="w2", min=0, max=2, value=1),
-                                     style={"flex": 1}),
-                            html.Div(dcc.Slider(id="w3", min=0, max=2, value=1),
-                                     style={"flex": 1}),
-                        ], style={"display": "flex", "gap": "20px", "marginBottom": "15px"}),
-                    ],
-                    style={"display": "none", "marginTop": "15px"}
-                ),
-                html.Div(
                     dcc.Graph(id="bumpchart", clear_on_unhover=True), style={"height": "90%", "width": "100%"}),
                 dcc.Tooltip(id="image-tooltip3", direction='left'),
             ], style={
@@ -234,28 +207,14 @@ app.layout = html.Div([
 ])
 
 
-# Bump custom weights logic
-@app.callback(
-    Output("custom-weights", "style"),
-    Input("metric", "value")
-)
-def toggle_custom_weights(metric):
-    if metric == "Custom Reward":
-        return {"display": "block"}
-    return {"display": "none"}
-
 
 # Bump Callback
 @app.callback(
     Output("bumpchart", "figure"),
     Input("metric", "value"),
-    Input("method", "value"),
-    Input("w1", "value"),
-    Input("w2", "value"),
-    Input("w3", "value"),
 )
-def chart_callback(metric, method, w1, w2, w3):
-    return update_bump(data_bump, metric, n_top=10)
+def chart_callback(metric):
+    return update_bump(data_bump, n_top=30)
 
 
 # State Space Callback
@@ -401,7 +360,7 @@ def display_image_tooltip3(hoverData):
     bbox = hoverData["points"][0]["bbox"]
 
     # Extract base64 image saved in customdata
-    value, image_b64 = hoverData["points"][0]["customdata"]
+    value, image_b64, reward = hoverData["points"][0]["customdata"]
 
     # Build HTML content
     children = [
@@ -410,7 +369,8 @@ def display_image_tooltip3(hoverData):
                 src=f"data:image/svg+xml;base64,{image_b64}",
                 style={"width": "150px", "height": "150px"}
             ),
-            html.Div(f"Value: {value:.3f}"),
+            html.Div(f"Rank: {value}"),
+            html.Div(f"Reward: {reward:.3f}"),
         ])
     ]
 

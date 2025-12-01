@@ -711,104 +711,68 @@ def prepare_bump(data):
     return df, color_map
 
 
-def update_bump(df, metric, n_top):
+def update_bump(df, n_top):
     """
     Updates the bump chart
     :param df: prepared dataframe
-    :param metric: selected metric ("reward_total" or "reward_ranked")
     :param n_top: number of displayed items
     :return: updated plot
     """
 
-    if metric not in ["reward_total", "reward_ranked"]:
-        raise ValueError("metric must be 'reward_total' or 'reward_ranked'")
-
     fig = go.Figure()
     df_local = df.copy()
+    iters = df_local["iteration"].cat.categories
+    records = []
+    seen = set()
 
-    # ------------ metric handling ------------
+    for it in iters:
+        this_iter = df_local[df_local["iteration"] <= it]
 
-    # ---------- NORMAL METRIC ----------
-    if metric == "reward_total":
-
-        tmp = (
-            df_local.groupby(["iteration", "smiles"], observed=False)["reward_total"]
-            .max()
-            .reset_index(name="value")
-        )
-
-        top_objects = (
-            tmp.groupby("smiles", observed=False)["value"]
+        # top_n of ALL iterations seen so far
+        current_top = (
+            this_iter.groupby("smiles", observed=False)["reward_total"]
             .max()
             .nlargest(n_top)
             .index
         )
 
-        tmp = tmp[tmp["smiles"].isin(top_objects)]
-
-        sorted_objects = (
-            tmp.groupby("smiles", observed=False)["value"]
+        current_top = (
+            this_iter.groupby("smiles", observed=False)["reward_total"]
             .max()
-            .sort_values(ascending=False)
+            .nlargest(n_top)
             .index
         )
 
-    # ---------- RANKED METRIC ----------
-    else:  # reward_ranked
+        # IMPORTANT: No "seen" anymore
+        current_df = this_iter[this_iter["smiles"].isin(current_top)]
 
-        iters = df_local["iteration"].cat.categories
-
-        records = []
-        seen = set()
-
-        for it in iters:
-            this_iter = df_local[df_local["iteration"] <= it]
-
-            # top_n of ALL iterations seen so far
-            current_top = (
-                this_iter.groupby("smiles", observed=False)["reward_total"]
-                .max()
-                .nlargest(n_top)
-                .index
-            )
-
-            current_top = (
-                this_iter.groupby("smiles", observed=False)["reward_total"]
-                .max()
-                .nlargest(n_top)
-                .index
-            )
-
-            # IMPORTANT: No "seen" anymore
-            current_df = this_iter[this_iter["smiles"].isin(current_top)]
-
-            rank_df = (
-                current_df.groupby("smiles", observed=False)["reward_total"]
-                .max()
-                .reset_index()
-            )
-
-            rank_df["rank"] = rank_df["reward_total"].rank(
-                method="first", ascending=False
-            )
-
-            rank_df["iteration"] = it
-
-            records.append(rank_df[["iteration", "smiles", "rank"]])
-
-        tmp = pd.concat(records, ignore_index=True)
-        tmp = tmp.rename(columns={"rank": "value"})
-
-        sorted_objects = (
-            tmp.groupby("smiles", observed=False)["value"]
-            .min()
-            .sort_values()
-            .index
+        rank_df = (
+            current_df.groupby("smiles", observed=False)["reward_total"]
+            .max()
+            .reset_index()
         )
+
+        rank_df["rank"] = rank_df["reward_total"].rank(
+            method="first", ascending=False
+        )
+
+        rank_df["iteration"] = it
+
+        records.append(rank_df[["iteration", "smiles", "rank"]])
+
+    tmp = pd.concat(records, ignore_index=True)
+    tmp = tmp.rename(columns={"rank": "value"})
+
+    sorted_objects = (
+        tmp.groupby("smiles", observed=False)["value"]
+        .min()
+        .sort_values()
+        .index
+    )
 
     # Attach images for hover/marker logic
     tmp = tmp.merge(
-        df_local[['smiles', 'images']].drop_duplicates(subset='smiles'),
+        df_local[['smiles', 'images', 'reward_total']].drop_duplicates(subset='smiles'),
         on='smiles',
         how='left'
     )
@@ -843,21 +807,25 @@ def update_bump(df, metric, n_top):
                 ),
                 name=obj,
                 #marker=dict(symbol='circle-open', size=10),
-                customdata=obj_df[['value', 'images']].values,
-                hovertemplate="Iteration: %{x}<br>Value: %{y}<extra></extra>"
+                customdata=obj_df[['value', 'images', 'reward_total']].values,
+                #hovertemplate="Iteration: %{x}<br>Value: %{y}<extra></extra>"
             )
         )
 
+    fig.update_traces(
+        hoverinfo="none",
+        hovertemplate=None,
+    ),
+
     fig.update_layout(
         autosize=True,
-        title=f"Bump Chart: {metric}",
+        title=f"Replay buffer ranked",
         showlegend=False,
         xaxis_title="Iteration",
-        yaxis_title="Rank" if metric == "reward_ranked" else "Value",
+        yaxis_title="Rank",
     )
 
-    if metric == "reward_ranked":
-        fig.update_yaxes(autorange="reversed")
+    fig.update_yaxes(autorange="reversed")
 
     return fig
 

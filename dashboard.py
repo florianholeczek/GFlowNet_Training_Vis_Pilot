@@ -11,30 +11,18 @@ data = pd.read_csv('train_data.csv')
 # add ranked reward for filtering for performance
 last_rewards = data.groupby('final_id')['total_reward'].transform('last')
 ranks = last_rewards.rank(method='dense', ascending=False).astype(int)
-
-# insert at position (example: position 2 = third column)
 data.insert(9, 'reward_ranked', ranks)
 
 
 
-
-
-# Prepare Charts
-#data_bump, color_map = prepare_bump(data_objects)
-data_bump= data_objects.copy()
-metadata_objects, features_objects = prepare_state_space(data_objects, metadata_to=8)
-
-# Prepare DAG
-global dag_data
-dag_data = prepare_DAG('data_trajectories.csv', n_trajectories=100)
 
 app = dash.Dash(__name__)
 
 # Load extra layouts for cytoscape
 cyto.load_extra_layouts()
 
-flow_options = ["flow_forward", "flow_backward",
-                "flow_forward_change", "flow_backward_change"]
+flow_options = ["logprobs_forward", "logprobs_backward",
+                "logprobs_forward_change", "logprobs_backward_change"]
 
 app.layout = html.Div([
     dcc.Store(id="selected-objects", data=[]),  # selected objects based on final_id
@@ -112,7 +100,7 @@ app.layout = html.Div([
                     style={"textAlign": "center", "font-size": "10px"}
                 ),
                 dcc.Slider(
-                    id="limit_trajectories",
+                    id="limit-trajectories",
                     min=1,
                     max=100,
                     step=1,
@@ -171,7 +159,7 @@ app.layout = html.Div([
                     dcc.Dropdown(
                         id="flow-attr",
                         options=[{"label": f, "value": f} for f in flow_options],
-                        value="flow_forward",
+                        value="logprobs_forward",
                         clearable=False
                     )
                 ], style={
@@ -432,7 +420,7 @@ def update_projection(method, param_value):
     Output("trajectory-plot", "figure"),
     Input("projection-method", "value"),
     Input("projection-param", "value"),
-    Input("limit_trajectories", "value"),
+    Input("limit-trajectories", "value"),
 )
 def update_trajectory_plot(method, param_value, trajectories):
     tmp = data[data["features_valid"] == True]
@@ -446,24 +434,20 @@ def update_trajectory_plot(method, param_value, trajectories):
     [Output("dag-graph", "elements"),
      Output("dag-graph", "stylesheet"),
      Output("dag-graph", "layout"),
-     Output("dag-legend", "figure"),
-     Output("prev-node-truncation", "data")],
+     Output("dag-legend", "figure")],
     Input("flow-attr", "value"),
-    Input("trajectory-truncation", "value"),
     Input("edge-truncation", "value"),
     Input("dag-layout", "value"),
-    State("prev-node-truncation", "data")
+    Input("limit-trajectories", "value")
 )
-def update_dag_callback(flow_attr, trajectory_truncation, edge_truncation, layout_name, prev_node):
-    global dag_data
-    if trajectory_truncation != prev_node:
-        dag_data = prepare_DAG(
-            "data_trajectories.csv",
-            n_trajectories=int(trajectory_truncation)
-        )
+def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories):
+    tmp = data[data["features_valid"] == True]
+    top_ranks = sorted(tmp['reward_ranked'].dropna().unique())[:trajectories]
+    tmp = tmp[tmp["reward_ranked"].isin(top_ranks)]
+    graph = prepare_graph(tmp)
 
     result = update_DAG(
-        dag_data,
+        graph,
         flow_attr=flow_attr,
         truncation_pct=edge_truncation
     )
@@ -485,7 +469,7 @@ def update_dag_callback(flow_attr, trajectory_truncation, edge_truncation, layou
         layout_config['spacingFactor'] = 1.5
         layout_config['roots'] = '[id = "START"]'
 
-    return result['elements'], result['stylesheet'], layout_config, result['legend'], trajectory_truncation
+    return result['elements'], result['stylesheet'], layout_config, result['legend']
 
 #hover state space
 @app.callback(

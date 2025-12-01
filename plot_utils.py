@@ -194,7 +194,7 @@ def create_dag_legend(vmin, vmax, colorscale, flow_attr):
     return fig
 
 
-def prepare_DAG(csv_path, n_trajectories=8):
+def prepare_graph(df):
     """
     Prepare DAG data structure from trajectory CSV.
 
@@ -210,11 +210,7 @@ def prepare_DAG(csv_path, n_trajectories=8):
     dict : Dictionary containing nodes and edges data
     """
     # Read the CSV
-    df = pd.read_csv(csv_path)
-
-    # Limit trajectories
-    unique_ids = df['final_id'].unique()[:n_trajectories]
-    df = df[df['final_id'].isin(unique_ids)]
+    print("start prepare")
 
     # Sort by final_id and step (descending to go from high to low step numbers)
     df = df.sort_values(['final_id', 'step'], ascending=[True, False])
@@ -241,26 +237,23 @@ def prepare_DAG(csv_path, n_trajectories=8):
         prev_node = 'START'
 
         for idx, row in group.iterrows():
-            node_id = row['smiles']
+            node_id = row['text']
             step = row['step']
-            state = row['state']
             iteration = row['iteration']
+            final_object = row['final_object']
 
             # Add node if not already added
             if node_id not in node_set:
-                node_label = row['smiles']
-                if len(node_label) > 20:
-                    node_label = node_label[:17] + '...'
+                node_label = row['text']
 
                 nodes.append({
                     'data': {
                         'id': node_id,
                         'label': node_label,
-                        'smiles': row['smiles'],
-                        'node_type': "final" if state == "final" else "intermediate",
+                        'object': row['text'],
+                        'node_type': "final" if final_object else "intermediate",
                         'step': step,
-                        'valid': row['valid'],
-                        'image': f"data:image/svg+xml;base64,{row['images']}",
+                        'image': f"data:image/svg+xml;base64,{row['image']}",
                     }
                 })
                 node_set.add(node_id)
@@ -274,8 +267,8 @@ def prepare_DAG(csv_path, n_trajectories=8):
                     'target': node_id,
                     'trajectory_id': final_id,
                     'iteration': iteration,
-                    'flow_forward': row['flows_forward'],
-                    'flow_backward': row['flows_backward']
+                    'logprobs_forward': row['logprobs_forward'],
+                    'logprobs_backward': row['logprobs_backward']
                 }
             })
 
@@ -293,12 +286,12 @@ def prepare_DAG(csv_path, n_trajectories=8):
         min_iter = min(e['data']['iteration'] for e in edge_list)
 
         max_iter_edges = [e for e in edge_list if e['data']['iteration'] == max_iter]
-        flow_forward = sum(e['data']['flow_forward'] for e in max_iter_edges) / len(max_iter_edges)
-        flow_backward = sum(e['data']['flow_backward'] for e in max_iter_edges) / len(max_iter_edges)
+        logprobs_forward = sum(e['data']['logprobs_forward'] for e in max_iter_edges) / len(max_iter_edges)
+        logprobs_backward = sum(e['data']['logprobs_backward'] for e in max_iter_edges) / len(max_iter_edges)
 
         min_iter_edges = [e for e in edge_list if e['data']['iteration'] == min_iter]
-        flow_forward_min = sum(e['data']['flow_forward'] for e in min_iter_edges) / len(min_iter_edges)
-        flow_backward_min = sum(e['data']['flow_backward'] for e in min_iter_edges) / len(min_iter_edges)
+        logprobs_forward_min = sum(e['data']['logprobs_forward'] for e in min_iter_edges) / len(min_iter_edges)
+        logprobs_backward_min = sum(e['data']['logprobs_backward'] for e in min_iter_edges) / len(min_iter_edges)
 
         unique_edges.append({
             'data': {
@@ -306,13 +299,13 @@ def prepare_DAG(csv_path, n_trajectories=8):
                 'source': source,
                 'target': target,
                 'trajectory_id': edge_list[0]['data']['trajectory_id'],
-                'flow_forward': flow_forward,
-                'flow_backward': flow_backward,
-                'flow_forward_change': flow_forward - flow_forward_min,
-                'flow_backward_change': flow_backward - flow_backward_min
+                'logprobs_forward': logprobs_forward,
+                'logprobs_backward': logprobs_backward,
+                'logprobs_forward_change': logprobs_forward - logprobs_forward_min,
+                'logprobs_backward_change': logprobs_backward - logprobs_backward_min
             }
         })
-
+    print("done")
     return {'nodes': nodes, 'edges': unique_edges}
 
 
@@ -415,7 +408,7 @@ def truncate_linear_chains(nodes, edges, edges_to_keep_ids):
     return new_nodes, new_edges
 
 
-def update_DAG(dag_data, flow_attr='flow_forward', truncation_pct=0):
+def update_DAG(dag_data, flow_attr='logprobs_forward', truncation_pct=0):
     """
     Update DAG visualization based on flow attribute and truncation percentage.
 
@@ -424,7 +417,7 @@ def update_DAG(dag_data, flow_attr='flow_forward', truncation_pct=0):
     dag_data : dict
         Dictionary containing 'nodes' and 'edges' from prepare_DAG
     flow_attr : str
-        Flow attribute to use for coloring and truncation
+        Flow attribute to use for coloring and truncation -> Logprobs
     truncation_pct : float
         Truncation percentage (0-100)
 
@@ -473,9 +466,9 @@ def update_DAG(dag_data, flow_attr='flow_forward', truncation_pct=0):
         vmin, vmax = 0, 1
 
     # Select colorscale based on flow attribute
-    if flow_attr in ['flow_forward', 'flow_backward']:
+    if flow_attr in ['logprobs_forward', 'logprobs_backward']:
         colorscale = px.colors.sequential.Emrld
-    else:  # flow_forward_change or flow_backward_change
+    else:  # logprobs_forward_change or logprobs_backward_change
         colorscale = px.colors.diverging.BrBG
 
     # Create legend
@@ -627,7 +620,6 @@ def update_state_space(metadata, features, method="umap", param_value=15):
         y='Y',
         color='iteration',
         size='total_reward',
-        #hover_data=['smiles', 'reward_total'],
         opacity=0.9,
         color_continuous_scale="emrld",
         #height=500,

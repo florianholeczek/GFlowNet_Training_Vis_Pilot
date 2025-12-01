@@ -42,7 +42,7 @@ app.layout = html.Div([
     # ================= LEFT COLUMN (12%) =================
     html.Div([
 
-        html.H4("Controls"),
+        html.H4("General"),
 
         html.Div([
 
@@ -126,23 +126,101 @@ app.layout = html.Div([
                 "gap": "6px"
             }),
 
-            # -------- Trajectories --------
+        ], style={
+            "display": "flex",
+            "flexDirection": "column",
+            "gap": "50px"
+        }),
+
+        html.Div(style={
+            "display": "flex",
+            "flexDirection": "column",
+            "gap": "50px",
+            "height": "40px"
+        }),
+
+        #---------------DAG Controls---------------
+
+        html.H4("DAG"),
+
+        html.Div([
             html.Div([
-                html.Div("Trajectories", style={"textAlign": "center"}),
-                dcc.Slider(
-                    id="trajectory-truncation",
-                    min=1,
-                    max=200,
-                    step=5,
-                    value=10,
-                    marks={0: '0', 100: '100', 200: '200'},
-                    tooltip={"placement": "bottom", "always_visible": False}
-                )
+
+                # -------- Layout --------
+                html.Div([
+                    html.Div("Layout", style={"textAlign": "center"}),
+                    dcc.Dropdown(
+                        id="dag-layout",
+                        options=[
+                            {"label": "Klay", "value": "klay"},
+                            {"label": "Dagre", "value": "dagre"},
+                            {"label": "Breadthfirst", "value": "breadthfirst"}
+                        ],
+                        value="klay",
+                        clearable=False
+                    )
+                ], style={
+                    "display": "flex",
+                    "flexDirection": "column",
+                    "gap": "6px"
+                }),
+
+                # -------- Edge coloring --------
+                html.Div([
+                    html.Div("Edge coloring", style={"textAlign": "center"}),
+                    dcc.Dropdown(
+                        id="flow-attr",
+                        options=[{"label": f, "value": f} for f in flow_options],
+                        value="flow_forward",
+                        clearable=False
+                    )
+                ], style={
+                    "display": "flex",
+                    "flexDirection": "column",
+                    "gap": "6px"
+                }),
+
+                # -------- Truncate Edges --------
+                html.Div([
+                    html.Div("Truncate Edges", style={"textAlign": "center"}),
+                    dcc.Slider(
+                        id="edge-truncation",
+                        min=0,
+                        max=100,
+                        step=5,
+                        value=0,
+                        marks={0: '0%', 50: '50%', 100: '100%'},
+                        tooltip={"placement": "bottom", "always_visible": True}
+                    )
+                ], style={
+                    "display": "flex",
+                    "flexDirection": "column",
+                    "gap": "6px"
+                }),
+
+                # -------- Trajectories --------
+                html.Div([
+                    html.Div("Trajectories (remove!)", style={"textAlign": "center"}),
+                    dcc.Slider(
+                        id="trajectory-truncation",
+                        min=1,
+                        max=200,
+                        step=5,
+                        value=10,
+                        marks={0: '0', 100: '100', 200: '200'},
+                        tooltip={"placement": "bottom", "always_visible": False}
+                    )
+                ], style={
+                    "display": "flex",
+                    "flexDirection": "column",
+                    "gap": "6px"
+                }),
+
             ], style={
                 "display": "flex",
                 "flexDirection": "column",
-                "gap": "6px"
-            }),
+                "gap": "50px"
+            })
 
         ], style={
             "display": "flex",
@@ -159,6 +237,7 @@ app.layout = html.Div([
         "overflow": "auto"
     })
     ,
+
 
 
     # ================= RIGHT COLUMN (88%) =================
@@ -220,59 +299,6 @@ app.layout = html.Div([
             html.Div([
 
                 html.Div([
-                    html.Div([
-                        html.Div("Edge coloring", style={"textAlign": "center", "flex": 1}),
-                        html.Div("Truncate Edges", style={"textAlign": "center", "flex": 1}),
-                        html.Div("Layout", style={"textAlign": "center", "flex": 1}),
-                    ], style={"display": "flex", "gap": "20px"}),
-
-                    html.Div([
-                        html.Div(
-                            dcc.Dropdown(
-                                id="flow-attr",
-                                options=[{"label": f, "value": f} for f in flow_options],
-                                value="flow_forward",
-                                clearable=False
-                            ),
-                            style={"flex": 1}
-                        ),
-
-                        html.Div(
-                            dcc.Slider(
-                                id="edge-truncation",
-                                min=0,
-                                max=100,
-                                step=5,
-                                value=0,
-                                marks={0: '0%', 50: '50%', 100: '100%'},
-                                tooltip={"placement": "bottom", "always_visible": True}
-                            ),
-                            style={"flex": 1}
-                        ),
-
-                        html.Div(
-                            dcc.Dropdown(
-                                id="dag-layout",
-                                options=[
-                                    {"label": "Klay", "value": "klay"},
-                                    {"label": "Dagre", "value": "dagre"},
-                                    {"label": "Breadthfirst", "value": "breadthfirst"}
-                                ],
-                                value="klay",
-                                clearable=False
-                            ),
-                            style={"flex": 1}
-                        )
-
-                    ], style={
-                        "display": "flex",
-                        "gap": "20px",
-                        "marginBottom": "10px"
-                    })
-
-                ], style={"display": "block", "marginTop": "10px"}),
-
-                html.Div([
 
                     cyto.Cytoscape(
                         id='dag-graph',
@@ -282,14 +308,14 @@ app.layout = html.Div([
                             'spacingFactor': 1.0,
                             'animate': False
                         },
-                        style={'flex': '1', 'height': '42vh', 'width': '0px'},
+                        style={'flex': '1', 'height': '49vh', 'width': '0px'},
                         elements=[],
                         stylesheet=[]
                     ),
 
                     dcc.Graph(
                         id='dag-legend',
-                        style={'width': '75px', 'height': '42vh', 'flex': '0 0 75px'}
+                        style={'width': '75px', 'height': '49vh', 'flex': '0 0 75px'}
                     )
 
                 ], style={

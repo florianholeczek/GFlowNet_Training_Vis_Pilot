@@ -6,9 +6,22 @@ from plot_utils import *
 # Load data
 data_objects = pd.read_csv('data_objects.csv')
 data_trajectories = pd.read_csv('data_trajectories.csv')
+data = pd.read_csv('train_data.csv')
+
+# add ranked reward for filtering for performance
+last_rewards = data.groupby('final_id')['total_reward'].transform('last')
+ranks = last_rewards.rank(method='dense', ascending=False).astype(int)
+
+# insert at position (example: position 2 = third column)
+data.insert(9, 'reward_ranked', ranks)
+
+
+
+
 
 # Prepare Charts
-data_bump, color_map = prepare_bump(data_objects)
+#data_bump, color_map = prepare_bump(data_objects)
+data_bump= data_objects.copy()
 metadata_objects, features_objects = prepare_state_space(data_objects, metadata_to=8)
 
 # Prepare DAG
@@ -20,13 +33,11 @@ app = dash.Dash(__name__)
 # Load extra layouts for cytoscape
 cyto.load_extra_layouts()
 
-metrics = ["reward_ranked", "frequency", "reward1", "reward2",
-           "reward3", "reward_total", "Custom Reward"]
-
 flow_options = ["flow_forward", "flow_backward",
                 "flow_forward_change", "flow_backward_change"]
 
 app.layout = html.Div([
+    dcc.Store(id="selected-objects", data=[]),  # selected objects based on final_id
 
     # ================= LEFT COLUMN (12%) =================
     html.Div([
@@ -39,12 +50,12 @@ app.layout = html.Div([
             html.Div([
                 html.Div("Iterations", style={"textAlign": "center"}),
                 dcc.RangeSlider(
-                    id="iterations",
-                    min=500,
-                    max=10000,
-                    step=500,
-                    value=[9000, 10000],
-                    marks={500: "500", 5000: "5000", 10000: "10000"},
+                    id="iteration",
+                    min=0,
+                    max=100,
+                    step=25,
+                    value=[50, 100],
+                    #marks={500: "500", 5000: "5000", 10000: "10000"},
                     tooltip={"placement": "bottom", "always_visible": False}
                 ),
             ], style={
@@ -84,6 +95,29 @@ app.layout = html.Div([
                     step=1,
                     value=15,
                     marks=None,
+                    tooltip={"placement": "bottom", "always_visible": False}
+                )
+            ], style={
+                "display": "flex",
+                "flexDirection": "column",
+                "gap": "6px"
+            }),
+
+            # -------- Limit Trajectories --------
+            html.Div([
+                html.Div("Limit trajectories", style={"textAlign": "center"}),
+                html.Div(
+                    "Keep only the top N trajectories for trajectory-visualizations. "
+                    "(temporary for faster loading)",
+                    style={"textAlign": "center", "font-size": "10px"}
+                ),
+                dcc.Slider(
+                    id="limit_trajectories",
+                    min=1,
+                    max=100,
+                    step=1,
+                    value=5,
+                    marks={0: '0', 100: '100'},
                     tooltip={"placement": "bottom", "always_visible": False}
                 )
             ], style={
@@ -137,20 +171,10 @@ app.layout = html.Div([
 
             # ---------- TOP LEFT ----------
             html.Div([
-                html.Label("Metric"),
-
-                dcc.Dropdown(
-                    id="metric",
-                    options=[{"label": m, "value": m} for m in metrics],
-                    value="reward_ranked",
-                    clearable=False
-                ),
-
                 html.Div(
                     dcc.Graph(id="bumpchart", clear_on_unhover=True),
-                    style={"height": "90%", "width": "100%"}
+                    style={"height": "100%", "width": "100%"}
                 ),
-
                 dcc.Tooltip(id="image-tooltip3"),
 
             ], style={
@@ -345,13 +369,21 @@ def update_projection_param(method):
 
 
 
+# Main Data update
+
+
 # Bump Callback
 @app.callback(
     Output("bumpchart", "figure"),
-    Input("metric", "value"),
+    Input("iteration", "value"),
 )
-def chart_callback(metric):
-    return update_bump(data_bump, n_top=30)
+def chart_callback(iteration):
+    tmp = data[data["final_object"] == True]
+    tmp = tmp.iloc[:, :10]
+    tmp = tmp[tmp["iteration"] <= iteration[1]]
+    tmp = tmp[tmp["iteration"] > iteration[0]]
+
+    return update_bump(tmp, n_top=30)
 
 
 # State Space Callback
@@ -361,7 +393,12 @@ def chart_callback(metric):
     Input("projection-param", "value")
 )
 def update_projection(method, param_value):
-    return update_state_space(metadata_objects, features_objects, method=method, param_value=param_value)
+    objs = data[data["final_object"] == True]
+    objs = objs[objs["features_valid"] == True]
+    metadata = objs.iloc[:, :11].reset_index(drop=True)
+    features = objs.iloc[:, 11:].reset_index(drop=True)
+    #return metadata.reset_index(drop=True), features.reset_index(drop=True)
+    return update_state_space(metadata, features, method=method, param_value=param_value)
 
 
 # Trajectory Visualization Callback
@@ -369,10 +406,13 @@ def update_projection(method, param_value):
     Output("trajectory-plot", "figure"),
     Input("projection-method", "value"),
     Input("projection-param", "value"),
-    Input("trajectory-truncation", "value")
+    Input("limit_trajectories", "value"),
 )
-def update_trajectory_plot(method, param_value, n_trajectories):
-    return update_state_space_t(data_trajectories, method, param_value, n_trajectories)
+def update_trajectory_plot(method, param_value, trajectories):
+    tmp = data[data["features_valid"] == True]
+    top_ranks = sorted(tmp['reward_ranked'].dropna().unique())[:trajectories]
+    tmp = tmp[tmp["reward_ranked"].isin(top_ranks)]
+    return update_state_space_t(tmp, method, param_value)
 
 
 # DAG Callback

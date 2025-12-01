@@ -9,6 +9,7 @@ df = df.drop(["step", "final_object", "iteration", "logprobs_forward", "logprobs
 print(df.head())
 df.to_csv('testset.csv', index=False)"""
 df = pd.read_csv('train_data.csv')
-print(len(df))
-df = df[df["step"]!=0]
-print(len(df))
+
+from plot_utils import *
+
+fig = update_bump(df, 30)

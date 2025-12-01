@@ -7,13 +7,13 @@ from umap import UMAP
 from collections import defaultdict
 
 
-def update_state_space_t(data_trajectories, method, param_value, n_trajectories):
+def update_state_space_t(data, method, param_value):
     """
     Create a trajectory visualization in state space with dimensionality reduction.
 
     Parameters:
     -----------
-    data_trajectories : pd.DataFrame
+    data : pd.DataFrame
         The trajectory data with metadata in first 9 columns
     method : str
         'umap' or 'tsne'
@@ -27,10 +27,6 @@ def update_state_space_t(data_trajectories, method, param_value, n_trajectories)
     plotly.graph_objects.Figure
     """
     metadata_to = 11
-
-    # Filter trajectories
-    data = data_trajectories[
-        data_trajectories["final_id"] <= min(n_trajectories, max(data_trajectories["final_id"]))].copy()
 
     # Split metadata and features
     metadata = data.iloc[:, :metadata_to]
@@ -54,25 +50,6 @@ def update_state_space_t(data_trajectories, method, param_value, n_trajectories)
     # Create figure
     fig = go.Figure()
 
-    """# Get unique trajectory IDs and assign colors
-    unique_ids = plot_data['final_id'].unique()
-    colors = px.colors.qualitative.Dark24
-    color_map = {tid: colors[i % len(colors)] for i, tid in enumerate(unique_ids)}
-
-    # Add trajectory lines
-    for final_id in unique_ids:
-        traj_data = plot_data[plot_data['final_id'] == final_id].sort_values('step')
-
-        fig.add_trace(go.Scatter(
-            x=traj_data['X'],
-            y=traj_data['Y'],
-            mode='lines',
-            line=dict(color=color_map[final_id], width=2),
-            opacity=0.15,
-            name=f'Trajectory {final_id}',
-            showlegend=False,
-            hoverinfo='skip'
-        ))"""
     # Get unique trajectory IDs and their iterations
     unique_ids = plot_data['final_id'].unique()
 
@@ -121,31 +98,11 @@ def update_state_space_t(data_trajectories, method, param_value, n_trajectories)
             name=f'Trajectory {final_id}',
             showlegend=False,
             #hoverinfo='skip'
-            customdata=traj_data[['images']].values
-        ))
-
-    # Add start points
-    start_data = plot_data[plot_data['state'] == 'start']
-    for final_id in start_data['final_id'].unique():
-        fd = start_data[start_data['final_id'] == final_id]
-        fig.add_trace(go.Scatter(
-            x=fd['X'],
-            y=fd['Y'],
-            mode='markers',
-            marker=dict(
-                symbol='circle',
-                size=8,
-                color=color_map[final_id],
-                line=dict(width=1, color='white')
-            ),
-            name=f'Start {final_id}',
-            showlegend=False,
-            hovertemplate='<b>Start</b><br>SMILES: %{customdata[0]}<extra></extra>',
-            customdata=fd[['images']].values
+            customdata=traj_data[['image']].values
         ))
 
     # Add final points
-    final_data = plot_data[plot_data['state'] == 'final']
+    final_data = plot_data[plot_data['final_object'] == True]
     for final_id in final_data['final_id'].unique():
         fd = final_data[final_data['final_id'] == final_id]
         fig.add_trace(go.Scatter(
@@ -160,8 +117,8 @@ def update_state_space_t(data_trajectories, method, param_value, n_trajectories)
             ),
             name=f'Final {final_id}',
             showlegend=False,
-            hovertemplate='<b>Final</b><br>SMILES: %{customdata[0]}<extra></extra>',
-            customdata=fd[['images']].values
+            #hovertemplate='<b>Final</b><br>SMILES: %{customdata[0]}<extra></extra>',
+            customdata=fd[['image']].values
         ))
 
     fig.update_traces(
@@ -668,8 +625,8 @@ def update_state_space(metadata, features, method="umap", param_value=15):
         df,
         x='X',
         y='Y',
-        color='reward_total',
-        #size='reward_total',
+        color='iteration',
+        size='total_reward',
         #hover_data=['smiles', 'reward_total'],
         opacity=0.9,
         color_continuous_scale="emrld",
@@ -678,37 +635,21 @@ def update_state_space(metadata, features, method="umap", param_value=15):
         #title=f"{method.upper()} Projection"
     )
     fig.update_traces(
-        customdata=df[['iteration', 'reward_total', 'images']].values,
+        customdata=df[['iteration', 'total_reward', 'image']].values,
         hoverinfo="none",
         hovertemplate=None,
     ),
 
     fig.update_layout(
         autosize=True,
-        coloraxis_colorbar=dict(title="Reward")
+        title=f"Final Objects downprojected<br><sup>"
+              f"Size shows total reward",
+        coloraxis_colorbar=dict(title="Iteration")
     )
 
     return fig
 
 
-def prepare_bump(data):
-    """
-    Prepares the data for the bump chart.
-    takes a dataframe and returns the dataframe and the color map
-    """
-    df = data.copy()
-    df["iteration"] = pd.Categorical(
-        df["iteration"],
-        categories=sorted(df["iteration"].unique()),
-        ordered=True
-    )
-
-    # Create color map
-    palette = px.colors.qualitative.Dark24
-    all_objects = df["smiles"].unique()
-    color_map = {obj: palette[i % len(palette)] for i, obj in enumerate(sorted(all_objects))}
-
-    return df, color_map
 
 
 def update_bump(df, n_top):
@@ -721,6 +662,11 @@ def update_bump(df, n_top):
 
     fig = go.Figure()
     df_local = df.copy()
+    df_local["iteration"] = pd.Categorical(
+        df_local["iteration"],
+        categories=sorted(df["iteration"].unique()),
+        ordered=True
+    )
     iters = df_local["iteration"].cat.categories
     records = []
     seen = set()
@@ -730,41 +676,34 @@ def update_bump(df, n_top):
 
         # top_n of ALL iterations seen so far
         current_top = (
-            this_iter.groupby("smiles", observed=False)["reward_total"]
-            .max()
-            .nlargest(n_top)
-            .index
-        )
-
-        current_top = (
-            this_iter.groupby("smiles", observed=False)["reward_total"]
+            this_iter.groupby("text", observed=False)["total_reward"]
             .max()
             .nlargest(n_top)
             .index
         )
 
         # IMPORTANT: No "seen" anymore
-        current_df = this_iter[this_iter["smiles"].isin(current_top)]
+        current_df = this_iter[this_iter["text"].isin(current_top)]
 
         rank_df = (
-            current_df.groupby("smiles", observed=False)["reward_total"]
+            current_df.groupby("text", observed=False)["total_reward"]
             .max()
             .reset_index()
         )
 
-        rank_df["rank"] = rank_df["reward_total"].rank(
+        rank_df["rank"] = rank_df["total_reward"].rank(
             method="first", ascending=False
         )
 
         rank_df["iteration"] = it
 
-        records.append(rank_df[["iteration", "smiles", "rank"]])
+        records.append(rank_df[["iteration", "text", "rank"]])
 
     tmp = pd.concat(records, ignore_index=True)
     tmp = tmp.rename(columns={"rank": "value"})
 
     sorted_objects = (
-        tmp.groupby("smiles", observed=False)["value"]
+        tmp.groupby("text", observed=False)["value"]
         .min()
         .sort_values()
         .index
@@ -772,8 +711,8 @@ def update_bump(df, n_top):
 
     # Attach images for hover/marker logic
     tmp = tmp.merge(
-        df_local[['smiles', 'images', 'reward_total']].drop_duplicates(subset='smiles'),
-        on='smiles',
+        df_local[['text', 'image', 'total_reward']].drop_duplicates(subset='text'),
+        on='text',
         how='left'
     )
 
@@ -781,10 +720,10 @@ def update_bump(df, n_top):
 
     for obj in sorted_objects:
 
-        obj_df = tmp[tmp["smiles"] == obj].sort_values("iteration")
+        obj_df = tmp[tmp["text"] == obj].sort_values("iteration")
 
         # identify where the object is actually present in the iteration
-        present_mask = df_local["smiles"] == obj
+        present_mask = df_local["text"] == obj
         present_iters = set(df_local[present_mask]["iteration"])
 
         markers = [
@@ -800,14 +739,14 @@ def update_bump(df, n_top):
                 marker=dict(
                     symbol="circle",
                     size=[
-                        10 if ((df_local["smiles"] == obj) & (df_local["iteration"] == it)).any()
+                        10 if ((df_local["text"] == obj) & (df_local["iteration"] == it)).any()
                         else 0
                         for it in obj_df["iteration"]
                     ]
                 ),
                 name=obj,
                 #marker=dict(symbol='circle-open', size=10),
-                customdata=obj_df[['value', 'images', 'reward_total']].values,
+                customdata=obj_df[['value', 'image', 'total_reward']].values,
                 #hovertemplate="Iteration: %{x}<br>Value: %{y}<extra></extra>"
             )
         )
@@ -819,7 +758,10 @@ def update_bump(df, n_top):
 
     fig.update_layout(
         autosize=True,
-        title=f"Replay buffer ranked",
+        title=f"Replay Buffer Ranked<br><sup>"
+              f"Sampled Objects ranked by the total reward. "
+              f"For each Iteration it shows the highest reward objects so far. "
+              f"Circles show if an object was sampled in this iteration</sup>",
         showlegend=False,
         xaxis_title="Iteration",
         yaxis_title="Rank",

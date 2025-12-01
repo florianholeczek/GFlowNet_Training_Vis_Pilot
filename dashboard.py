@@ -186,24 +186,6 @@ app.layout = html.Div([
                     "gap": "6px"
                 }),
 
-                # -------- Trajectories --------
-                html.Div([
-                    html.Div("Trajectories (remove!)", style={"textAlign": "center"}),
-                    dcc.Slider(
-                        id="trajectory-truncation",
-                        min=1,
-                        max=200,
-                        step=5,
-                        value=10,
-                        marks={0: '0', 100: '100', 200: '200'},
-                        tooltip={"placement": "bottom", "always_visible": False}
-                    )
-                ], style={
-                    "display": "flex",
-                    "flexDirection": "column",
-                    "gap": "6px"
-                }),
-
             ], style={
                 "display": "flex",
                 "flexDirection": "column",

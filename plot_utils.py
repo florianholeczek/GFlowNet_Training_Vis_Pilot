@@ -213,7 +213,7 @@ def prepare_graph(df):
     print("start prepare")
 
     # Sort by final_id and step (descending to go from high to low step numbers)
-    df = df.sort_values(['final_id', 'step'], ascending=[True, False])
+    df = df.sort_values(['final_id', 'step'], ascending=[True, True])
 
     # Create nodes and edges
     nodes = []
@@ -233,7 +233,7 @@ def prepare_graph(df):
 
     # Process each trajectory
     for final_id, group in df.groupby('final_id'):
-        group = group.sort_values('step', ascending=False)
+        group = group.sort_values('step', ascending=True)
         prev_node = 'START'
 
         for idx, row in group.iterrows():

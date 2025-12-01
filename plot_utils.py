@@ -194,25 +194,18 @@ def create_dag_legend(vmin, vmax, colorscale, flow_attr):
     return fig
 
 
+
 def prepare_graph(df):
     """
     Prepare DAG data structure from trajectory CSV.
-
-    Parameters:
-    -----------
-    csv_path : str
-        Path to the CSV file containing trajectory data
-    n_trajectories : int
-        Number of trajectories to include
 
     Returns:
     --------
     dict : Dictionary containing nodes and edges data
     """
-    # Read the CSV
     print("start prepare")
 
-    # Sort by final_id and step (descending to go from high to low step numbers)
+    # Sort by final_id and step
     df = df.sort_values(['final_id', 'step'], ascending=[True, True])
 
     # Create nodes and edges
@@ -244,12 +237,10 @@ def prepare_graph(df):
 
             # Add node if not already added
             if node_id not in node_set:
-                node_label = row['text']
-
                 nodes.append({
                     'data': {
                         'id': node_id,
-                        'label': node_label,
+                        'label': row['text'],
                         'object': row['text'],
                         'node_type': "final" if final_object else "intermediate",
                         'step': step,
@@ -282,16 +273,32 @@ def prepare_graph(df):
 
     unique_edges = []
     for (source, target), edge_list in edge_groups.items():
+
+        # Find max iteration
         max_iter = max(e['data']['iteration'] for e in edge_list)
-        min_iter = min(e['data']['iteration'] for e in edge_list)
-
         max_iter_edges = [e for e in edge_list if e['data']['iteration'] == max_iter]
-        logprobs_forward = sum(e['data']['logprobs_forward'] for e in max_iter_edges) / len(max_iter_edges)
-        logprobs_backward = sum(e['data']['logprobs_backward'] for e in max_iter_edges) / len(max_iter_edges)
 
-        min_iter_edges = [e for e in edge_list if e['data']['iteration'] == min_iter]
-        logprobs_forward_min = sum(e['data']['logprobs_forward'] for e in min_iter_edges) / len(min_iter_edges)
-        logprobs_backward_min = sum(e['data']['logprobs_backward'] for e in min_iter_edges) / len(min_iter_edges)
+        # Latest averages (highest iteration)
+        logprobs_forward_latest = sum(
+            e['data']['logprobs_forward'] for e in max_iter_edges
+        ) / len(max_iter_edges)
+
+        logprobs_backward_latest = sum(
+            e['data']['logprobs_backward'] for e in max_iter_edges
+        ) / len(max_iter_edges)
+
+        # Overall (all iteration) averages
+        logprobs_forward_overall = sum(
+            e['data']['logprobs_forward'] for e in edge_list
+        ) / len(edge_list)
+
+        logprobs_backward_overall = sum(
+            e['data']['logprobs_backward'] for e in edge_list
+        ) / len(edge_list)
+
+        # Changes = latest avg - overall avg
+        logprobs_forward_change = logprobs_forward_latest - logprobs_forward_overall
+        logprobs_backward_change = logprobs_backward_latest - logprobs_backward_overall
 
         unique_edges.append({
             'data': {
@@ -299,14 +306,17 @@ def prepare_graph(df):
                 'source': source,
                 'target': target,
                 'trajectory_id': edge_list[0]['data']['trajectory_id'],
-                'logprobs_forward': logprobs_forward,
-                'logprobs_backward': logprobs_backward,
-                'logprobs_forward_change': logprobs_forward - logprobs_forward_min,
-                'logprobs_backward_change': logprobs_backward - logprobs_backward_min
+                'logprobs_forward': logprobs_forward_latest,
+                'logprobs_backward': logprobs_backward_latest,
+                'logprobs_forward_change': logprobs_forward_change,
+                'logprobs_backward_change': logprobs_backward_change
             }
         })
+
     print("done")
+
     return {'nodes': nodes, 'edges': unique_edges}
+
 
 
 def truncate_linear_chains(nodes, edges, edges_to_keep_ids):
@@ -383,10 +393,18 @@ def truncate_linear_chains(nodes, edges, edges_to_keep_ids):
                     continue
                 processed_chains.add(chain_id)
 
+                total_forward = edge['data'].get('logprobs_forward', 0)
+                total_backward = edge['data'].get('logprobs_backward', 0)
+
                 while current not in nodes_to_keep:
                     if len(out_edges[current]) == 0:
                         break
+
                     next_edge = out_edges[current][0]
+
+                    total_forward += next_edge['data'].get('logprobs_forward', 0)
+                    total_backward += next_edge['data'].get('logprobs_backward', 0)
+
                     current = next_edge['data']['target']
 
                 # Create truncated edge
@@ -398,7 +416,9 @@ def truncate_linear_chains(nodes, edges, edges_to_keep_ids):
                             'source': chain_start,
                             'target': current,
                             'trajectory_id': trajectory_id,
-                            'truncated': True
+                            'truncated': True,
+                            'logprobs_forward': total_forward,
+                            'logprobs_backward': total_backward
                         }
                     })
 
@@ -453,29 +473,28 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', truncation_pct=0):
         nodes, edges = truncate_linear_chains(nodes, edges, edges_to_keep)
 
     # Compute color scale for non-truncated edges
-    non_truncated_flows = [
-        edge['data'].get(flow_attr, 0)
-        for edge in edges
-        if not edge['data'].get('truncated', False)
-    ]
-
-    if non_truncated_flows:
-        vmin = min(non_truncated_flows)
-        vmax = max(non_truncated_flows)
-    else:
-        vmin, vmax = 0, 1
-
-    # Select colorscale based on flow attribute
+    # Fixed ranges by attribute
     if flow_attr in ['logprobs_forward', 'logprobs_backward']:
+        vmin, vmax = -8, 0
         colorscale = px.colors.sequential.Emrld
-    else:  # logprobs_forward_change or logprobs_backward_change
+    elif flow_attr in ['logprobs_forward_change', 'logprobs_backward_change']:
+        vmin, vmax = -2, 2
         colorscale = px.colors.diverging.BrBG
+    else:
+        vmin, vmax = -1, 1  # fallback
+        colorscale = px.colors.sequential.Viridis
 
     # Create legend
     legend_fig = create_dag_legend(vmin, vmax, colorscale, flow_attr)
 
     # Create color mapping
     def get_color(value, vmin, vmax, colorscale):
+
+        if value < vmin:
+            return colorscale[0]  # lowest color
+        if value > vmax:
+            return colorscale[-1]  # highest color
+
         if vmax == vmin:
             norm = 0.5
         else:
@@ -555,11 +574,8 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', truncation_pct=0):
     # Add color styles for each edge
     for edge in edges:
         edge_id = edge['data']['id']
-        if edge['data'].get('truncated', False):
-            color = '#999999'
-        else:
-            flow_val = edge['data'].get(flow_attr, 0)
-            color = get_color(flow_val, vmin, vmax, colorscale)
+        flow_val = edge['data'].get(flow_attr, 0)
+        color = get_color(flow_val, vmin, vmax, colorscale)
 
         stylesheet.append({
             'selector': f'edge[id = "{edge_id}"]',

@@ -430,7 +430,7 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
     Input("iteration", "value"),
     Input("selected-objects", "data"),
 )
-def update_bump(iteration, selected_ids):
+def bump_callback(iteration, selected_ids):
     tmp = data[data["final_object"] == True]
     tmp = tmp.iloc[:, :10]
     tmp = tmp[tmp["iteration"] <= iteration[1]]
@@ -447,7 +447,7 @@ def update_bump(iteration, selected_ids):
     Input(  "iteration", "value"),
     Input("selected-objects", "data"),
 )
-def update_state_space(method, param_value, iteration, selected_ids):
+def update_projection(method, param_value, iteration, selected_ids):
     objs = data[data["final_object"] == True]
     objs = objs[objs["features_valid"] == True]
     objs = objs[objs["iteration"] <= iteration[1]]
@@ -467,7 +467,7 @@ def update_state_space(method, param_value, iteration, selected_ids):
     Input(  "iteration", "value"),
     Input("selected-objects", "data"),
 )
-def update_state_space_t(method, param_value, trajectories, iteration, selected_ids):
+def update_trajectory_plot(method, param_value, trajectories, iteration, selected_ids):
     tmp = data[data["features_valid"] == True]
     tmp = tmp[tmp["iteration"] <= iteration[1]]
     tmp = tmp[tmp["iteration"] > iteration[0]]
@@ -489,7 +489,7 @@ def update_state_space_t(method, param_value, trajectories, iteration, selected_
     Input(  "iteration", "value"),
     Input("selected-objects", "data"),
 )
-def update_dag(flow_attr, edge_truncation, layout_name, trajectories, iteration, selected_ids):
+def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories, iteration, selected_ids):
     tmp = data.iloc[:, :10]
     tmp = tmp[tmp["iteration"] <= iteration[1]]
     tmp = tmp[tmp["iteration"] > iteration[0]]

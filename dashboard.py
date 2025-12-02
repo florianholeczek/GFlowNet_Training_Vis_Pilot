@@ -468,7 +468,7 @@ def compute_downprojections(method, param_value, trajectories, iteration, use_te
 
     #trajectories
     top_ranks = sorted(objs['reward_ranked'].dropna().unique())[:trajectories]
-    data_t = objs[objs["reward_ranked"].isin(top_ranks)]
+    data_t = objs[objs["reward_ranked"].isin(top_ranks) | (objs["istestset"] == True)]
     metadata_t = data_t.iloc[:, :cols_to].reset_index(drop=True)
     features_t = data_t.iloc[:, cols_to:].reset_index(drop=True)
 

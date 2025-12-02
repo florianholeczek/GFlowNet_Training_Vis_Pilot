@@ -88,6 +88,7 @@ def update_state_space_t(df, selected_ids=[]):
 
     # Add final points
     final_data = df[df['final_object'] == True]
+    first = bool(df['istestset'].eq(True).any())
     for final_id in final_data['final_id'].unique():
         fd = final_data[final_data['final_id'] == final_id]
         t_opacity =1 if (not selected_ids or final_id in selected_ids) else 0.2
@@ -102,11 +103,36 @@ def update_state_space_t(df, selected_ids=[]):
                 line=dict(width=1, color='white'),
                 opacity=t_opacity,
             ),
-            name=f'Final {final_id}',
-            showlegend=False,
+            name='Samples',
+            showlegend=first,
             #hovertemplate='<b>Final</b><br>SMILES: %{customdata[0]}<extra></extra>',
             customdata=fd[['image', 'final_id']].values
         ))
+        first = False
+
+    # Add testset points
+    testset_data = df[df['istestset'] == True]
+    first = True
+    for final_id in testset_data['final_id'].unique():
+        fd = testset_data[testset_data['final_id'] == final_id]
+        t_opacity = 0.7 if (not selected_ids or final_id in selected_ids) else 0.2
+        fig.add_trace(go.Scatter(
+            x=fd['X'],
+            y=fd['Y'],
+            mode='markers',
+            marker=dict(
+                symbol='square',
+                size=5,
+                color=px.colors.diverging.curl[9],
+                line=dict(width=1, color='white'),
+                opacity=t_opacity,
+            ),
+            name='Testset',
+            showlegend=first,
+            # hovertemplate='<b>Final</b><br>SMILES: %{customdata[0]}<extra></extra>',
+            customdata=fd[['image', 'final_id']].values
+        ))
+        first = False
 
     fig.update_traces(
         #customdata=plot_data[['images']].values,

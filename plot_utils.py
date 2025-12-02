@@ -2,12 +2,13 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
+from networkx.algorithms.traversal import dfs_edges
 from sklearn import manifold
 from umap import UMAP
 from collections import defaultdict
 
 
-def update_state_space_t(data, method, param_value, selected_ids=[]):
+def update_state_space_t(df, selected_ids=[]):
     """
     Create a trajectory visualization in state space with dimensionality reduction.
 
@@ -26,35 +27,15 @@ def update_state_space_t(data, method, param_value, selected_ids=[]):
     --------
     plotly.graph_objects.Figure
     """
-    metadata_to = 11
-
-    # Split metadata and features
-    metadata = data.iloc[:, :metadata_to]
-    features = data.iloc[:, metadata_to:]
-
-    # Apply dimensionality reduction
-    if method == 'tsne':
-        reduced = manifold.TSNE(perplexity=param_value, random_state=42).fit_transform(features)
-    elif method == "umap":
-        reducer = UMAP(n_neighbors=param_value, random_state=42)
-        reduced = reducer.fit_transform(features)
-    else:
-        raise NotImplementedError('Method not implemented')
-
-    # Combine back with metadata
-    plot_data = pd.concat([
-        metadata.reset_index(drop=True),
-        pd.DataFrame(reduced, columns=['X', 'Y'])
-    ], axis=1)
 
     # Create figure
     fig = go.Figure()
 
     # Get unique trajectory IDs and their iterations
-    unique_ids = plot_data['final_id'].unique()
+    unique_ids = df['final_id'].unique()
 
     # Create color mapping based on iteration values
-    iteration_values = plot_data.groupby('final_id')['iteration'].first()
+    iteration_values = df.groupby('final_id')['iteration'].first()
     min_iter = iteration_values.min()
     max_iter = iteration_values.max()
 
@@ -87,7 +68,7 @@ def update_state_space_t(data, method, param_value, selected_ids=[]):
 
     # Add trajectory lines
     for final_id in unique_ids:
-        traj_data = plot_data[plot_data['final_id'] == final_id].sort_values('step')
+        traj_data = df[df['final_id'] == final_id].sort_values('step')
         t_opacity = 0.1 if (not selected_ids or final_id  not in selected_ids) else 1
 
         fig.add_trace(go.Scatter(
@@ -106,7 +87,7 @@ def update_state_space_t(data, method, param_value, selected_ids=[]):
         ))
 
     # Add final points
-    final_data = plot_data[plot_data['final_object'] == True]
+    final_data = df[df['final_object'] == True]
     for final_id in final_data['final_id'].unique():
         fd = final_data[final_data['final_id'] == final_id]
         t_opacity =1 if (not selected_ids or final_id in selected_ids) else 0.1
@@ -652,7 +633,7 @@ def prepare_state_space(data_objects, metadata_to=8):
     return metadata.reset_index(drop=True), features.reset_index(drop=True)
 
 
-def update_state_space(metadata, features, method="umap", param_value=15, selected_ids=[]):
+def update_state_space(df, selected_ids=[]):
     """
     Updates the state space for final objects
     :param metadata: df metadata
@@ -661,21 +642,6 @@ def update_state_space(metadata, features, method="umap", param_value=15, select
     :param param_value: n_neighbors for umap, perplexity for tsne
     :return: updated plot
     """
-
-    # Downprojection
-    if method == "tsne":
-        proj = manifold.TSNE(
-            perplexity=param_value,
-            init='pca',
-            learning_rate='auto'
-        ).fit_transform(features)
-    elif method == "umap":
-        reducer = UMAP(n_neighbors=param_value)
-        proj = reducer.fit_transform(features)
-    else:
-        raise NotImplementedError("Method not implemented")
-
-    df = pd.concat([metadata, pd.DataFrame(proj, columns=['X','Y'])], axis=1)
 
     # Create Plot
     fig = px.scatter(

@@ -5,6 +5,8 @@ from plot_utils import *
 
 # Load data
 data = pd.read_csv('train_data.csv')
+data_dps = None
+data_dpt = None
 
 # add ranked reward for filtering for performance
 last_rewards = data.groupby('final_id')['total_reward'].transform('last')
@@ -24,6 +26,8 @@ flow_options = ["logprobs_forward", "logprobs_backward",
 
 app.layout = html.Div([
     dcc.Store(id="selected-objects", data=[]),  # selected objects based on final_id
+    dcc.Store(id="data-dps", data=data_dps), #downprojections
+    dcc.Store(id="data-dpt", data=data_dpt),
 
     # ================= LEFT COLUMN (12%) =================
     html.Div([
@@ -422,7 +426,55 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
     print(list(selected_ids))
     return list(selected_ids)
 
+# Compute downprojections
+@app.callback(
+    Output("data-dps", "data"),
+    Output("data-dpt", "data"),
+    Input("projection-method", "value"),
+    Input("projection-param", "value"),
+    Input("limit-trajectories", "value"),
+    Input(  "iteration", "value")
+)
+def compute_downprojections(method, param_value, trajectories, iteration):
+    cols_to = 11
+    objs = data[data["features_valid"] == True]
+    objs = objs[objs["iteration"] <= iteration[1]]
+    objs = objs[objs["iteration"] > iteration[0]]
 
+    #states
+    data_s = objs[objs["final_object"] == True]
+    metadata_s = data_s.iloc[:, :cols_to].reset_index(drop=True)
+    features_s = data_s.iloc[:, cols_to:].reset_index(drop=True)
+
+    #trajectories
+    top_ranks = sorted(objs['reward_ranked'].dropna().unique())[:trajectories]
+    data_t = objs[objs["reward_ranked"].isin(top_ranks)]
+    metadata_t = data_t.iloc[:, :cols_to].reset_index(drop=True)
+    features_t = data_t.iloc[:, cols_to:].reset_index(drop=True)
+
+    # Downprojection
+    if method == "tsne":
+        proj_s = manifold.TSNE(
+            perplexity=param_value,
+            init='pca',
+            learning_rate='auto'
+        ).fit_transform(features_s)
+        proj_t = manifold.TSNE(
+            perplexity=param_value,
+            init='pca',
+            learning_rate='auto'
+        ).fit_transform(features_t)
+    elif method == "umap":
+        reducer = UMAP(n_neighbors=param_value)
+        proj_s = reducer.fit_transform(features_s)
+        proj_t = reducer.fit_transform(features_t)
+    else:
+        raise NotImplementedError("Method not implemented")
+
+    data_s = pd.concat([metadata_s, pd.DataFrame(proj_s, columns=['X', 'Y'])], axis=1)
+    data_t = pd.concat([metadata_t, pd.DataFrame(proj_t, columns=['X', 'Y'])], axis=1)
+    print(len(data_s), len(data_t), "changed")
+    return data_s.to_dict("records"), data_t.to_dict("records")
 
 # Bump Callback
 @app.callback(
@@ -442,39 +494,16 @@ def bump_callback(iteration, selected_ids):
 # State Space Callback
 @app.callback(
     Output("state-space-plot", "figure"),
-    Input("projection-method", "value"),
-    Input("projection-param", "value"),
-    Input(  "iteration", "value"),
-    Input("selected-objects", "data"),
-)
-def update_projection(method, param_value, iteration, selected_ids):
-    objs = data[data["final_object"] == True]
-    objs = objs[objs["features_valid"] == True]
-    objs = objs[objs["iteration"] <= iteration[1]]
-    objs = objs[objs["iteration"] > iteration[0]]
-    metadata = objs.iloc[:, :11].reset_index(drop=True)
-    features = objs.iloc[:, 11:].reset_index(drop=True)
-    #return metadata.reset_index(drop=True), features.reset_index(drop=True)
-    return update_state_space(metadata, features, method, param_value, selected_ids)
-
-
-# Trajectory Visualization Callback
-@app.callback(
     Output("trajectory-plot", "figure"),
-    Input("projection-method", "value"),
-    Input("projection-param", "value"),
-    Input("limit-trajectories", "value"),
-    Input(  "iteration", "value"),
     Input("selected-objects", "data"),
+    Input("data-dps", "data"),
+    Input("data-dpt", "data")
 )
-def update_trajectory_plot(method, param_value, trajectories, iteration, selected_ids):
-    tmp = data[data["features_valid"] == True]
-    tmp = tmp[tmp["iteration"] <= iteration[1]]
-    tmp = tmp[tmp["iteration"] > iteration[0]]
-    top_ranks = sorted(tmp['reward_ranked'].dropna().unique())[:trajectories]
-    tmp = tmp[tmp["reward_ranked"].isin(top_ranks)]
-    return update_state_space_t(tmp, method, param_value, selected_ids)
-
+def update_projection_plots(selected_ids, data_s, data_t):
+    return(
+        update_state_space(pd.DataFrame(data_s), selected_ids),
+        update_state_space_t(pd.DataFrame(data_t), selected_ids)
+    )
 
 # DAG Callback
 @app.callback(
@@ -495,6 +524,8 @@ def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories, i
     tmp = tmp[tmp["iteration"] > iteration[0]]
     top_ranks = sorted(tmp['reward_ranked'].dropna().unique())[:trajectories]
     tmp = tmp[tmp["reward_ranked"].isin(top_ranks)]
+    if selected_ids:
+        tmp=tmp[tmp["final_id"].isin(selected_ids)]
     graph = prepare_graph(tmp)
 
     result = update_DAG(

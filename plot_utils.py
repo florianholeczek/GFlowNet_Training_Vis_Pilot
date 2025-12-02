@@ -146,7 +146,7 @@ def update_state_space_t(df, selected_ids=[]):
         xaxis_title="X",
         yaxis_title="Y",
         hovermode='closest',
-        template='plotly_white',
+        template='plotly',
         margin=dict(l=40, r=40, t=40, b=40)
     )
 
@@ -723,15 +723,13 @@ def update_state_space(df, selected_ids=[]):
     fig.update_layout(
         autosize=True,
         title=f"Final Objects downprojected<br><sup>Size shows total reward",
+        template='plotly',
         legend=dict(
             itemsizing='constant',  # ensures marker size is not scaled
         )
     )
 
     return fig
-
-
-
 
 
 def update_bump(df, n_top, selected_ids):
@@ -795,6 +793,29 @@ def update_bump(df, n_top, selected_ids):
     first_ranks = tmp.groupby("text")["value"].min().sort_values().index
 
     fig = go.Figure()
+
+    # Check if there are exactly two test set objects for shading
+    testset_objects = tmp[tmp["istestset"]]["text"].unique()
+    add_shading = len(testset_objects) == 2
+
+    if add_shading:
+        # Get data for both test set objects
+        test_obj_1 = tmp[tmp["text"] == testset_objects[0]].sort_values("iteration")
+        test_obj_2 = tmp[tmp["text"] == testset_objects[1]].sort_values("iteration")
+
+        # Add shaded area between the two lines
+        fig.add_trace(
+            go.Scatter(
+                x=test_obj_1["iteration"].tolist() + test_obj_2["iteration"].tolist()[::-1],
+                y=test_obj_1["value"].tolist() + test_obj_2["value"].tolist()[::-1],
+                fill='toself',
+                fillcolor='rgba(255, 182, 193, 0.2)',  # Light pink with transparency
+                line=dict(width=0),
+                showlegend=False,
+                hoverinfo='skip'
+            )
+        )
+
     for obj in first_ranks:
         obj_df = tmp[tmp["text"] == obj].sort_values("iteration")
 
@@ -816,7 +837,8 @@ def update_bump(df, n_top, selected_ids):
                     marker=dict(
                         symbol="circle",
                         size=sub_df["sampled"],
-                        color=px.colors.diverging.curl[9] if sub_df["istestset"].any() else px.colors.sequential.Emrld[-1],
+                        color=px.colors.diverging.curl[9] if sub_df["istestset"].any() else px.colors.sequential.Emrld[
+                            -1],
                     ),
                     line=dict(width=2),
                     opacity=opacity,
@@ -839,6 +861,7 @@ def update_bump(df, n_top, selected_ids):
         showlegend=False,
         xaxis_title="Iteration",
         yaxis_title="Rank",
+        template='plotly'
     )
 
     fig.update_yaxes(autorange="reversed")

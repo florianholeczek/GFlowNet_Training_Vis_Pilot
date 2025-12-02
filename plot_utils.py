@@ -226,7 +226,6 @@ def prepare_graph(df):
     --------
     dict : Dictionary containing nodes and edges data
     """
-    print("start prepare")
 
     # Sort by final_id and step
     df = df.sort_values(['final_id', 'step'], ascending=[True, True])
@@ -337,7 +336,6 @@ def prepare_graph(df):
             }
         })
 
-    print("done")
 
     return {'nodes': nodes, 'edges': unique_edges}
 
@@ -636,44 +634,76 @@ def prepare_state_space(data_objects, metadata_to=8):
 def update_state_space(df, selected_ids=[]):
     """
     Updates the state space for final objects
-    :param metadata: df metadata
-    :param features: df features
-    :param method: downprojection method
-    :param param_value: n_neighbors for umap, perplexity for tsne
+    :param df: dataframe with required columns
+    :param selected_ids: list of selected final_ids
     :return: updated plot
     """
 
-    # Create Plot
-    fig = px.scatter(
-        df,
-        x='X',
-        y='Y',
-        color='iteration',
-        size='total_reward',
-        color_continuous_scale="emrld",
-        opacity = [
-            0.9 if (not selected_ids or s in selected_ids)
-            else 0.1
-            for s in df["final_id"]
-        ],
-        #height=500,
-        #width=500,
-        #title=f"{method.upper()} Projection"
-    )
-    fig.update_traces(
-        customdata=df[['final_id', 'iteration', 'total_reward', 'image']].values,
-        hoverinfo="none",
-        hovertemplate=None,
-    ),
+    # Separate test set and normal points
+    df["total_reward"]=np.sqrt(df["total_reward"])
+    df_test = df[df['istestset']]
+    df_normal = df[~df['istestset']]
+
+    # Compute opacity
+    def compute_opacity(df_sub):
+        return [
+            0.9 if (not selected_ids or s in selected_ids) else 0.1
+            for s in df_sub['final_id']
+        ]
+
+    fig = go.Figure()
+    sizeref = df["total_reward"].max()*2/(8**2)
+
+    # Normal points with continuous color scale
+    fig.add_trace(go.Scatter(
+        x=df_normal['X'],
+        y=df_normal['Y'],
+        mode='markers',
+        marker=dict(
+            size=df_normal['total_reward'],
+            sizeref=sizeref,
+            color=df_normal['iteration'],
+            colorscale='emrld',
+            line=dict(color='black', width=1),
+            showscale=True,
+            colorbar=dict(title='Iteration'),
+            opacity=compute_opacity(df_normal),
+        ),
+
+        customdata=df_normal[['final_id', 'iteration', 'total_reward', 'image']].values,
+        hoverinfo='none',
+        name="Samples"
+    ))
+
+    # Test set points in red
+    if not df_test.empty:
+        fig.add_trace(go.Scatter(
+            x=df_test['X'],
+            y=df_test['Y'],
+            mode='markers',
+            marker=dict(
+                size=df_test['total_reward'],
+                sizeref=sizeref,
+                color=px.colors.diverging.curl[9],
+                line=dict(color='black', width=1),
+                opacity=compute_opacity(df_test),
+            ),
+
+            customdata=df_test[['final_id', 'iteration', 'total_reward', 'image']].values,
+            hoverinfo='none',
+            name='Test Set',
+        ))
 
     fig.update_layout(
         autosize=True,
-        title=f"Final Objects downprojected<br><sup>"
-              f"Size shows total reward",
-        coloraxis_colorbar=dict(title="Iteration")
+        title=f"Final Objects downprojected<br><sup>Size shows total reward",
+        legend=dict(
+            itemsizing='constant',  # ensures marker size is not scaled
+        )
     )
 
     return fig
+
 
 
 
@@ -689,7 +719,6 @@ def update_bump(df, n_top, selected_ids):
     :return: Plotly figure
     """
 
-    print("startbump")
     df_local = df.copy()
     df_local.loc[df_local["istestset"], "iteration"] = df_local.loc[~df_local["istestset"], "iteration"].min()
     df_local["iteration"] = pd.Categorical(
@@ -761,7 +790,7 @@ def update_bump(df, n_top, selected_ids):
                     marker=dict(
                         symbol="circle",
                         size=sub_df["sampled"],
-                        color=px.colors.diverging.curl[8] if sub_df["istestset"].any() else px.colors.sequential.Emrld[-1],
+                        color=px.colors.diverging.curl[9] if sub_df["istestset"].any() else px.colors.sequential.Emrld[-1],
                     ),
                     line=dict(width=2),
                     opacity=opacity,
@@ -787,8 +816,6 @@ def update_bump(df, n_top, selected_ids):
     )
 
     fig.update_yaxes(autorange="reversed")
-
-    print("donebump")
 
     return fig
 

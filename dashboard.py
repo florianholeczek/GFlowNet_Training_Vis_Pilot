@@ -5,16 +5,17 @@ from plot_utils import *
 
 # Load data
 data = pd.read_csv('train_data.csv')
+data.insert(loc=10, column="istestset", value=False)
 data_dps = None
 data_dpt = None
 data_test = pd.read_csv('testset.csv')
 data_test["final_id"]+=len(data)
-data_test["istestset"]=True
+data_test["iteration"]=0
+data_test.insert(loc=10, column="istestset", value=True)
 data_test_minmax = pd.concat(
     [data_test[data_test["total_reward"] == data_test["total_reward"].min()].iloc[[0]],
      data_test[data_test["total_reward"] == data_test["total_reward"].max()].iloc[[0]]
 ]).copy()
-data_test_minmax["iteration"]=0
 
 
 # add ranked reward for filtering for performance
@@ -409,7 +410,6 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
 
     # Clear button pressed
     if "clear-selection" in trigger:
-        print([])
         return []
 
     selected_ids = set(current_ids or [])
@@ -440,7 +440,6 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
             for i in final_id:
                 selected_ids.add(i)
 
-    print(list(selected_ids))
     return list(selected_ids)
 
 # Compute downprojections
@@ -450,18 +449,23 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
     Input("projection-method", "value"),
     Input("projection-param", "value"),
     Input("limit-trajectories", "value"),
-    Input(  "iteration", "value")
+    Input(  "iteration", "value"),
+    Input(  "use-testset", "value")
 )
-def compute_downprojections(method, param_value, trajectories, iteration):
-    cols_to = 11
-    objs = data[data["features_valid"] == True]
-    objs = objs[objs["iteration"] <= iteration[1]]
-    objs = objs[objs["iteration"] > iteration[0]]
+def compute_downprojections(method, param_value, trajectories, iteration, use_testset):
+    cols_to = 12
+    objs = data[data["iteration"] <= iteration[1]]
+    objs = objs[objs["iteration"] >= iteration[0]]
+    objs = objs[objs["final_object"] == True]
+    if use_testset:
+        objs = pd.concat((objs, data_test))
+    objs = objs[objs["features_valid"] == True]
 
     #states
-    data_s = objs[objs["final_object"] == True]
+    data_s = objs.copy()
     metadata_s = data_s.iloc[:, :cols_to].reset_index(drop=True)
     features_s = data_s.iloc[:, cols_to:].reset_index(drop=True)
+    print(len(data_s), data_s.columns[:cols_to+1])
 
     #trajectories
     top_ranks = sorted(objs['reward_ranked'].dropna().unique())[:trajectories]
@@ -472,12 +476,12 @@ def compute_downprojections(method, param_value, trajectories, iteration):
     # Downprojection
     if method == "tsne":
         proj_s = manifold.TSNE(
-            perplexity=min(param_value, len(features_s)),
+            perplexity=min(param_value, len(features_s)-1),
             init='pca',
             learning_rate='auto'
         ).fit_transform(features_s)
         proj_t = manifold.TSNE(
-            perplexity=min(param_value, len(features_t)),
+            perplexity=min(param_value, len(features_t)-1),
             init='pca',
             learning_rate='auto'
         ).fit_transform(features_t)
@@ -506,9 +510,7 @@ def bump_callback(iteration, selected_ids, use_testset):
     tmp = tmp[tmp["iteration"] <= iteration[1]]
     tmp = tmp[tmp["iteration"] >= iteration[0]]
     tmp["istestset"]=False
-    print(data_test_minmax)
     if use_testset:
-        print("using testset")
         tmp = pd.concat((tmp, data_test_minmax))
 
     return update_bump(tmp, 30, selected_ids)
@@ -544,7 +546,7 @@ def update_projection_plots(selected_ids, data_s, data_t):
 def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories, iteration, selected_ids):
     tmp = data.iloc[:, :10]
     tmp = tmp[tmp["iteration"] <= iteration[1]]
-    tmp = tmp[tmp["iteration"] > iteration[0]]
+    tmp = tmp[tmp["iteration"] >= iteration[0]]
     top_ranks = sorted(tmp['reward_ranked'].dropna().unique())[:trajectories]
     tmp = tmp[tmp["reward_ranked"].isin(top_ranks)]
     if selected_ids:

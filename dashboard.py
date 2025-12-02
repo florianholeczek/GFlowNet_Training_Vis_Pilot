@@ -456,13 +456,12 @@ def compute_downprojections(method, param_value, trajectories, iteration, use_te
     cols_to = 12
     objs = data[data["iteration"] <= iteration[1]]
     objs = objs[objs["iteration"] >= iteration[0]]
-    objs = objs[objs["final_object"] == True]
     if use_testset:
         objs = pd.concat((objs, data_test))
     objs = objs[objs["features_valid"] == True]
 
     #states
-    data_s = objs.copy()
+    data_s = objs[(objs["final_object"] == True) | (objs["istestset"]==True)].copy()
     metadata_s = data_s.iloc[:, :cols_to].reset_index(drop=True)
     features_s = data_s.iloc[:, cols_to:].reset_index(drop=True)
     print(len(data_s), data_s.columns[:cols_to+1])

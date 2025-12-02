@@ -69,7 +69,7 @@ def update_state_space_t(df, selected_ids=[]):
     # Add trajectory lines
     for final_id in unique_ids:
         traj_data = df[df['final_id'] == final_id].sort_values('step')
-        t_opacity = 0.1 if (not selected_ids or final_id  not in selected_ids) else 1
+        t_opacity = 0.2 if (not selected_ids or final_id  not in selected_ids) else 1
 
         fig.add_trace(go.Scatter(
             x=traj_data['X'],
@@ -90,7 +90,7 @@ def update_state_space_t(df, selected_ids=[]):
     final_data = df[df['final_object'] == True]
     for final_id in final_data['final_id'].unique():
         fd = final_data[final_data['final_id'] == final_id]
-        t_opacity =1 if (not selected_ids or final_id in selected_ids) else 0.1
+        t_opacity =1 if (not selected_ids or final_id in selected_ids) else 0.2
         fig.add_trace(go.Scatter(
             x=fd['X'],
             y=fd['Y'],

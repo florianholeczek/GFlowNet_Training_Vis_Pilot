@@ -1,11 +1,9 @@
 import dash
-from dash import dcc, html, Input, Output, State
+from dash import dcc, html, Input, Output, State, no_update
 import dash_cytoscape as cyto
 from plot_utils import *
 
 # Load data
-data_objects = pd.read_csv('data_objects.csv')
-data_trajectories = pd.read_csv('data_trajectories.csv')
 data = pd.read_csv('train_data.csv')
 
 # add ranked reward for filtering for performance
@@ -33,6 +31,11 @@ app.layout = html.Div([
         html.H4("General"),
 
         html.Div([
+            html.Button("Clear selection", id="clear-selection", n_clicks=0, style={
+                "display": "flex",
+                "flexDirection": "column",
+                "gap": "6px"
+            }),
 
             # -------- Iterations --------
             html.Div([
@@ -224,7 +227,7 @@ app.layout = html.Div([
                     dcc.Graph(id="bumpchart", clear_on_unhover=True),
                     style={"height": "100%", "width": "100%"}
                 ),
-                dcc.Tooltip(id="image-tooltip3"),
+                dcc.Tooltip(id="image-tooltip3", direction="left"),
 
             ], style={
                 "flex": 1,
@@ -364,8 +367,61 @@ def update_projection_param(method):
         return "perplexity", 5, 50, 1, {5: "5", 25: "25", 50: "50"}, 30
 
 
+# Main selection update
+@app.callback(
+    Output("selected-objects", "data"),
+    Input("clear-selection", "n_clicks"),
+    Input("state-space-plot", "selectedData"),
+    Input("trajectory-plot", "selectedData"),
+    Input("bumpchart", "selectedData"),
+    Input("dag-graph", "tapNodeData"),
+    State("selected-objects", "data"),
+    prevent_initial_call=True
+)
+def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, dag_node, current_ids):
 
-# Main Data update
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        return no_update
+
+    trigger = ctx.triggered[0]["prop_id"]
+
+    # Clear button pressed
+    if "clear-selection" in trigger:
+        print([])
+        return []
+
+    selected_ids = set(current_ids or [])
+
+    # ---------- State-space lasso ----------
+    if "state-space-plot.selectedData" in trigger and ss_select:
+        for point in ss_select["points"]:
+            final_id = point["customdata"][0]
+            selected_ids.add(final_id)
+
+    # ---------- Trajectory lasso ----------
+    elif "trajectory-plot.selectedData" in trigger and traj_select:
+        for point in traj_select["points"]:
+            final_id = point["customdata"][1]
+            selected_ids.add(final_id)
+
+    # ---------- Bump chart lasso ----------
+    elif "bumpchart.selectedData" in trigger and bump_select:
+        for point in bump_select["points"]:
+            final_id = point["customdata"][0]
+            selected_ids.add(final_id)
+
+    # ---------- DAG click ----------
+    elif "dag-graph.tapNodeData" in trigger and dag_node:
+        text = dag_node.get("id")
+        final_id = data.loc[data["text"] == text, "final_id"].dropna().unique().tolist()
+        if final_id:
+            for i in final_id:
+                selected_ids.add(i)
+
+    print(list(selected_ids))
+    return list(selected_ids)
+
 
 
 # Bump Callback
@@ -477,7 +533,7 @@ def display_image_tooltip1(hoverData):
     bbox = hoverData["points"][0]["bbox"]
 
     # Extract base64 image saved in customdata
-    iteration, reward, image_b64 = hoverData["points"][0]["customdata"]
+    _, iteration, reward, image_b64 = hoverData["points"][0]["customdata"]
 
     # Build HTML content
     children = [
@@ -538,7 +594,7 @@ def display_image_tooltip3(hoverData):
     bbox = hoverData["points"][0]["bbox"]
 
     # Extract base64 image saved in customdata
-    value, image_b64, reward = hoverData["points"][0]["customdata"]
+    _, value, image_b64, reward = hoverData["points"][0]["customdata"]
 
     # Build HTML content
     children = [

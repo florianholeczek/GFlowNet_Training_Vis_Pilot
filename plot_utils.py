@@ -118,7 +118,7 @@ def update_state_space_t(data, method, param_value):
             name=f'Final {final_id}',
             showlegend=False,
             #hovertemplate='<b>Final</b><br>SMILES: %{customdata[0]}<extra></extra>',
-            customdata=fd[['image']].values
+            customdata=fd[['image', 'final_id']].values
         ))
 
     fig.update_traces(
@@ -685,7 +685,7 @@ def update_state_space(metadata, features, method="umap", param_value=15):
         #title=f"{method.upper()} Projection"
     )
     fig.update_traces(
-        customdata=df[['iteration', 'total_reward', 'image']].values,
+        customdata=df[['final_id', 'iteration', 'total_reward', 'image']].values,
         hoverinfo="none",
         hovertemplate=None,
     ),
@@ -761,7 +761,7 @@ def update_bump(df, n_top):
 
     # Attach images for hover/marker logic
     tmp = tmp.merge(
-        df_local[['text', 'image', 'total_reward']].drop_duplicates(subset='text'),
+        df_local[['final_id', 'text', 'image', 'total_reward']].drop_duplicates(subset='text'),
         on='text',
         how='left'
     )
@@ -789,14 +789,16 @@ def update_bump(df, n_top):
                 marker=dict(
                     symbol="circle",
                     size=[
-                        10 if ((df_local["text"] == obj) & (df_local["iteration"] == it)).any()
+                        8 if ((df_local["text"] == obj) & (df_local["iteration"] == it)).any()
                         else 0
                         for it in obj_df["iteration"]
-                    ]
+                    ],
+                    color=px.colors.sequential.Emrld[-1],
                 ),
+                line=dict(width=2),
                 name=obj,
                 #marker=dict(symbol='circle-open', size=10),
-                customdata=obj_df[['value', 'image', 'total_reward']].values,
+                customdata=obj_df[['final_id', 'value', 'image', 'total_reward']].values,
                 #hovertemplate="Iteration: %{x}<br>Value: %{y}<extra></extra>"
             )
         )

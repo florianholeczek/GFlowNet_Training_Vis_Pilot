@@ -680,90 +680,77 @@ def update_state_space(df, selected_ids=[]):
 
 def update_bump(df, n_top, selected_ids):
     """
-    Updates the bump chart
+    Optimized bump chart update for cumulative top-ranked objects
+    where rewards are fixed but rank evolves as new objects appear.
+
     :param df: prepared dataframe
-    :param n_top: number of displayed items
-    :return: updated plot
+    :param n_top: number of top objects to display
+    :param selected_ids: list of final_ids to highlight
+    :return: Plotly figure
     """
 
-    fig = go.Figure()
+    print("startbump")
     df_local = df.copy()
     df_local["iteration"] = pd.Categorical(
         df_local["iteration"],
         categories=sorted(df["iteration"].unique()),
         ordered=True
     )
-    iters = df_local["iteration"].cat.categories
+
+    iterations = df_local["iteration"].cat.categories
     records = []
-    seen = set()
 
-    for it in iters:
-        this_iter = df_local[df_local["iteration"] <= it]
+    # Track objects seen so far and their fixed rewards
+    seen_objects = {}
 
-        # top_n of ALL iterations seen so far
-        current_top = (
-            this_iter.groupby("text", observed=False)["total_reward"]
-            .max()
-            .nlargest(n_top)
-            .index
+    for it in iterations:
+        # Add objects from this iteration
+        current_iter_data = df_local[df_local["iteration"] == it]
+        for _, row in current_iter_data.iterrows():
+            seen_objects[row["text"]] = row["total_reward"]
+
+        # Compute ranks for all seen objects
+        tmp_rank = (
+            pd.DataFrame({"text": list(seen_objects.keys()), "total_reward": list(seen_objects.values())})
+            .sort_values("total_reward", ascending=False)
+            .head(n_top)
         )
+        tmp_rank["rank"] = range(1, len(tmp_rank) + 1)
+        tmp_rank["iteration"] = it
 
-        # IMPORTANT: No "seen" anymore
-        current_df = this_iter[this_iter["text"].isin(current_top)]
-
-        rank_df = (
-            current_df.groupby("text", observed=False)["total_reward"]
-            .max()
-            .reset_index()
-        )
-
-        rank_df["rank"] = rank_df["total_reward"].rank(
-            method="first", ascending=False
-        )
-
-        rank_df["iteration"] = it
-
-        records.append(rank_df[["iteration", "text", "rank"]])
+        records.append(tmp_rank[["iteration", "text", "rank"]])
 
     tmp = pd.concat(records, ignore_index=True)
     tmp = tmp.rename(columns={"rank": "value"})
 
-    sorted_objects = (
-        tmp.groupby("text", observed=False)["value"]
-        .min()
-        .sort_values()
-        .index
-    )
-
-    # Attach images for hover/marker logic
+    # Attach images and IDs
     tmp = tmp.merge(
         df_local[['final_id', 'text', 'image', 'total_reward']].drop_duplicates(subset='text'),
         on='text',
         how='left'
     )
 
-    # ----------------- Plot -----------------
+    # Precompute marker sizes: circle if object was sampled in that iteration
+    tmp["sampled"] = tmp.apply(
+        lambda r: 8 if ((df_local["text"] == r["text"]) & (df_local["iteration"] == r["iteration"])).any() else 0,
+        axis=1)
 
-    for obj in sorted_objects:
+    # Sort objects by first appearance rank for consistent line ordering
+    first_ranks = tmp.groupby("text")["value"].min().sort_values().index
 
+    fig = go.Figure()
+    for obj in first_ranks:
         obj_df = tmp[tmp["text"] == obj].sort_values("iteration")
 
-        present_mask = df_local["text"] == obj
-        present_iters = set(df_local[present_mask]["iteration"])
-
         selected_mask = obj_df["final_id"].isin(selected_ids)
+        if not selected_ids:
+            selected_mask[:] = True
         unselected_mask = ~selected_mask
 
-        if not selected_ids:
-            selected_mask = pd.Series([True] * len(obj_df), index=obj_df.index)
-            unselected_mask = ~selected_mask
-
         for mask, opacity in [(selected_mask, 1), (unselected_mask, 0.1)]:
-
-            if not mask.any():
-                continue  # skip empty traces
-
             sub_df = obj_df[mask]
+            if sub_df.empty:
+                continue
 
             fig.add_trace(
                 go.Scatter(
@@ -772,32 +759,27 @@ def update_bump(df, n_top, selected_ids):
                     mode="lines+markers",
                     marker=dict(
                         symbol="circle",
-                        size=[
-                            8 if ((df_local["text"] == obj) & (df_local["iteration"] == it)).any()
-                            else 0
-                            for it in sub_df["iteration"]
-                        ],
+                        size=sub_df["sampled"],
                         color=px.colors.sequential.Emrld[-1],
                     ),
                     line=dict(width=2),
                     opacity=opacity,
                     name=obj if opacity == 1 else f"{obj} (faded)",
                     customdata=sub_df[['final_id', 'value', 'image', 'total_reward']].values,
-                    showlegend=(opacity == 1)  # avoid clutter
+                    showlegend=(opacity == 1)
                 )
             )
 
-    fig.update_traces(
-        hoverinfo="none",
-        hovertemplate=None,
-    ),
+    fig.update_traces(hoverinfo="none", hovertemplate=None)
 
     fig.update_layout(
         autosize=True,
-        title=f"Replay Buffer Ranked<br><sup>"
-              f"Sampled Objects ranked by the total reward. "
-              f"For each Iteration it shows the highest reward objects so far. "
-              f"Circles show if an object was sampled in this iteration</sup>",
+        title=(
+            "Replay Buffer Ranked<br><sup>"
+            "Sampled Objects ranked by the total reward. "
+            "For each Iteration it shows the highest reward objects so far. "
+            "Circles show if an object was sampled in this iteration</sup>"
+        ),
         showlegend=False,
         xaxis_title="Iteration",
         yaxis_title="Rank",
@@ -805,5 +787,9 @@ def update_bump(df, n_top, selected_ids):
 
     fig.update_yaxes(autorange="reversed")
 
+    print("donebump")
+
     return fig
+
+
 

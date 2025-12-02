@@ -7,7 +7,7 @@ from umap import UMAP
 from collections import defaultdict
 
 
-def update_state_space_t(data, method, param_value):
+def update_state_space_t(data, method, param_value, selected_ids=[]):
     """
     Create a trajectory visualization in state space with dimensionality reduction.
 
@@ -88,13 +88,17 @@ def update_state_space_t(data, method, param_value):
     # Add trajectory lines
     for final_id in unique_ids:
         traj_data = plot_data[plot_data['final_id'] == final_id].sort_values('step')
+        t_opacity = 0.1 if (not selected_ids or final_id  not in selected_ids) else 1
 
         fig.add_trace(go.Scatter(
             x=traj_data['X'],
             y=traj_data['Y'],
             mode='lines',
-            line=dict(color=color_map[final_id], width=2),
-            opacity=0.15,
+            line=dict(
+                color=color_map[final_id],
+                width=2,
+            ),
+            opacity=t_opacity,
             name=f'Trajectory {final_id}',
             showlegend=False,
             #hoverinfo='skip'
@@ -105,6 +109,7 @@ def update_state_space_t(data, method, param_value):
     final_data = plot_data[plot_data['final_object'] == True]
     for final_id in final_data['final_id'].unique():
         fd = final_data[final_data['final_id'] == final_id]
+        t_opacity =1 if (not selected_ids or final_id in selected_ids) else 0.1
         fig.add_trace(go.Scatter(
             x=fd['X'],
             y=fd['Y'],
@@ -113,7 +118,8 @@ def update_state_space_t(data, method, param_value):
                 symbol='square',
                 size=8,
                 color=color_map[final_id],
-                line=dict(width=1, color='white')
+                line=dict(width=1, color='white'),
+                opacity=t_opacity,
             ),
             name=f'Final {final_id}',
             showlegend=False,
@@ -465,7 +471,7 @@ def truncate_linear_chains(nodes, edges, edges_to_keep_ids):
     return new_nodes, new_edges
 
 
-def update_DAG(dag_data, flow_attr='logprobs_forward', truncation_pct=0):
+def update_DAG(dag_data, flow_attr='logprobs_forward', truncation_pct=0, selected_ids=[]):
     """
     Update DAG visualization based on flow attribute and truncation percentage.
 
@@ -646,7 +652,7 @@ def prepare_state_space(data_objects, metadata_to=8):
     return metadata.reset_index(drop=True), features.reset_index(drop=True)
 
 
-def update_state_space(metadata, features, method="umap", param_value=15):
+def update_state_space(metadata, features, method="umap", param_value=15, selected_ids=[]):
     """
     Updates the state space for final objects
     :param metadata: df metadata
@@ -678,8 +684,12 @@ def update_state_space(metadata, features, method="umap", param_value=15):
         y='Y',
         color='iteration',
         size='total_reward',
-        opacity=0.9,
         color_continuous_scale="emrld",
+        opacity = [
+            0.9 if (not selected_ids or s in selected_ids)
+            else 0.1
+            for s in df["final_id"]
+        ],
         #height=500,
         #width=500,
         #title=f"{method.upper()} Projection"
@@ -702,7 +712,7 @@ def update_state_space(metadata, features, method="umap", param_value=15):
 
 
 
-def update_bump(df, n_top):
+def update_bump(df, n_top, selected_ids):
     """
     Updates the bump chart
     :param df: prepared dataframe
@@ -772,36 +782,44 @@ def update_bump(df, n_top):
 
         obj_df = tmp[tmp["text"] == obj].sort_values("iteration")
 
-        # identify where the object is actually present in the iteration
         present_mask = df_local["text"] == obj
         present_iters = set(df_local[present_mask]["iteration"])
 
-        markers = [
-            "circle" if it in present_iters else None
-            for it in obj_df["iteration"]
-        ]
+        selected_mask = obj_df["final_id"].isin(selected_ids)
+        unselected_mask = ~selected_mask
 
-        fig.add_trace(
-            go.Scatter(
-                x=obj_df["iteration"],
-                y=obj_df["value"],
-                mode="lines+markers",
-                marker=dict(
-                    symbol="circle",
-                    size=[
-                        8 if ((df_local["text"] == obj) & (df_local["iteration"] == it)).any()
-                        else 0
-                        for it in obj_df["iteration"]
-                    ],
-                    color=px.colors.sequential.Emrld[-1],
-                ),
-                line=dict(width=2),
-                name=obj,
-                #marker=dict(symbol='circle-open', size=10),
-                customdata=obj_df[['final_id', 'value', 'image', 'total_reward']].values,
-                #hovertemplate="Iteration: %{x}<br>Value: %{y}<extra></extra>"
+        if not selected_ids:
+            selected_mask = pd.Series([True] * len(obj_df), index=obj_df.index)
+            unselected_mask = ~selected_mask
+
+        for mask, opacity in [(selected_mask, 1), (unselected_mask, 0.1)]:
+
+            if not mask.any():
+                continue  # skip empty traces
+
+            sub_df = obj_df[mask]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=sub_df["iteration"],
+                    y=sub_df["value"],
+                    mode="lines+markers",
+                    marker=dict(
+                        symbol="circle",
+                        size=[
+                            8 if ((df_local["text"] == obj) & (df_local["iteration"] == it)).any()
+                            else 0
+                            for it in sub_df["iteration"]
+                        ],
+                        color=px.colors.sequential.Emrld[-1],
+                    ),
+                    line=dict(width=2),
+                    opacity=opacity,
+                    name=obj if opacity == 1 else f"{obj} (faded)",
+                    customdata=sub_df[['final_id', 'value', 'image', 'total_reward']].values,
+                    showlegend=(opacity == 1)  # avoid clutter
+                )
             )
-        )
 
     fig.update_traces(
         hoverinfo="none",

@@ -428,14 +428,15 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
 @app.callback(
     Output("bumpchart", "figure"),
     Input("iteration", "value"),
+    Input("selected-objects", "data"),
 )
-def chart_callback(iteration):
+def update_bump(iteration, selected_ids):
     tmp = data[data["final_object"] == True]
     tmp = tmp.iloc[:, :10]
     tmp = tmp[tmp["iteration"] <= iteration[1]]
     tmp = tmp[tmp["iteration"] > iteration[0]]
 
-    return update_bump(tmp, n_top=30)
+    return update_bump(tmp, 30, selected_ids)
 
 
 # State Space Callback
@@ -443,9 +444,10 @@ def chart_callback(iteration):
     Output("state-space-plot", "figure"),
     Input("projection-method", "value"),
     Input("projection-param", "value"),
-    Input(  "iteration", "value")
+    Input(  "iteration", "value"),
+    Input("selected-objects", "data"),
 )
-def update_projection(method, param_value, iteration):
+def update_state_space(method, param_value, iteration, selected_ids):
     objs = data[data["final_object"] == True]
     objs = objs[objs["features_valid"] == True]
     objs = objs[objs["iteration"] <= iteration[1]]
@@ -453,7 +455,7 @@ def update_projection(method, param_value, iteration):
     metadata = objs.iloc[:, :11].reset_index(drop=True)
     features = objs.iloc[:, 11:].reset_index(drop=True)
     #return metadata.reset_index(drop=True), features.reset_index(drop=True)
-    return update_state_space(metadata, features, method=method, param_value=param_value)
+    return update_state_space(metadata, features, method, param_value, selected_ids)
 
 
 # Trajectory Visualization Callback
@@ -462,15 +464,16 @@ def update_projection(method, param_value, iteration):
     Input("projection-method", "value"),
     Input("projection-param", "value"),
     Input("limit-trajectories", "value"),
-    Input(  "iteration", "value")
+    Input(  "iteration", "value"),
+    Input("selected-objects", "data"),
 )
-def update_trajectory_plot(method, param_value, trajectories, iteration):
+def update_state_space_t(method, param_value, trajectories, iteration, selected_ids):
     tmp = data[data["features_valid"] == True]
     tmp = tmp[tmp["iteration"] <= iteration[1]]
     tmp = tmp[tmp["iteration"] > iteration[0]]
     top_ranks = sorted(tmp['reward_ranked'].dropna().unique())[:trajectories]
     tmp = tmp[tmp["reward_ranked"].isin(top_ranks)]
-    return update_state_space_t(tmp, method, param_value)
+    return update_state_space_t(tmp, method, param_value, selected_ids)
 
 
 # DAG Callback
@@ -483,9 +486,10 @@ def update_trajectory_plot(method, param_value, trajectories, iteration):
     Input("edge-truncation", "value"),
     Input("dag-layout", "value"),
     Input("limit-trajectories", "value"),
-    Input(  "iteration", "value")
+    Input(  "iteration", "value"),
+    Input("selected-objects", "data"),
 )
-def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories, iteration):
+def update_dag(flow_attr, edge_truncation, layout_name, trajectories, iteration, selected_ids):
     tmp = data.iloc[:, :10]
     tmp = tmp[tmp["iteration"] <= iteration[1]]
     tmp = tmp[tmp["iteration"] > iteration[0]]
@@ -495,8 +499,9 @@ def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories, i
 
     result = update_DAG(
         graph,
-        flow_attr=flow_attr,
-        truncation_pct=edge_truncation
+        flow_attr,
+        edge_truncation,
+        selected_ids
     )
 
     # Configure layout based on selection

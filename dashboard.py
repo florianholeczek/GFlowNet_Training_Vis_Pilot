@@ -7,6 +7,15 @@ from plot_utils import *
 data = pd.read_csv('train_data.csv')
 data_dps = None
 data_dpt = None
+data_test = pd.read_csv('testset.csv')
+data_test["final_id"]+=len(data)
+data_test["istestset"]=True
+data_test_minmax = pd.concat(
+    [data_test[data_test["total_reward"] == data_test["total_reward"].min()].iloc[[0]],
+     data_test[data_test["total_reward"] == data_test["total_reward"].max()].iloc[[0]]
+]).copy()
+data_test_minmax["iteration"]=0
+
 
 # add ranked reward for filtering for performance
 last_rewards = data.groupby('final_id')['total_reward'].transform('last')
@@ -120,6 +129,14 @@ app.layout = html.Div([
                 "flexDirection": "column",
                 "gap": "6px"
             }),
+
+
+            # -------- Limit Trajectories --------
+            dcc.Checklist(["Use Testset"], [], id="use-testset", style={
+                "display": "flex",
+                "flexDirection": "column",
+                "gap": "6px"
+            })
 
         ], style={
             "display": "flex",
@@ -455,12 +472,12 @@ def compute_downprojections(method, param_value, trajectories, iteration):
     # Downprojection
     if method == "tsne":
         proj_s = manifold.TSNE(
-            perplexity=param_value,
+            perplexity=min(param_value, len(features_s)),
             init='pca',
             learning_rate='auto'
         ).fit_transform(features_s)
         proj_t = manifold.TSNE(
-            perplexity=param_value,
+            perplexity=min(param_value, len(features_t)),
             init='pca',
             learning_rate='auto'
         ).fit_transform(features_t)
@@ -481,12 +498,18 @@ def compute_downprojections(method, param_value, trajectories, iteration):
     Output("bumpchart", "figure"),
     Input("iteration", "value"),
     Input("selected-objects", "data"),
+    Input("use-testset", "value"),
 )
-def bump_callback(iteration, selected_ids):
+def bump_callback(iteration, selected_ids, use_testset):
     tmp = data[data["final_object"] == True]
     tmp = tmp.iloc[:, :10]
     tmp = tmp[tmp["iteration"] <= iteration[1]]
-    tmp = tmp[tmp["iteration"] > iteration[0]]
+    tmp = tmp[tmp["iteration"] >= iteration[0]]
+    tmp["istestset"]=False
+    print(data_test_minmax)
+    if use_testset:
+        print("using testset")
+        tmp = pd.concat((tmp, data_test_minmax))
 
     return update_bump(tmp, 30, selected_ids)
 

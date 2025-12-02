@@ -691,6 +691,7 @@ def update_bump(df, n_top, selected_ids):
 
     print("startbump")
     df_local = df.copy()
+    df_local.loc[df_local["istestset"], "iteration"] = df_local.loc[~df_local["istestset"], "iteration"].min()
     df_local["iteration"] = pd.Categorical(
         df_local["iteration"],
         categories=sorted(df["iteration"].unique()),
@@ -725,7 +726,7 @@ def update_bump(df, n_top, selected_ids):
 
     # Attach images and IDs
     tmp = tmp.merge(
-        df_local[['final_id', 'text', 'image', 'total_reward']].drop_duplicates(subset='text'),
+        df_local[['final_id', 'text', 'image', 'total_reward', 'istestset']].drop_duplicates(subset='text'),
         on='text',
         how='left'
     )
@@ -760,7 +761,7 @@ def update_bump(df, n_top, selected_ids):
                     marker=dict(
                         symbol="circle",
                         size=sub_df["sampled"],
-                        color=px.colors.sequential.Emrld[-1],
+                        color=px.colors.diverging.curl[8] if sub_df["istestset"].any() else px.colors.sequential.Emrld[-1],
                     ),
                     line=dict(width=2),
                     opacity=opacity,

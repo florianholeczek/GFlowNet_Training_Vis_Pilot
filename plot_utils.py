@@ -692,7 +692,11 @@ def update_state_space(df, selected_ids=[]):
             colorscale='emrld',
             line=dict(color='black', width=1),
             showscale=True,
-            colorbar=dict(title='Iteration'),
+            colorbar=dict(
+                title="Iteration",
+                thickness=15,
+                len=0.7
+            ),
             opacity=compute_opacity(df_normal),
         ),
 
@@ -837,9 +841,9 @@ def update_bump(df, n_top, selected_ids, testset_bounds=None):
                 fillcolor=px.colors.diverging.curl[9],
                 opacity=0.5,
                 line=dict(width=0),
-                showlegend=False,
+                showlegend=True,
                 hoverinfo='none',
-                name='_shading'  # Internal name to help identify this trace
+                name='Range of testset rewards'  # Internal name to help identify this trace
             )
         )
 
@@ -869,9 +873,9 @@ def update_bump(df, n_top, selected_ids, testset_bounds=None):
                     ),
                     line=dict(width=2),
                     opacity=opacity,
-                    name=obj if opacity == 1 else f"{obj} (faded)",
+                    #name="1",#obj if opacity == 1 else f"{obj} (faded)",
                     customdata=sub_df[['final_id', 'value', 'image', 'total_reward']].values,
-                    showlegend=(opacity == 1)
+                    showlegend=False
                 )
             )
 
@@ -882,11 +886,12 @@ def update_bump(df, n_top, selected_ids, testset_bounds=None):
         title=(
             "Replay Buffer Ranked<br><sup>"
             "Sampled Objects ranked by the total reward. "
-            "For each Iteration it shows the highest reward objects so far. "
-            "Circles show if an object was sampled in this iteration. "
-            "Shaded area shows test set performance range.</sup>"
+            "For each Iteration the highest reward objects so far are shown. "
+            "Markers show if an object was sampled in this iteration. "
+            "</sup>"
         ),
-        showlegend=False,
+        showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="left", x=0),
         xaxis_title="Iteration",
         yaxis_title="Rank",
         template='plotly'

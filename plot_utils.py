@@ -816,12 +816,12 @@ def update_bump(df, n_top, selected_ids, testset_bounds=None):
             # Find the line just BELOW the max_reward threshold
             # We want the worst rank (highest number) that still has reward >= max_reward
             at_or_above_max = iter_data[iter_data["total_reward"] >= max_reward]
-            rank_above = at_or_above_max["value"].max() if not at_or_above_max.empty else 0
+            rank_above = at_or_above_max["value"].max()-0.5 if not at_or_above_max.empty else 0.5
 
             # Find the line just ABOVE the min_reward threshold
             # We want the best rank (lowest number) that still has reward <= min_reward
             at_or_below_min = iter_data[iter_data["total_reward"] <= min_reward]
-            rank_below = at_or_below_min["value"].min() if not at_or_below_min.empty else n_top + 1
+            rank_below = at_or_below_min["value"].min()+0.5 if not at_or_below_min.empty else n_top + 0.5
 
             shade_data.append({
                 "iteration": it,

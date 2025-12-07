@@ -1,6 +1,8 @@
 import dash
 from dash import dcc, html, Input, Output, State, no_update
 import dash_cytoscape as cyto
+from dash.exceptions import PreventUpdate
+
 from plot_utils import *
 
 # Load data
@@ -510,9 +512,11 @@ def bump_callback(iteration, selected_ids, use_testset):
     tmp = tmp[tmp["iteration"] >= iteration[0]]
     tmp["istestset"]=False
     if use_testset:
-        tmp = pd.concat((tmp, data_test_minmax))
+        bounds = (data_test_minmax["total_reward"].min(), data_test_minmax["total_reward"].max())
+        print(bounds)
+        return update_bump(tmp, 30, selected_ids, bounds)
 
-    return update_bump(tmp, 30, selected_ids)
+    return update_bump(tmp, 30, selected_ids, None)
 
 
 # State Space Callback
@@ -650,11 +654,17 @@ def display_image_tooltip3(hoverData):
     if hoverData is None:
         return False, None, None
 
+    point = hoverData["points"][0]
+
+    # Check if this point has customdata (skip shading area)
+    if "customdata" not in point or point["customdata"] is None:
+        return False, None, None
+
     # Extract bounding box for positioning
-    bbox = hoverData["points"][0]["bbox"]
+    bbox = point["bbox"]
 
     # Extract base64 image saved in customdata
-    _, value, image_b64, reward = hoverData["points"][0]["customdata"]
+    _, value, image_b64, reward = point["customdata"]
 
     # Build HTML content
     children = [
@@ -664,7 +674,7 @@ def display_image_tooltip3(hoverData):
                 style={"width": "150px", "height": "150px"}
             ),
             html.Div(f"Rank: {value}"),
-            html.Div(f"Reward: {reward:.3f}"),
+            html.Div(f"Reward: {reward:.4f}"),
         ])
     ]
 

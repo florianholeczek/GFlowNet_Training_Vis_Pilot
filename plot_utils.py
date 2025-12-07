@@ -732,19 +732,24 @@ def update_state_space(df, selected_ids=[]):
     return fig
 
 
-def update_bump(df, n_top, selected_ids):
+def update_bump(df, n_top, selected_ids, testset_bounds=None):
     """
     Optimized bump chart update for cumulative top-ranked objects
     where rewards are fixed but rank evolves as new objects appear.
 
-    :param df: prepared dataframe
+    :param df: prepared dataframe (should NOT include testset rows)
     :param n_top: number of top objects to display
     :param selected_ids: list of final_ids to highlight
+    :param testset_bounds: optional tuple (min_reward, max_reward) for shading
     :return: Plotly figure
     """
 
     df_local = df.copy()
-    df_local.loc[df_local["istestset"], "iteration"] = df_local.loc[~df_local["istestset"], "iteration"].min()
+
+    # Remove any testset rows if they exist (safety check)
+    if "istestset" in df_local.columns:
+        df_local = df_local[~df_local["istestset"]].copy()
+
     df_local["iteration"] = pd.Categorical(
         df_local["iteration"],
         categories=sorted(df["iteration"].unique()),
@@ -764,22 +769,23 @@ def update_bump(df, n_top, selected_ids):
             seen_objects[row["text"]] = row["total_reward"]
 
         # Compute ranks for all seen objects
+        # Use text as tiebreaker to ensure stable ordering for equal rewards
         tmp_rank = (
             pd.DataFrame({"text": list(seen_objects.keys()), "total_reward": list(seen_objects.values())})
-            .sort_values("total_reward", ascending=False)
+            .sort_values(["total_reward", "text"], ascending=[False, True])
             .head(n_top)
         )
         tmp_rank["rank"] = range(1, len(tmp_rank) + 1)
         tmp_rank["iteration"] = it
 
-        records.append(tmp_rank[["iteration", "text", "rank"]])
+        records.append(tmp_rank[["iteration", "text", "rank", "total_reward"]])
 
     tmp = pd.concat(records, ignore_index=True)
     tmp = tmp.rename(columns={"rank": "value"})
 
     # Attach images and IDs
     tmp = tmp.merge(
-        df_local[['final_id', 'text', 'image', 'total_reward', 'istestset']].drop_duplicates(subset='text'),
+        df_local[['final_id', 'text', 'image']].drop_duplicates(subset='text'),
         on='text',
         how='left'
     )
@@ -794,28 +800,50 @@ def update_bump(df, n_top, selected_ids):
 
     fig = go.Figure()
 
-    # Check if there are exactly two test set objects for shading
-    testset_objects = tmp[tmp["istestset"]]["text"].unique()
-    add_shading = len(testset_objects) == 2
+    # Add shading for test set bounds if provided
+    if testset_bounds is not None:
+        min_reward, max_reward = testset_bounds
 
-    if add_shading:
-        # Get data for both test set objects
-        test_obj_1 = tmp[tmp["text"] == testset_objects[0]].sort_values("iteration")
-        test_obj_2 = tmp[tmp["text"] == testset_objects[1]].sort_values("iteration")
+        # For each iteration, find the rank bounds
+        shade_data = []
+        for it in iterations:
+            iter_data = tmp[tmp["iteration"] == it].sort_values("value")
 
-        # Add shaded area between the two lines
+            # Find the line just BELOW the max_reward threshold
+            # We want the worst rank (highest number) that still has reward >= max_reward
+            at_or_above_max = iter_data[iter_data["total_reward"] >= max_reward]
+            rank_above = at_or_above_max["value"].max() if not at_or_above_max.empty else 0
+
+            # Find the line just ABOVE the min_reward threshold
+            # We want the best rank (lowest number) that still has reward <= min_reward
+            at_or_below_min = iter_data[iter_data["total_reward"] <= min_reward]
+            rank_below = at_or_below_min["value"].min() if not at_or_below_min.empty else n_top + 1
+
+            shade_data.append({
+                "iteration": it,
+                "rank_above": rank_above,
+                "rank_below": rank_below
+            })
+
+        shade_df = pd.DataFrame(shade_data)
+
+        # Add shaded area between the bound ranks
+        # Use a separate trace name to help Dash identify it
         fig.add_trace(
             go.Scatter(
-                x=test_obj_1["iteration"].tolist() + test_obj_2["iteration"].tolist()[::-1],
-                y=test_obj_1["value"].tolist() + test_obj_2["value"].tolist()[::-1],
+                x=shade_df["iteration"].tolist() + shade_df["iteration"].tolist()[::-1],
+                y=shade_df["rank_above"].tolist() + shade_df["rank_below"].tolist()[::-1],
                 fill='toself',
-                fillcolor='rgba(255, 182, 193, 0.2)',  # Light pink with transparency
+                fillcolor=px.colors.diverging.curl[9],
+                opacity=0.5,
                 line=dict(width=0),
                 showlegend=False,
-                hoverinfo='skip'
+                hoverinfo='none',
+                name='_shading'  # Internal name to help identify this trace
             )
         )
 
+    # Plot the ranked objects
     for obj in first_ranks:
         obj_df = tmp[tmp["text"] == obj].sort_values("iteration")
 
@@ -837,8 +865,7 @@ def update_bump(df, n_top, selected_ids):
                     marker=dict(
                         symbol="circle",
                         size=sub_df["sampled"],
-                        color=px.colors.diverging.curl[9] if sub_df["istestset"].any() else px.colors.sequential.Emrld[
-                            -1],
+                        color=px.colors.sequential.Emrld[-1],
                     ),
                     line=dict(width=2),
                     opacity=opacity,
@@ -856,7 +883,8 @@ def update_bump(df, n_top, selected_ids):
             "Replay Buffer Ranked<br><sup>"
             "Sampled Objects ranked by the total reward. "
             "For each Iteration it shows the highest reward objects so far. "
-            "Circles show if an object was sampled in this iteration</sup>"
+            "Circles show if an object was sampled in this iteration. "
+            "Shaded area shows test set performance range.</sup>"
         ),
         showlegend=False,
         xaxis_title="Iteration",
@@ -867,6 +895,3 @@ def update_bump(df, n_top, selected_ids):
     fig.update_yaxes(autorange="reversed")
 
     return fig
-
-
-

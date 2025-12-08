@@ -14,10 +14,7 @@ data_test = pd.read_csv('testset.csv')
 data_test["final_id"]+=len(data)
 data_test["iteration"]=0
 data_test.insert(loc=10, column="istestset", value=True)
-data_test_minmax = pd.concat(
-    [data_test[data_test["total_reward"] == data_test["total_reward"].min()].iloc[[0]],
-     data_test[data_test["total_reward"] == data_test["total_reward"].max()].iloc[[0]]
-]).copy()
+testset_reward_bounds = (data_test["total_reward"].min(), data_test["total_reward"].max())
 
 
 # add ranked reward for filtering for performance
@@ -59,9 +56,9 @@ app.layout = html.Div([
                 dcc.RangeSlider(
                     id="iteration",
                     min=0,
-                    max=100,
+                    max=data["iteration"].max(),
                     step=25,
-                    value=[0, 100],
+                    value=[0, data["iteration"].max()],
                     #marks={500: "500", 5000: "5000", 10000: "10000"},
                     tooltip={"placement": "bottom", "always_visible": False}
                 ),
@@ -203,7 +200,7 @@ app.layout = html.Div([
                         min=0,
                         max=100,
                         step=5,
-                        value=0,
+                        value=100,
                         marks={0: '0%', 50: '50%', 100: '100%'},
                         tooltip={"placement": "bottom", "always_visible": True}
                     )
@@ -522,9 +519,7 @@ def bump_callback(iteration, selected_ids, use_testset):
     tmp = tmp[tmp["iteration"] >= iteration[0]]
     tmp["istestset"]=False
     if use_testset:
-        bounds = (data_test_minmax["total_reward"].min(), data_test_minmax["total_reward"].max())
-        print(bounds)
-        return update_bump(tmp, 30, selected_ids, bounds)
+        return update_bump(tmp, 30, selected_ids, testset_reward_bounds)
 
     return update_bump(tmp, 30, selected_ids, None)
 

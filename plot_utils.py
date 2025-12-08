@@ -289,8 +289,6 @@ def prepare_graph(df):
                 nodes.append({
                     'data': {
                         'id': node_id,
-                        'label': row['text'],
-                        'object': row['text'],
                         'node_type': "final" if final_object else "intermediate",
                         'step': step,
                         'image': f"data:image/svg+xml;base64,{row['image']}",
@@ -358,7 +356,8 @@ def prepare_graph(df):
                 'logprobs_forward': logprobs_forward_latest,
                 'logprobs_backward': logprobs_backward_latest,
                 'logprobs_forward_change': logprobs_forward_change,
-                'logprobs_backward_change': logprobs_backward_change
+                'logprobs_backward_change': logprobs_backward_change,
+                'truncated': "False"
             }
         })
 
@@ -464,7 +463,7 @@ def truncate_linear_chains(nodes, edges, edges_to_keep_ids):
                             'source': chain_start,
                             'target': current,
                             'trajectory_id': trajectory_id,
-                            'truncated': True,
+                            'truncated': "True",
                             'logprobs_forward': total_forward,
                             'logprobs_backward': total_backward
                         }
@@ -558,71 +557,142 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', truncation_pct=0, selecte
 
     # Build stylesheet
     elements = nodes + edges
+    if selected_ids:
 
-    stylesheet = [
-        # Default node style
-        {
-            'selector': 'node',
-            'style': {
-                'background-color': '#fff',
-                'background-image': 'data(image)',
-                'background-fit': 'contain',
-                'background-clip': 'none',
-                'label': '',  # Hide label when showing image
-                'shape': 'round-rectangle',
-                'width': '50px',
-                'height': '40px',
-                'border-width': '1px',
-                'border-color': '#000000'
-            }
-        },
-        # START node (keep text label)
-        {
-            'selector': 'node[node_type = "start"]',
-            'style': {
-                'background-color': '#BAEB9D',
-                'background-image': 'none',  # No image for start node
-                'label': 'data(label)',
-                'text-valign': 'center',
-                'text-halign': 'center',
-                'font-size': '12px',
-                'shape': 'diamond',
-                'width': '40px',
-                'height': '40px',
-                'border-color': '#000000',
-                'border-width': '2px',
-                'font-weight': 'bold',
-                'text-wrap': 'wrap',
-                'text-max-width': '55px'
-            }
-        },
-        # Final node (show image)
-        {
-            'selector': 'node[node_type = "final"]',
-            'style': {
-                'background-color': '#fff',
-                'background-image': 'data(image)',
-                'background-fit': 'contain',
-                'background-clip': 'none',
-                'label': '',  # Hide label for final nodes
-                'shape': 'round-rectangle',
-                'width': '60px',
-                'height': '45px',
-                'border-width': '3px',
-                'border-color': '#000000'
-            }
-        },
-        # Default edge style
-        {
-            'selector': 'edge',
-            'style': {
-                'width': 3,
-                'target-arrow-shape': 'triangle',
-                'curve-style': 'bezier',
-                'arrow-scale': 1.5
-            }
-        }
-    ]
+        stylesheet = [
+            # Default node style
+            {
+                'selector': 'node',
+                'style': {
+                    'background-color': '#fff',
+                    'background-image': 'data(image)',
+                    'background-fit': 'contain',
+                    'background-clip': 'none',
+                    'label': '',  # Hide label when showing image
+                    'shape': 'round-rectangle',
+                    'width': '50px',
+                    'height': '40px',
+                    'border-width': '1px',
+                    'border-color': '#000000'
+                }
+            },
+            # START node (keep text label)
+            {
+                'selector': 'node[node_type = "start"]',
+                'style': {
+                    'background-color': '#BAEB9D',
+                    'background-image': 'none',  # No image for start node
+                    'label': 'data(label)',
+                    'text-valign': 'center',
+                    'text-halign': 'center',
+                    'font-size': '12px',
+                    'shape': 'diamond',
+                    'width': '40px',
+                    'height': '40px',
+                    'border-color': '#000000',
+                    'border-width': '2px',
+                    'font-weight': 'bold',
+                    'text-wrap': 'wrap',
+                    'text-max-width': '55px'
+                }
+            },
+            # Final node (show image)
+            {
+                'selector': 'node[node_type = "final"]',
+                'style': {
+                    'background-color': '#fff',
+                    'background-image': 'data(image)',
+                    'background-fit': 'contain',
+                    'background-clip': 'none',
+                    'label': '',  # Hide label for final nodes
+                    'shape': 'round-rectangle',
+                    'width': '60px',
+                    'height': '45px',
+                    'border-width': '3px',
+                    'border-color': '#000000'
+                }
+            },
+            # Default edge style
+            {
+                'selector': 'edge',
+                'style': {
+                    'width': 3,
+                    'target-arrow-shape': 'triangle',
+                    'curve-style': 'bezier',
+                    'arrow-scale': 1.5
+                }
+            },
+            {
+                'selector': 'edge[truncated = "True"]',
+                'style': {
+                    'line-style': 'dashed'
+                }
+            },
+        ]
+    else:
+        stylesheet = [
+            # Default node style
+            {
+                'selector': 'node',
+                'style': {
+                    'shape': 'ellipse',
+                    'width': '5px',
+                    'height': '5px',
+                    'background-color': '#FFFFFF',
+                    'label': '',
+                    'border-width': 1,
+                    'border-color': '#000000'
+                }
+            },
+            # START node (keep text label)
+            {
+                'selector': 'node[node_type = "start"]',
+                'style': {
+                    'background-color': '#BAEB9D',
+                    'background-image': 'none',  # No image for start node
+                    'label': 'data(label)',
+                    'text-valign': 'center',
+                    'text-halign': 'center',
+                    'font-size': '10px',
+                    'shape': 'diamond',
+                    'width': '25px',
+                    'height': '25px',
+                    'border-color': '#000000',
+                    'border-width': '2px',
+                    'font-weight': 'bold',
+                    'text-wrap': 'wrap',
+                    'text-max-width': '55px'
+                }
+            },
+            # Final node (show image)
+            {
+                'selector': 'node[node_type = "final"]',
+                'style': {
+                    'shape': 'ellipse',
+                    'width': '7px',
+                    'height': '7px',
+                    'background-color': '#000000',
+                    'label': '',
+                    'border-width': 0
+                }
+            },
+            # Default edge style
+            {
+                'selector': 'edge',
+                'style': {
+                    'width': 1,
+                    'target-arrow-shape': 'triangle',
+                    'curve-style': 'bezier',
+                    'arrow-scale': 0.8
+                }
+            },
+            {
+                'selector': 'edge[truncated = "True"]',
+                'style': {
+                    'line-style': 'dashed'
+                }
+            },
+        ]
 
     # Add color styles for each edge
     for edge in edges:

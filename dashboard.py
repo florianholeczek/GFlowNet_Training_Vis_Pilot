@@ -168,7 +168,7 @@ app.layout = html.Div([
                             {"label": "Dagre", "value": "dagre"},
                             {"label": "Breadthfirst", "value": "breadthfirst"}
                         ],
-                        value="klay",
+                        value="breadthfirst",
                         clearable=False
                     )
                 ], style={
@@ -560,6 +560,9 @@ def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories, i
     if selected_ids:
         tmp=tmp[tmp["final_id"].isin(selected_ids)]
     graph = prepare_graph(tmp)
+    #selected_texts = list(set(tmp["text"])) if selected_ids else []
+    #print(selected_texts)
+    #print(len(selected_texts))
 
     result = update_DAG(
         graph,
@@ -584,6 +587,11 @@ def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories, i
     elif layout_name == 'breadthfirst':
         layout_config['spacingFactor'] = 1
         layout_config['roots'] = '[id = "START"]'
+
+    if not selected_ids:
+        layout_config['spacingFactor'] *= 0.7
+
+    print(layout_config['spacingFactor'])
 
     return result['elements'], result['stylesheet'], layout_config, result['legend']
 

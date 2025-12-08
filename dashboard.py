@@ -302,7 +302,7 @@ app.layout = html.Div([
                         layout={
                             'name': 'klay',
                             'directed': True,
-                            'spacingFactor': 1.0,
+                            'spacingFactor': 0.5,
                             'animate': False
                         },
                         style={'flex': '1', 'height': '49vh', 'width': '0px', 'background-color': '#cfcfcf'},
@@ -410,39 +410,49 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
 
     trigger = ctx.triggered[0]["prop_id"]
 
-    # Clear button pressed
+    # -------- Clear button --------
     if "clear-selection" in trigger:
         return []
 
-    selected_ids = set(current_ids or [])
-
     # ---------- State-space lasso ----------
-    if "state-space-plot.selectedData" in trigger and ss_select:
-        for point in ss_select["points"]:
-            final_id = point["customdata"][0]
-            selected_ids.add(final_id)
+    if "state-space-plot.selectedData" in trigger:
+        if not ss_select or not ss_select.get("points"):
+            return no_update
+
+        selected_ids = {pt["customdata"][0] for pt in ss_select["points"]}
+        return list(selected_ids)
 
     # ---------- Trajectory lasso ----------
-    elif "trajectory-plot.selectedData" in trigger and traj_select:
-        for point in traj_select["points"]:
-            final_id = point["customdata"][1]
-            selected_ids.add(final_id)
+    elif "trajectory-plot.selectedData" in trigger:
+        if not traj_select or not traj_select.get("points"):
+            return no_update
+
+        selected_ids = {pt["customdata"][1] for pt in traj_select["points"]}
+        return list(selected_ids)
 
     # ---------- Bump chart lasso ----------
-    elif "bumpchart.selectedData" in trigger and bump_select:
-        for point in bump_select["points"]:
-            final_id = point["customdata"][0]
-            selected_ids.add(final_id)
+    elif "bumpchart.selectedData" in trigger:
+        if not bump_select or not bump_select.get("points"):
+            return no_update
 
-    # ---------- DAG click ----------
-    elif "dag-graph.tapNodeData" in trigger and dag_node:
+        selected_ids = {pt["customdata"][0] for pt in bump_select["points"]}
+        return list(selected_ids)
+
+    # ---------- DAG node click ----------
+    elif "dag-graph.tapNodeData" in trigger:
+        if not dag_node:
+            return no_update
+
         text = dag_node.get("id")
-        final_id = data.loc[data["text"] == text, "final_id"].dropna().unique().tolist()
-        if final_id:
-            for i in final_id:
-                selected_ids.add(i)
+        final_id = data.loc[data["text"] == text, "final_id"]\
+                       .dropna()\
+                       .unique()\
+                       .tolist()
 
-    return list(selected_ids)
+        return final_id if final_id else []
+
+    return no_update
+
 
 # Compute downprojections
 @app.callback(
@@ -572,12 +582,12 @@ def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories, i
 
     # Add layout-specific parameters
     if layout_name == 'klay':
-        layout_config['spacingFactor'] = 1.0
+        layout_config['spacingFactor'] = 1
     elif layout_name == 'dagre':
-        layout_config['spacingFactor'] = 1.0
+        layout_config['spacingFactor'] = 0.7
         layout_config['rankDir'] = 'LR'  # Left to right
     elif layout_name == 'breadthfirst':
-        layout_config['spacingFactor'] = 1.5
+        layout_config['spacingFactor'] = 1
         layout_config['roots'] = '[id = "START"]'
 
     return result['elements'], result['stylesheet'], layout_config, result['legend']

@@ -708,6 +708,7 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', truncation_pct=0, selecte
             }
         })
 
+
     return {
         'elements': elements,
         'stylesheet': stylesheet,

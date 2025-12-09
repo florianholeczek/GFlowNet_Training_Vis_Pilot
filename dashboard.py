@@ -294,18 +294,46 @@ app.layout = html.Div([
 
                 html.Div([
 
-                    cyto.Cytoscape(
-                        id='dag-graph',
-                        layout={
-                            'name': 'klay',
-                            'directed': True,
-                            'spacingFactor': 0.5,
-                            'animate': False
-                        },
-                        style={'flex': '1', 'height': '49vh', 'width': '0px', 'background-color': '#cfcfcf'},
-                        elements=[],
-                        stylesheet=[]
-                    ),
+                    html.Div([
+                        # DAG graph
+                        cyto.Cytoscape(
+                            id='dag-graph',
+                            layout={
+                                'name': 'klay',
+                                'directed': True,
+                                'spacingFactor': 0.5,
+                                'animate': False
+                            },
+                            style={
+                                'flex': '1',
+                                'height': '49vh',
+                                'width': '100%',
+                                'background-color': '#cfcfcf',
+                                'position': 'relative'
+                            },
+                            elements=[],
+                            stylesheet=[]
+                        ),
+
+                        # Floating image overlay
+                        html.Img(
+                            id="dag-hover-image",
+                            style={
+                                "position": "absolute",
+                                "top": "10px",
+                                "left": "10px",
+                                "width": "150px",
+                                "height": "150px",
+                                "border": "1px solid #ccc",
+                                "background": "white",
+                                "display": "none",  # hidden by default
+                                "zIndex": 999
+                            }
+                        ),
+
+                        # Optional: hide image when leaving graph
+                        html.Div(id="dag-mouseleave-area", style={"display": "none"})
+                    ], style={"position": "relative", "height": "49vh", "width": "100%"}),
 
                     dcc.Graph(
                         id='dag-legend',
@@ -316,7 +344,8 @@ app.layout = html.Div([
                     "display": "flex",
                     "flexDirection": "row",
                     "width": "100%"
-                })
+                }),
+
 
             ], style={
                 "flex": 1,
@@ -473,7 +502,6 @@ def compute_downprojections(method, param_value, trajectories, iteration, use_te
     data_s = objs[(objs["final_object"] == True) | (objs["istestset"]==True)].copy()
     metadata_s = data_s.iloc[:, :cols_to].reset_index(drop=True)
     features_s = data_s.iloc[:, cols_to:].reset_index(drop=True)
-    print(len(data_s), data_s.columns[:cols_to+1])
 
     #trajectories
     top_ranks = sorted(objs['reward_ranked'].dropna().unique())[:trajectories]
@@ -502,7 +530,6 @@ def compute_downprojections(method, param_value, trajectories, iteration, use_te
 
     data_s = pd.concat([metadata_s, pd.DataFrame(proj_s, columns=['X', 'Y'])], axis=1)
     data_t = pd.concat([metadata_t, pd.DataFrame(proj_t, columns=['X', 'Y'])], axis=1)
-    print(len(data_s), len(data_t), "changed")
     return data_s.to_dict("records"), data_t.to_dict("records")
 
 # Bump Callback
@@ -560,9 +587,6 @@ def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories, i
     if selected_ids:
         tmp=tmp[tmp["final_id"].isin(selected_ids)]
     graph = prepare_graph(tmp)
-    #selected_texts = list(set(tmp["text"])) if selected_ids else []
-    #print(selected_texts)
-    #print(len(selected_texts))
 
     result = update_DAG(
         graph,
@@ -591,7 +615,6 @@ def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories, i
     if not selected_ids:
         layout_config['spacingFactor'] *= 0.7
 
-    print(layout_config['spacingFactor'])
 
     return result['elements'], result['stylesheet'], layout_config, result['legend']
 
@@ -692,6 +715,34 @@ def display_image_tooltip3(hoverData):
     ]
 
     return True, bbox, children
+
+
+@app.callback(
+    Output("dag-hover-image", "src"),
+    Output("dag-hover-image", "style"),
+    Input("dag-graph", "mouseoverNodeData"),
+
+    State("dag-hover-image", "style"),
+)
+def update_dag_hover_image(hoverNode, style):
+    new_style = style.copy()
+
+    if hoverNode is None:
+        # Hide image when not hovering
+        new_style["display"] = "none"
+        return dash.no_update, new_style
+
+    # Show image
+    img = hoverNode.get("image")
+    if not img:
+        new_style["display"] = "none"
+        return dash.no_update, new_style
+
+    new_style["display"] = "block"
+    return img, new_style
+
+
+
 
 # Run the dashboard
 if __name__ == "__main__":

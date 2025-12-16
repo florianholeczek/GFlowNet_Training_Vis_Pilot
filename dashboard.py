@@ -38,6 +38,7 @@ app.layout = html.Div([
     dcc.Store(id="data-dps", data=data_dps), #downprojections
     dcc.Store(id="data-dpt", data=data_dpt),
     dcc.Store(id="full-dag", data=None),
+    dcc.Store(id="dag-build-ids", data=[]),
 
     # ================= LEFT COLUMN (12%) =================
     html.Div([
@@ -327,7 +328,7 @@ app.layout = html.Div([
                                 "type": "any",
                             },
                             {
-                                "name": "Metric",
+                                "name": "Logprobs",
                                 "id": "metric",
                                 "type": "numeric",
                                 "format": Format(precision=4, scheme=Scheme.fixed),
@@ -340,8 +341,18 @@ app.layout = html.Div([
                             },
                         ],
                         row_selectable="multi",
+                        filter_action="native",
+                        sort_action="native",
+                        page_size=10,
                         markdown_options={"html": True},
-                        style_table={'width': '250px', 'height': '49vh', 'flex': '0 0 250px'}
+                        style_cell={
+                                'fontFamily': 'Arial',
+                            },
+                            style_header={
+                                'backgroundColor': 'rgb(230, 230, 230)',
+                                'fontWeight': 'bold'
+                            },
+                        style_table={'width': '400px', 'height': '49vh', 'flex': '0 0 400px'}
                     )
 
                 ], style={
@@ -473,9 +484,7 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
         if not dag_node:
             return no_update
 
-        print(dag_node.get("node_type"))
         if dag_node.get("node_type") == 'handler':
-            print(dag_node.get("child_data"))
             return [], dag_node.get("child_data")
         else:
             text = dag_node.get("id")

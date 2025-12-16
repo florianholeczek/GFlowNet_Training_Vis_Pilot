@@ -353,7 +353,7 @@ def prepare_graph(df, flow_attr, truncation_pct):
                 'source': source,
                 'target': target,
                 'trajectory_id': edge_list[0]['data']['trajectory_id'],
-                'truncated': False,
+                'edge_type': 'standard',
                 'logprobs_forward': logprobs_forward_latest,
                 'logprobs_backward': logprobs_backward_latest,
                 'logprobs_forward_change': logprobs_forward_change,
@@ -494,7 +494,7 @@ def truncate_linear_chains(nodes, edges, edges_to_keep_ids):
                             'source': chain_start,
                             'target': current,
                             'trajectory_id': trajectory_id,
-                            'truncated': True,
+                            'edge_type': 'truncated',
                             'logprobs_forward': total_forward,
                             'logprobs_backward': total_backward
                         }
@@ -502,7 +502,6 @@ def truncate_linear_chains(nodes, edges, edges_to_keep_ids):
 
     # Filter nodes
     new_nodes = [node for node in nodes if node['data']['id'] in nodes_to_keep]
-    print(len(new_nodes), len(new_edges))
 
     return new_nodes, new_edges
 
@@ -526,7 +525,6 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
     """
     nodes = dag_data['nodes'].copy()
     edges = dag_data['edges'].copy()
-    print(len(edges), len(nodes))
 
     built_nodes = [{
         'data': {
@@ -541,13 +539,10 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
     child_counter = defaultdict(int)
     for node in nodes:
         if node['data']['id'] in built_ids:
-            print(node['data']['id'], "in built ids")
             built_nodes.append(node)
             built_node_ids.append(node['data']['id'])
     for edge in edges:
-        print(edge['data']['truncated'], "edgeid")
         if edge['data']['source'] in built_node_ids:
-            print('habihn')
             if edge['data']['target'] in built_node_ids:
                 built_edges.append(edge)
             else:
@@ -559,6 +554,8 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
                     'data': {
                         'id': k+"selector",
                         'node_type': "handler",
+                        'label': f"Other: {v} children ▾",
+                        'children': v,
                     }
                 })
         built_edges.append({
@@ -566,7 +563,7 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
                             'id': f"{k}_handler",
                             'source': k,
                             'target': k+"selector",
-                            'truncated': False,
+                            'edge_type': 'handler',
                         }
                     })
 
@@ -633,7 +630,7 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
             'style': {
                 'background-color': '#BAEB9D',
                 'background-image': 'none',  # No image for start node
-                'label': 'data(label)',
+                'label': f'data(label)',
                 'text-valign': 'center',
                 'text-halign': 'center',
                 'font-size': '12px',
@@ -647,7 +644,7 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
                 'text-max-width': '55px'
             }
         },
-        # Final node (show image)
+        # Final node
         {
             'selector': 'node[node_type = "final"]',
             'style': {
@@ -660,6 +657,26 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
                 'height': '45px',
                 'border-width': '3px',
                 'border-color': '#000000'
+            }
+        },
+        # Handler node
+        {
+            'selector': 'node[node_type = "handler"]',
+            'style': {
+                'background-color': '#BAEB9D',
+                'background-image': 'none',
+                'label': 'data(label)',
+                'text-valign': 'center',
+                'text-halign': 'center',
+                'font-size': '10px',
+                'shape': 'round-rectangle',
+                'width': '90px',
+                'height': '20px',
+                'border-width': '2px',
+                'border-color': '#000000',
+                #'font-weight': 'bold',
+                'text-wrap': 'wrap',
+                'text-max-width': '90px'
             }
         },
         # Default edge style
@@ -678,7 +695,10 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
     for edge in edges:
         edge_id = edge['data']['id']
         flow_val = edge['data'].get(flow_attr, 0)
-        color = get_color(flow_val, vmin, vmax, colorscale)
+        if edge['data']['edge_type'] == 'handler':
+            color = '#000000'
+        else:
+            color = get_color(flow_val, vmin, vmax, colorscale)
 
         stylesheet.append({
             'selector': f'edge[id = "{edge_id}"]',

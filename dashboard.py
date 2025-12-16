@@ -578,12 +578,12 @@ def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories, i
 
     # Add layout-specific parameters
     if layout_name == 'klay':
-        layout_config['spacingFactor'] = 1
+        layout_config['spacingFactor'] = 1.2
     elif layout_name == 'dagre':
-        layout_config['spacingFactor'] = 0.7
+        layout_config['spacingFactor'] = 1
         layout_config['rankDir'] = 'LR'  # Left to right
     elif layout_name == 'breadthfirst':
-        layout_config['spacingFactor'] = 1
+        layout_config['spacingFactor'] = 1.2
         layout_config['roots'] = '[id = "START"]'
 
     return result['elements'], result['stylesheet'], layout_config, result['legend']

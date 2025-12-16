@@ -584,18 +584,14 @@ def update_projection_plots(selected_ids, data_s, data_t):
 
 # DAG Callback
 @app.callback(
-    [Output("dag-graph", "elements"),
-     Output("dag-graph", "stylesheet"),
-     Output("dag-graph", "layout"),
-     Output("dag-legend", "figure")],
+    Output("full-dag", "data"),
     Input("flow-attr", "value"),
     Input("edge-truncation", "value"),
-    Input("dag-layout", "value"),
     Input("limit-trajectories", "value"),
     Input(  "iteration", "value"),
     Input("selected-objects", "data"),
 )
-def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories, iteration, selected_ids):
+def build_graph(flow_attr, edge_truncation, trajectories, iteration, selected_ids):
     tmp = data.iloc[:, :10]
     tmp = tmp[tmp["iteration"] <= iteration[1]]
     tmp = tmp[tmp["iteration"] >= iteration[0]]
@@ -604,6 +600,21 @@ def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories, i
     if selected_ids:
         tmp=tmp[tmp["final_id"].isin(selected_ids)]
     graph = prepare_graph(tmp, flow_attr, edge_truncation)
+
+    return graph, flow_attr
+
+# DAG Callback
+@app.callback(
+    [Output("dag-graph", "elements"),
+     Output("dag-graph", "stylesheet"),
+     Output("dag-graph", "layout"),
+     Output("dag-legend", "figure")],
+    Input("full-dag", "data"),
+    Input("dag-layout", "value"),
+    Input("dag-build-ids", "data")
+)
+def update_dag(graph_data, layout_name, build_ids):
+    graph, flow_attr = graph_data
 
     result = update_DAG(
         graph,

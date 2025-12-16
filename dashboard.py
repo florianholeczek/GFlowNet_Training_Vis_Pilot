@@ -566,7 +566,7 @@ def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories, i
     result = update_DAG(
         graph,
         flow_attr,
-        built_ids = ['C1CNCCN1', 'CNC=O']
+        built_ids = ['C1CNCCN1', 'CNC=O', 'NC=O']
     )
 
     # Configure layout based on selection

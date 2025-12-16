@@ -353,6 +353,7 @@ def prepare_graph(df, flow_attr, truncation_pct):
                 'source': source,
                 'target': target,
                 'trajectory_id': edge_list[0]['data']['trajectory_id'],
+                'truncated': False,
                 'logprobs_forward': logprobs_forward_latest,
                 'logprobs_backward': logprobs_backward_latest,
                 'logprobs_forward_change': logprobs_forward_change,
@@ -360,39 +361,39 @@ def prepare_graph(df, flow_attr, truncation_pct):
             }
         })
 
-        # from prepare
+    # from prepare
 
-        if flow_attr in ['logprobs_backward', 'logprobs_backward_change']:
-            for edge in edges:
-                edge['data']['source'], edge['data']['target'] = \
-                    edge['data']['target'], edge['data']['source']
-
-        # Calculate flow values and determine edges to keep
-        flow_values = []
+    if flow_attr in ['logprobs_backward', 'logprobs_backward_change']:
         for edge in edges:
-            flow_val = edge['data'].get(flow_attr, 0)
-            flow_values.append(abs(flow_val))
+            edge['data']['source'], edge['data']['target'] = \
+                edge['data']['target'], edge['data']['source']
 
-        edges_to_keep = set()
-        if truncation_pct < 100:
-            # Keep top (100 - truncation_pct)% of edges
-            keep_pct = (100 - truncation_pct) / 100
-            threshold_idx = int(len(flow_values) * keep_pct)
+    # Calculate flow values and determine edges to keep
+    flow_values = []
+    for edge in edges:
+        flow_val = edge['data'].get(flow_attr, 0)
+        flow_values.append(abs(flow_val))
 
-            if threshold_idx > 0:
-                sorted_flows = sorted(flow_values, reverse=True)
-                threshold = sorted_flows[min(threshold_idx - 1, len(sorted_flows) - 1)]
+    edges_to_keep = set()
+    if truncation_pct < 100:
+        # Keep top (100 - truncation_pct)% of edges
+        keep_pct = (100 - truncation_pct) / 100
+        threshold_idx = int(len(flow_values) * keep_pct)
 
-                for edge in edges:
-                    if abs(edge['data'].get(flow_attr, 0)) >= threshold:
-                        edges_to_keep.add(edge['data']['id'])
+        if threshold_idx > 0:
+            sorted_flows = sorted(flow_values, reverse=True)
+            threshold = sorted_flows[min(threshold_idx - 1, len(sorted_flows) - 1)]
 
-        # Apply truncation if needed
-        if truncation_pct > 0:
-            nodes, edges = truncate_linear_chains(nodes, edges, edges_to_keep)
+            for edge in edges:
+                if abs(edge['data'].get(flow_attr, 0)) >= threshold:
+                    edges_to_keep.add(edge['data']['id'])
+
+    # Apply truncation if needed
+    if truncation_pct > 0:
+        nodes, edges = truncate_linear_chains(nodes, unique_edges, edges_to_keep)
 
 
-    return {'nodes': nodes, 'edges': unique_edges}
+    return {'nodes': nodes, 'edges': edges}
 
 
 
@@ -501,6 +502,7 @@ def truncate_linear_chains(nodes, edges, edges_to_keep_ids):
 
     # Filter nodes
     new_nodes = [node for node in nodes if node['data']['id'] in nodes_to_keep]
+    print(len(new_nodes), len(new_edges))
 
     return new_nodes, new_edges
 
@@ -524,6 +526,7 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
     """
     nodes = dag_data['nodes'].copy()
     edges = dag_data['edges'].copy()
+    print(len(edges), len(nodes))
 
     built_nodes = [{
         'data': {
@@ -534,15 +537,18 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
         }
     }]
     built_edges = []
+    built_node_ids = ['START',]
     child_counter = defaultdict(int)
     for node in nodes:
         if node['data']['id'] in built_ids:
             print(node['data']['id'], "in built ids")
             built_nodes.append(node)
+            built_node_ids.append(node['data']['id'])
     for edge in edges:
-        print(edge['data']['id'], "edgeid")
-        if edge['data']['source'] in built_nodes:
-            if edge['data']['target'] in built_nodes:
+        print(edge['data']['truncated'], "edgeid")
+        if edge['data']['source'] in built_node_ids:
+            print('habihn')
+            if edge['data']['target'] in built_node_ids:
                 built_edges.append(edge)
             else:
                 child_counter[edge['data']['source']] += 1

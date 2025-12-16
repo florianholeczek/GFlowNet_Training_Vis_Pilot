@@ -601,7 +601,7 @@ def build_graph(flow_attr, edge_truncation, trajectories, iteration, selected_id
         tmp=tmp[tmp["final_id"].isin(selected_ids)]
     graph = prepare_graph(tmp, flow_attr, edge_truncation)
 
-    return graph, flow_attr
+    return (graph, flow_attr)
 
 # DAG Callback
 @app.callback(
@@ -619,7 +619,7 @@ def update_dag(graph_data, layout_name, build_ids):
     result = update_DAG(
         graph,
         flow_attr,
-        built_ids = ['C1CNCCN1', 'CNC=O', 'NC=O']
+        built_ids = build_ids
     )
 
     # Configure layout based on selection
@@ -638,8 +638,23 @@ def update_dag(graph_data, layout_name, build_ids):
     elif layout_name == 'breadthfirst':
         layout_config['spacingFactor'] = 1.2
         layout_config['roots'] = '[id = "START"]'
-
     return result['elements'], result['stylesheet'], layout_config, result['legend']
+
+# Callback for dag-table
+@app.callback(
+    Output('dag-build-ids', 'data'),
+    Input('dag-table', 'selected_rows'),
+    State('dag-table', 'data'),
+    State("dag-build-ids", "data"),
+)
+def save_selected_rows(selected_rows, table_data, stored_ids):
+    if selected_rows:
+        selected_ids = [table_data[i]['id'] for i in selected_rows]
+        new_store = list(set(stored_ids + selected_ids))
+        print(new_store, "selected")
+        return new_store
+    else:
+        return no_update
 
 #hover state space
 @app.callback(

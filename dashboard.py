@@ -6,7 +6,8 @@ from dash.exceptions import PreventUpdate
 from plot_utils import *
 
 # Load data
-data = pd.read_csv('train_data.csv')
+#data = pd.read_csv('train_data.csv')
+data = pd.read_csv('train_data_big.csv')
 data.insert(loc=10, column="istestset", value=False)
 data_dps = None
 data_dpt = None
@@ -15,6 +16,7 @@ data_test["final_id"]+=len(data)
 data_test["iteration"]=0
 data_test.insert(loc=10, column="istestset", value=True)
 testset_reward_bounds = (data_test["total_reward"].min(), data_test["total_reward"].max())
+n_final_objects =data["final_id"].nunique()
 
 
 # add ranked reward for filtering for performance
@@ -57,8 +59,9 @@ app.layout = html.Div([
                     id="iteration",
                     min=0,
                     max=data["iteration"].max(),
-                    step=25,
+                    #step=25,
                     value=[0, data["iteration"].max()],
+                    #marks=None,
                     #marks={500: "500", 5000: "5000", 10000: "10000"},
                     tooltip={"placement": "bottom", "always_visible": False}
                 ),
@@ -118,10 +121,14 @@ app.layout = html.Div([
                 dcc.Slider(
                     id="limit-trajectories",
                     min=1,
-                    max=100,
+                    max=n_final_objects,
                     step=1,
                     value=5,
-                    marks={0: '0', 100: '100'},
+                    marks={
+                        1: '1',
+                        int(n_final_objects/2): f'{int(n_final_objects / 2)}',
+                        n_final_objects: f'{n_final_objects}',
+                    },
                     tooltip={"placement": "bottom", "always_visible": False}
                 )
             ], style={

@@ -570,7 +570,7 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
                         'id': child['id'],
                         'metric': child['metric'],
                         'final': node['data']['node_type']=='final',
-                        'image': node['data']['image'],
+                        'image': f'<img src="{node["data"]["image"]}" width="100">',
                         'reward': node['data']['reward'],
                     })
                     break

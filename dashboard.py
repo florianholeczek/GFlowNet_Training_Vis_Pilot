@@ -1,5 +1,6 @@
 import dash
 from dash import dcc, html, Input, Output, State, no_update, dash_table
+from dash.dash_table.Format import Format, Scheme
 import dash_cytoscape as cyto
 from dash.exceptions import PreventUpdate
 from plot_utils import *
@@ -36,6 +37,7 @@ app.layout = html.Div([
     dcc.Store(id="selected-objects", data=[]),  # selected objects based on final_id
     dcc.Store(id="data-dps", data=data_dps), #downprojections
     dcc.Store(id="data-dpt", data=data_dpt),
+    dcc.Store(id="full-dag", data=None),
 
     # ================= LEFT COLUMN (12%) =================
     html.Div([
@@ -312,7 +314,33 @@ app.layout = html.Div([
                     ),
 
                     dash_table.DataTable(
-                        id='table',
+                        id='dag-table',
+                        columns=[
+                            {
+                                "name": "Image",
+                                "id": "image",
+                                "presentation": "markdown",
+                            },
+                            {
+                                "name": "Final",
+                                "id": "final",
+                                "type": "any",
+                            },
+                            {
+                                "name": "Metric",
+                                "id": "metric",
+                                "type": "numeric",
+                                "format": Format(precision=4, scheme=Scheme.fixed),
+                            },
+                            {
+                                "name": "Reward",
+                                "id": "reward",
+                                "type": "numeric",
+                                "format": Format(precision=4, scheme=Scheme.fixed),
+                            },
+                        ],
+                        row_selectable="multi",
+                        markdown_options={"html": True},
                         style_table={'width': '250px', 'height': '49vh', 'flex': '0 0 250px'}
                     )
 
@@ -395,6 +423,7 @@ def update_projection_param(method):
 # Main selection update
 @app.callback(
     Output("selected-objects", "data"),
+    Output("dag-table", "data"),
     Input("clear-selection", "n_clicks"),
     Input("state-space-plot", "selectedData"),
     Input("trajectory-plot", "selectedData"),
@@ -413,7 +442,7 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
 
     # -------- Clear button --------
     if "clear-selection" in trigger:
-        return []
+        return [], None
 
     # ---------- State-space lasso ----------
     if "state-space-plot.selectedData" in trigger:
@@ -421,23 +450,23 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
             return no_update
 
         selected_ids = {pt["customdata"][0] for pt in ss_select["points"]}
-        return list(selected_ids)
+        return list(selected_ids), None
 
     # ---------- Trajectory lasso ----------
     elif "trajectory-plot.selectedData" in trigger:
         if not traj_select or not traj_select.get("points"):
-            return no_update
+            return no_update, None
 
         selected_ids = {pt["customdata"][1] for pt in traj_select["points"]}
-        return list(selected_ids)
+        return list(selected_ids), None
 
     # ---------- Bump chart lasso ----------
     elif "bumpchart.selectedData" in trigger:
         if not bump_select or not bump_select.get("points"):
-            return no_update
+            return no_update, None
 
         selected_ids = {pt["customdata"][0] for pt in bump_select["points"]}
-        return list(selected_ids)
+        return list(selected_ids), None
 
     # ---------- DAG node click ----------
     elif "dag-graph.tapNodeData" in trigger:
@@ -447,13 +476,14 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
         print(dag_node.get("node_type"))
         if dag_node.get("node_type") == 'handler':
             print(dag_node.get("child_data"))
+            return [], dag_node.get("child_data")
         else:
             text = dag_node.get("id")
             final_id = data.loc[data["text"] == text, "final_id"]\
                            .dropna()\
                            .unique()\
                            .tolist()
-            return final_id if final_id else []
+            return (final_id, None) if final_id else ([], None)
 
     return no_update
 

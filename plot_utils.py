@@ -269,6 +269,8 @@ def prepare_graph(df, flow_attr, truncation_pct):
             'label': '#',
             'node_type': 'start',
             'step': -1,
+            'image': None,
+            'reward': None,
         }
     })
     node_set.add('START')
@@ -292,6 +294,7 @@ def prepare_graph(df, flow_attr, truncation_pct):
                         'node_type': "final" if final_object else "intermediate",
                         'step': step,
                         'image': f"data:image/svg+xml;base64,{row['image']}",
+                        'reward': row['total_reward'],
                     }
                 })
                 node_set.add(node_id)
@@ -473,6 +476,8 @@ def truncate_linear_chains(nodes, edges, edges_to_keep_ids):
 
                 total_forward = edge['data'].get('logprobs_forward', 0)
                 total_backward = edge['data'].get('logprobs_backward', 0)
+                total_forward_change = edge['data'].get('logprobs_forward_change', 0)
+                total_backward_change = edge['data'].get('logprobs_backward_change', 0)
 
                 while current not in nodes_to_keep:
                     if len(out_edges[current]) == 0:
@@ -482,6 +487,8 @@ def truncate_linear_chains(nodes, edges, edges_to_keep_ids):
 
                     total_forward += next_edge['data'].get('logprobs_forward', 0)
                     total_backward += next_edge['data'].get('logprobs_backward', 0)
+                    total_forward_change += next_edge['data'].get('logprobs_forward_change', 0)
+                    total_backward_change += next_edge['data'].get('logprobs_backward_change', 0)
 
                     current = next_edge['data']['target']
 
@@ -496,7 +503,9 @@ def truncate_linear_chains(nodes, edges, edges_to_keep_ids):
                             'trajectory_id': trajectory_id,
                             'edge_type': 'truncated',
                             'logprobs_forward': total_forward,
-                            'logprobs_backward': total_backward
+                            'logprobs_backward': total_backward,
+                            'logprobs_forward_change': total_forward_change,
+                            'logprobs_backward_change': total_backward_change
                         }
                     })
 
@@ -536,7 +545,7 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
     }]
     built_edges = []
     built_node_ids = ['START',]
-    child_counter = defaultdict(int)
+    child_counter = defaultdict(list)
     for node in nodes:
         if node['data']['id'] in built_ids:
             built_nodes.append(node)
@@ -546,15 +555,31 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
             if edge['data']['target'] in built_node_ids:
                 built_edges.append(edge)
             else:
-                child_counter[edge['data']['source']] += 1
+                child_counter[edge['data']['source']].append({
+                    'id': edge['data']['source'],
+                    'metric': edge['data'][flow_attr]
+                })
 
     for k,v in child_counter.items():
-        print(k, v)
+        child_data = []
+        for child in v:
+            print(child)
+            """for node in nodes:
+                if child['id'] == node['data']['id']:
+                    print(node['data'])
+                    child_data.append({
+                        'id': child['id'],
+                        'metric': child['metric'],
+                        'final': node['data']['node_type']=='final',
+                        'image': node['data']['image'],
+                        'reward': node['data']['reward'],
+                    })
+                    break"""
         built_nodes.append({
                     'data': {
                         'id': k+"selector",
                         'node_type': "handler",
-                        'label': f"Other: {v} children ▾",
+                        'label': f"Other: {len(v)} children ▾",
                         'children': v,
                     }
                 })
@@ -663,7 +688,7 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
         {
             'selector': 'node[node_type = "handler"]',
             'style': {
-                'background-color': '#BAEB9D',
+                'background-color': '#fff',
                 'background-image': 'none',
                 'label': 'data(label)',
                 'text-valign': 'center',

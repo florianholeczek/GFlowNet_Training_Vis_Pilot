@@ -444,13 +444,16 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
         if not dag_node:
             return no_update
 
-        text = dag_node.get("id")
-        final_id = data.loc[data["text"] == text, "final_id"]\
-                       .dropna()\
-                       .unique()\
-                       .tolist()
-
-        return final_id if final_id else []
+        print(dag_node.get("node_type"))
+        if dag_node.get("node_type") == 'handler':
+            print(dag_node.get("child_data"))
+        else:
+            text = dag_node.get("id")
+            final_id = data.loc[data["text"] == text, "final_id"]\
+                           .dropna()\
+                           .unique()\
+                           .tolist()
+            return final_id if final_id else []
 
     return no_update
 

@@ -308,6 +308,7 @@ def prepare_graph(df, flow_attr, truncation_pct):
                     'target': node_id,
                     'trajectory_id': final_id,
                     'iteration': iteration,
+                    'edge_type': "standard",
                     'logprobs_forward': row['logprobs_forward'],
                     'logprobs_backward': row['logprobs_backward']
                 }
@@ -563,10 +564,8 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
     for k,v in child_counter.items():
         child_data = []
         for child in v:
-            print(child)
-            """for node in nodes:
+            for node in nodes:
                 if child['id'] == node['data']['id']:
-                    print(node['data'])
                     child_data.append({
                         'id': child['id'],
                         'metric': child['metric'],
@@ -574,13 +573,13 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
                         'image': node['data']['image'],
                         'reward': node['data']['reward'],
                     })
-                    break"""
+                    break
         built_nodes.append({
                     'data': {
                         'id': k+"selector",
                         'node_type': "handler",
                         'label': f"Other: {len(v)} children ▾",
-                        'children': v,
+                        'child_data': child_data,
                     }
                 })
         built_edges.append({

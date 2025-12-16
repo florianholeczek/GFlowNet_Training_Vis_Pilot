@@ -1,8 +1,7 @@
 import dash
-from dash import dcc, html, Input, Output, State, no_update
+from dash import dcc, html, Input, Output, State, no_update, dash_table
 import dash_cytoscape as cyto
 from dash.exceptions import PreventUpdate
-
 from plot_utils import *
 
 # Load data
@@ -294,6 +293,11 @@ app.layout = html.Div([
 
                 html.Div([
 
+                    dcc.Graph(
+                        id='dag-legend',
+                        style={'width': '75px', 'height': '49vh', 'flex': '0 0 75px'}
+                    ),
+
                     cyto.Cytoscape(
                         id='dag-graph',
                         layout={
@@ -307,9 +311,9 @@ app.layout = html.Div([
                         stylesheet=[]
                     ),
 
-                    dcc.Graph(
-                        id='dag-legend',
-                        style={'width': '75px', 'height': '49vh', 'flex': '0 0 75px'}
+                    dash_table.DataTable(
+                        id='table',
+                        style_table={'width': '250px', 'height': '49vh', 'flex': '0 0 250px'}
                     )
 
                 ], style={
@@ -473,7 +477,6 @@ def compute_downprojections(method, param_value, trajectories, iteration, use_te
     data_s = objs[(objs["final_object"] == True) | (objs["istestset"]==True)].copy()
     metadata_s = data_s.iloc[:, :cols_to].reset_index(drop=True)
     features_s = data_s.iloc[:, cols_to:].reset_index(drop=True)
-    print(len(data_s), data_s.columns[:cols_to+1])
 
     #trajectories
     top_ranks = sorted(objs['reward_ranked'].dropna().unique())[:trajectories]
@@ -502,7 +505,6 @@ def compute_downprojections(method, param_value, trajectories, iteration, use_te
 
     data_s = pd.concat([metadata_s, pd.DataFrame(proj_s, columns=['X', 'Y'])], axis=1)
     data_t = pd.concat([metadata_t, pd.DataFrame(proj_t, columns=['X', 'Y'])], axis=1)
-    print(len(data_s), len(data_t), "changed")
     return data_s.to_dict("records"), data_t.to_dict("records")
 
 # Bump Callback
@@ -559,13 +561,12 @@ def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories, i
     tmp = tmp[tmp["reward_ranked"].isin(top_ranks)]
     if selected_ids:
         tmp=tmp[tmp["final_id"].isin(selected_ids)]
-    graph = prepare_graph(tmp)
+    graph = prepare_graph(tmp, flow_attr, edge_truncation)
 
     result = update_DAG(
         graph,
         flow_attr,
-        edge_truncation,
-        selected_ids
+        built_ids = ['C1CNCCN1', 'CNC=O']
     )
 
     # Configure layout based on selection

@@ -556,7 +556,7 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
                 built_edges.append(edge)
             else:
                 child_counter[edge['data']['source']].append({
-                    'id': edge['data']['source'],
+                    'id': edge['data']['target'],
                     'metric': edge['data'][flow_attr]
                 })
 

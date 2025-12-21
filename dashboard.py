@@ -1,5 +1,6 @@
 import dash
-from dash import dcc, html, Input, Output, State, no_update, dash_table
+from dash import dcc, html, Input, Output, State, no_update, dash_table, ctx
+import dash_bootstrap_components as dbc
 from dash.dash_table.Format import Format, Scheme
 import dash_cytoscape as cyto
 from dash.exceptions import PreventUpdate
@@ -34,14 +35,20 @@ flow_options = ["logprobs_forward", "logprobs_backward",
                 "logprobs_forward_change", "logprobs_backward_change"]
 
 app.layout = html.Div([
-    dcc.Store(id="selected-objects", data=[]),  # selected objects based on final_id
-    dcc.Store(id="data-dps", data=data_dps), #downprojections
+    dcc.Store(id="selected-objects", data=[]),
+    dcc.Store(id="data-dps", data=data_dps),
     dcc.Store(id="data-dpt", data=data_dpt),
     dcc.Store(id="full-dag", data=None),
     dcc.Store(id="dag-build-ids", data=[]),
+    dcc.Store(id="prev-node-truncation", data=0),
 
-    # ================= LEFT COLUMN (12%) =================
+    # ================= LEFT SIDEBAR (12%) - FIXED =================
     html.Div([
+
+        # -------- TAB SELECTOR --------
+        html.H4("View"),
+        html.Button("State-Space", id="view-statespace"),
+        html.Button("DAG", id="view-dag"),
 
         html.H4("General"),
 
@@ -61,7 +68,6 @@ app.layout = html.Div([
                     max=data["iteration"].max(),
                     step=25,
                     value=[0, data["iteration"].max()],
-                    #marks={500: "500", 5000: "5000", 10000: "10000"},
                     tooltip={"placement": "bottom", "always_visible": False}
                 ),
             ], style={
@@ -132,8 +138,7 @@ app.layout = html.Div([
                 "gap": "6px"
             }),
 
-
-            # --------Use Testset --------
+            # -------- Use Testset --------
             dcc.Checklist(["Use Testset"], [], id="use-testset", style={
                 "display": "flex",
                 "flexDirection": "column",
@@ -153,8 +158,7 @@ app.layout = html.Div([
             "height": "40px"
         }),
 
-        #---------------DAG Controls---------------
-
+        # --------------- DAG Controls ---------------
         html.H4("DAG"),
 
         html.Div([
@@ -231,170 +235,178 @@ app.layout = html.Div([
         "height": "100vh",
         "borderRight": "1px solid #ddd",
         "overflow": "auto"
-    })
-    ,
+    }),
 
-
-
-    # ================= RIGHT COLUMN (88%) =================
+    # ================= RIGHT CONTENT AREA (88%) =================
     html.Div([
 
-        dcc.Store(id="prev-node-truncation", data=0),
-
-        # ================= TOP ROW =================
+        # ================= STATE-SPACE TAB =================
         html.Div([
-
-            # ---------- TOP LEFT ----------
+            # TOP ROW
             html.Div([
-                html.Div(
-                    dcc.Graph(id="bumpchart", clear_on_unhover=True),
-                    style={"height": "100%", "width": "100%"}
-                ),
-                dcc.Tooltip(id="image-tooltip3", direction="left"),
-
-            ], style={
-                "flex": 1,
-                "border": "1px solid #ddd",
-                "padding": "5px",
-                "height": "49vh",
-                "boxSizing": "border-box",
-                "overflow": "hidden"
-            }),
-
-
-            # ---------- TOP RIGHT ----------
-            html.Div([
-
-                html.Div(
-                    dcc.Graph(id="state-space-plot", clear_on_unhover=True),
-                    style={"height": "100%", "width": "100%"}
-                ),
-
-                dcc.Tooltip(id="image-tooltip1"),
-
-            ], style={
-                "flex": 1,
-                "border": "1px solid #ddd",
-                "padding": "5px",
-                "height": "49vh",
-                "boxSizing": "border-box",
-                "overflow": "hidden"
-            }),
-
-        ], style={
-            "display": "flex",
-            "flexDirection": "row",
-            "width": "100%"
-        }),
-
-
-        # ================= BOTTOM ROW =================
-        html.Div([
-
-            # ---------- BOTTOM LEFT (DAG) ----------
-            html.Div([
-
+                # TOP LEFT
                 html.Div([
-
-                    dcc.Graph(
-                        id='dag-legend',
-                        style={'width': '75px', 'height': '49vh', 'flex': '0 0 75px'}
+                    html.Div(
+                        dcc.Graph(id="bumpchart", clear_on_unhover=True),
+                        style={"height": "100%", "width": "100%"}
                     ),
-
-                    cyto.Cytoscape(
-                        id='dag-graph',
-                        layout={
-                            'name': 'klay',
-                            'directed': True,
-                            'spacingFactor': 0.5,
-                            'animate': False
-                        },
-                        style={'flex': '1', 'height': '49vh', 'width': '0px', 'background-color': '#cfcfcf'},
-                        elements=[],
-                        stylesheet=[]
-                    ),
-
-                    dash_table.DataTable(
-                        id='dag-table',
-                        columns=[
-                            {
-                                "name": "Image",
-                                "id": "image",
-                                "presentation": "markdown",
-                            },
-                            {
-                                "name": "Final",
-                                "id": "final",
-                                "type": "any",
-                            },
-                            {
-                                "name": "Logprobs",
-                                "id": "metric",
-                                "type": "numeric",
-                                "format": Format(precision=4, scheme=Scheme.fixed),
-                            },
-                            {
-                                "name": "Reward",
-                                "id": "reward",
-                                "type": "numeric",
-                                "format": Format(precision=4, scheme=Scheme.fixed),
-                            },
-                        ],
-                        row_selectable="multi",
-                        filter_action="native",
-                        sort_action="native",
-                        page_size=10,
-                        markdown_options={"html": True},
-                        style_cell={
-                                'fontFamily': 'Arial',
-                            },
-                            style_header={
-                                'backgroundColor': 'rgb(230, 230, 230)',
-                                'fontWeight': 'bold'
-                            },
-                        style_table={'width': '400px', 'height': '49vh', 'flex': '0 0 400px'}
-                    )
-
+                    dcc.Tooltip(id="image-tooltip3", direction="left"),
                 ], style={
-                    "display": "flex",
-                    "flexDirection": "row",
-                    "width": "100%"
-                })
+                    "flex": 1,
+                    "border": "1px solid #ddd",
+                    "padding": "5px",
+                    "height": "49vh",
+                    "boxSizing": "border-box",
+                    "overflow": "hidden"
+                }),
 
+                # TOP RIGHT
+                html.Div([
+                    html.Div(
+                        dcc.Graph(id="state-space-plot", clear_on_unhover=True),
+                        style={"height": "100%", "width": "100%"}
+                    ),
+                    dcc.Tooltip(id="image-tooltip1"),
+                ], style={
+                    "flex": 1,
+                    "border": "1px solid #ddd",
+                    "padding": "5px",
+                    "height": "49vh",
+                    "boxSizing": "border-box",
+                    "overflow": "hidden"
+                }),
             ], style={
-                "flex": 1,
-                "border": "1px solid #ddd",
-                "padding": "5px",
-                "height": "49vh",
-                "boxSizing": "border-box",
-                "overflow": "hidden"
+                "display": "flex",
+                "flexDirection": "row",
+                "width": "100%"
             }),
 
-
-            # ---------- BOTTOM RIGHT (TRAJECTORY VISUALIZATION) ----------
+            # BOTTOM ROW
             html.Div([
+                # BOTTOM LEFT - EMPTY
+                html.Div([], style={
+                    "flex": 1,
+                    "border": "1px solid #ddd",
+                    "padding": "5px",
+                    "height": "49vh",
+                    "boxSizing": "border-box",
+                    "overflow": "hidden"
+                }),
 
-                html.Div(
-                    dcc.Graph(id="trajectory-plot", clear_on_unhover=True),
-                    style={"height": "100%", "width": "100%"}
-                ),
-
-                dcc.Tooltip(id="image-tooltip2"),
-
+                # BOTTOM RIGHT - TRAJECTORY PLOT
+                html.Div([
+                    html.Div(
+                        dcc.Graph(id="trajectory-plot", clear_on_unhover=True),
+                        style={"height": "100%", "width": "100%"}
+                    ),
+                    dcc.Tooltip(id="image-tooltip2"),
+                ], style={
+                    "flex": 1,
+                    "border": "1px solid #ddd",
+                    "padding": "5px",
+                    "height": "49vh",
+                    "boxSizing": "border-box",
+                    "overflow": "hidden"
+                }),
             ], style={
-                "flex": 1,
-                "border": "1px solid #ddd",
-                "padding": "5px",
-                "height": "49vh",
-                "boxSizing": "border-box",
-                "overflow": "hidden"
-            }),
+                "display": "flex",
+                "flexDirection": "row",
+                "width": "100%"
+            })
+        ], id="state-space-tab", style={"display": "block"}),
 
-        ], style={
-            "display": "flex",
-            "flexDirection": "row",
-            "width": "100%"
-        })
+        # ================= DAG TAB =================
+        html.Div([
+            html.Div([
+                # LEFT SIDE - DAG AREA
+                html.Div([
+                    # TOP 25% - EMPTY
+                    html.Div([], style={
+                        "height": "25vh",
+                        "border": "1px solid #ddd",
+                        "boxSizing": "border-box"
+                    }),
+
+                    # BOTTOM 75% - DAG AND LEGEND
+                    html.Div([
+                        dcc.Graph(
+                            id='dag-legend',
+                            style={'width': '75px', 'height': '73vh', 'flex': '0 0 75px'}
+                        ),
+
+                        cyto.Cytoscape(
+                            id='dag-graph',
+                            layout={
+                                'name': 'klay',
+                                'directed': True,
+                                'spacingFactor': 0.5,
+                                'animate': False
+                            },
+                            style={'flex': '1', 'height': '73vh', 'width': '0px', 'background-color': '#cfcfcf'},
+                            elements=[],
+                            stylesheet=[]
+                        ),
+                    ], style={
+                        "display": "flex",
+                        "flexDirection": "row",
+                        "height": "73vh",
+                        "border": "1px solid #ddd",
+                        "padding": "5px",
+                        "boxSizing": "border-box"
+                    })
+                ], style={
+                    "flex": 1,
+                    "display": "flex",
+                    "flexDirection": "column"
+                }),
+
+                # RIGHT SIDE - DATA TABLE
+                dash_table.DataTable(
+                    id='dag-table',
+                    columns=[
+                        {
+                            "name": "Image",
+                            "id": "image",
+                            "presentation": "markdown",
+                        },
+                        {
+                            "name": "Final",
+                            "id": "final",
+                            "type": "any",
+                        },
+                        {
+                            "name": "Logprobs",
+                            "id": "metric",
+                            "type": "numeric",
+                            "format": Format(precision=4, scheme=Scheme.fixed),
+                        },
+                        {
+                            "name": "Reward",
+                            "id": "reward",
+                            "type": "numeric",
+                            "format": Format(precision=4, scheme=Scheme.fixed),
+                        },
+                    ],
+                    row_selectable="multi",
+                    filter_action="native",
+                    sort_action="native",
+                    page_size=10,
+                    markdown_options={"html": True},
+                    style_cell={
+                        'fontFamily': 'Arial',
+                    },
+                    style_header={
+                        'backgroundColor': 'rgb(230, 230, 230)',
+                        'fontWeight': 'bold'
+                    },
+                    style_table={'width': '400px', 'height': '98vh', 'flex': '0 0 400px', 'overflow': 'auto'}
+                )
+            ], style={
+                "display": "flex",
+                "flexDirection": "row",
+                "height": "98vh"
+            })
+        ], id="dag-tab", style={"display": "none"})
 
     ], style={
         "width": "88%",
@@ -409,6 +421,33 @@ app.layout = html.Div([
     "height": "100vh"
 })
 
+
+# ================= CALLBACK TO SWITCH TABS =================
+@app.callback(
+    [Output("state-space-tab", "style"),
+     Output("dag-tab", "style")],
+    [Input("view-dag", "n_clicks")],
+    [Input("view-statespace", "n_clicks")]
+)
+def switch_tabs(ss, dag):
+    if not ctx.triggered or ctx.triggered[0]["prop_id"].split(".")[0] == "view-statespace":
+        print("ss")
+        return {"display": "block"}, {"display": "none"}
+    else:  # dag-view
+        print("dag")
+        return {"display": "none"}, {"display": "block"}
+
+"""@app.callback(
+    [Output("state-space-tab", "style"),
+     Output("dag-tab", "style")],
+    [Input("tab-selector", "value")]
+)
+def switch_tabs(selected_tab):
+    if selected_tab == "state-space":
+        return {"display": "block"}, {"display": "none"}
+    else:  # dag-view
+        return {"display": "none"}, {"display": "block"}
+"""
 
 # Downprojection parameter header
 @app.callback(

@@ -100,40 +100,8 @@ app.layout = html.Div([
                 "gap": "6px"
             }),
 
-            # -------- Projection method --------
-            html.Div([
-                html.Div("Projection method", style={"textAlign": "center"}),
-                dcc.Dropdown(
-                    id="projection-method",
-                    options=[
-                        {"label": "UMAP", "value": "umap"},
-                        {"label": "t-SNE", "value": "tsne"}
-                    ],
-                    value="tsne",
-                    clearable=False
-                )
-            ], style={
-                "display": "flex",
-                "flexDirection": "column",
-                "gap": "6px"
-            }),
-
-            # -------- Projection param --------
-            html.Div([
-                html.Div(
-                    id="projection-param-label",
-                    style={"textAlign": "center"}
-                ),
-                dcc.Slider(
-                    id="projection-param",
-                    min=5,
-                    max=50,
-                    step=1,
-                    value=15,
-                    marks=None,
-                    tooltip={"placement": "bottom", "always_visible": False}
-                )
-            ], style={
+            # -------- Use Testset --------
+            dcc.Checklist(["Use Testset"], [], id="use-testset", style={
                 "display": "flex",
                 "flexDirection": "column",
                 "gap": "6px"
@@ -162,13 +130,6 @@ app.layout = html.Div([
                 "gap": "6px"
             }),
 
-            # -------- Use Testset --------
-            dcc.Checklist(["Use Testset"], [], id="use-testset", style={
-                "display": "flex",
-                "flexDirection": "column",
-                "gap": "6px"
-            })
-
         ], style={
             "display": "flex",
             "flexDirection": "column",
@@ -182,8 +143,71 @@ app.layout = html.Div([
             "height": "40px"
         }),
 
+        # --------------- Projection Controls ---------------
+        html.H4("Projection"),
+
+        html.Div([
+            html.Div([
+
+                # -------- Projection method --------
+                html.Div([
+                    html.Div("Method", style={"textAlign": "center"}),
+                    dcc.Dropdown(
+                        id="projection-method",
+                        options=[
+                            {"label": "UMAP", "value": "umap"},
+                            {"label": "t-SNE", "value": "tsne"}
+                        ],
+                        value="tsne",
+                        clearable=False,
+                        style={"color": "black"}
+                    )
+                ], style={
+                    "display": "flex",
+                    "flexDirection": "column",
+                    "gap": "6px",
+                }),
+
+                # -------- Projection param --------
+                html.Div([
+                    html.Div(
+                        id="projection-param-label",
+                        style={"textAlign": "center"}
+                    ),
+                    dcc.Slider(
+                        id="projection-param",
+                        min=5,
+                        max=50,
+                        step=1,
+                        value=15,
+                        marks=None,
+                        tooltip={"placement": "bottom", "always_visible": False}
+                    )
+                ], style={
+                    "display": "flex",
+                    "flexDirection": "column",
+                    "gap": "6px"
+                }),
+
+            ], style={
+                "display": "flex",
+                "flexDirection": "column",
+                "gap": "50px"
+            })
+
+        ], style={
+            "display": "flex",
+            "flexDirection": "column",
+            "gap": "50px"
+        }),
 
 
+        html.Div(style={
+            "display": "flex",
+            "flexDirection": "column",
+            "gap": "50px",
+            "height": "40px"
+        }),
         # --------------- DAG Controls ---------------
         html.H4("DAG"),
 
@@ -201,7 +225,8 @@ app.layout = html.Div([
                             {"label": "Breadthfirst", "value": "breadthfirst"}
                         ],
                         value="klay",
-                        clearable=False
+                        clearable=False,
+                        style={"color": "black"}
                     )
                 ], style={
                     "display": "flex",
@@ -216,7 +241,8 @@ app.layout = html.Div([
                         id="flow-attr",
                         options=[{"label": f, "value": f} for f in flow_options],
                         value="logprobs_forward",
-                        clearable=False
+                        clearable=False,
+                        style={"color": "black"}
                     )
                 ], style={
                     "display": "flex",
@@ -260,7 +286,7 @@ app.layout = html.Div([
         "maxWidth": "250px",
         "padding": "12px",
         "height": "100vh",
-        "borderRight": "1px solid #ddd",
+        #"borderRight": "1px solid #ddd",
         "overflow": "auto"
     }),
 
@@ -280,7 +306,7 @@ app.layout = html.Div([
                     dcc.Tooltip(id="image-tooltip3", direction="left"),
                 ], style={
                     "flex": 1,
-                    "border": "1px solid #ddd",
+                    #"border": "1px solid #ddd",
                     "padding": "5px",
                     "height": "49vh",
                     "boxSizing": "border-box",
@@ -296,7 +322,7 @@ app.layout = html.Div([
                     dcc.Tooltip(id="image-tooltip1"),
                 ], style={
                     "flex": 1,
-                    "border": "1px solid #ddd",
+                    #"border": "1px solid #ddd",
                     "padding": "5px",
                     "height": "49vh",
                     "boxSizing": "border-box",
@@ -313,7 +339,7 @@ app.layout = html.Div([
                 # BOTTOM LEFT - EMPTY
                 html.Div([], style={
                     "flex": 1,
-                    "border": "1px solid #ddd",
+                    #"border": "1px solid #ddd",
                     "padding": "5px",
                     "height": "49vh",
                     "boxSizing": "border-box",
@@ -329,7 +355,7 @@ app.layout = html.Div([
                     dcc.Tooltip(id="image-tooltip2"),
                 ], style={
                     "flex": 1,
-                    "border": "1px solid #ddd",
+                    #"border": "1px solid #ddd",
                     "padding": "5px",
                     "height": "49vh",
                     "boxSizing": "border-box",
@@ -350,7 +376,7 @@ app.layout = html.Div([
                     # TOP 25% - EMPTY
                     html.Div([], style={
                         "height": "25vh",
-                        "border": "1px solid #ddd",
+                        #"border": "1px solid #ddd",
                         "boxSizing": "border-box"
                     }),
 
@@ -377,7 +403,7 @@ app.layout = html.Div([
                         "display": "flex",
                         "flexDirection": "row",
                         "height": "73vh",
-                        "border": "1px solid #ddd",
+                        #"border": "1px solid #ddd",
                         "padding": "5px",
                         "boxSizing": "border-box"
                     })

@@ -26,7 +26,7 @@ data.insert(9, 'reward_ranked', ranks)
 
 
 
-app = dash.Dash(__name__)
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
 
 # Load extra layouts for cytoscape
 cyto.load_extra_layouts()
@@ -45,10 +45,32 @@ app.layout = html.Div([
     # ================= LEFT SIDEBAR (12%) - FIXED =================
     html.Div([
 
-        # -------- TAB SELECTOR --------
+# -------- TAB SELECTOR --------
         html.H4("View"),
-        html.Button("State-Space", id="view-statespace"),
-        html.Button("DAG", id="view-dag"),
+        html.Div([
+            html.Button(
+                "State Space",
+                id="tab-state-space",
+                n_clicks=0,
+            ),
+            html.Button(
+                "DAG",
+                id="tab-dag-view",
+                n_clicks=0,
+            )
+        ], style={
+            "display": "flex",
+            "flexDirection": "column",
+            #"gap": "12px"
+        }),
+        dcc.Store(id="active-tab", data="state-space"),
+
+        html.Div(style={
+            "display": "flex",
+            "flexDirection": "column",
+            "gap": "50px",
+            "height": "40px"
+        }),
 
         html.H4("General"),
 
@@ -56,7 +78,9 @@ app.layout = html.Div([
             html.Button("Clear selection", id="clear-selection", n_clicks=0, style={
                 "display": "flex",
                 "flexDirection": "column",
-                "gap": "6px"
+                "gap": "6px",
+                "border-radius": "8px",
+                "border": "2px solid #e5e7eb",
             }),
 
             # -------- Iterations --------
@@ -158,6 +182,8 @@ app.layout = html.Div([
             "height": "40px"
         }),
 
+
+
         # --------------- DAG Controls ---------------
         html.H4("DAG"),
 
@@ -231,6 +257,7 @@ app.layout = html.Div([
     ], style={
         "width": "12%",
         "minWidth": "180px",
+        "maxWidth": "250px",
         "padding": "12px",
         "height": "100vh",
         "borderRight": "1px solid #ddd",
@@ -342,7 +369,7 @@ app.layout = html.Div([
                                 'spacingFactor': 0.5,
                                 'animate': False
                             },
-                            style={'flex': '1', 'height': '73vh', 'width': '0px', 'background-color': '#cfcfcf'},
+                            style={'flex': '1', 'height': '73vh', 'width': '0px', 'background-color': '#222222'},
                             elements=[],
                             stylesheet=[]
                         ),
@@ -394,9 +421,10 @@ app.layout = html.Div([
                     markdown_options={"html": True},
                     style_cell={
                         'fontFamily': 'Arial',
+                        'backgroundColor': '#222222',
                     },
                     style_header={
-                        'backgroundColor': 'rgb(230, 230, 230)',
+                        'backgroundColor': '#222222',
                         'fontWeight': 'bold'
                     },
                     style_table={'width': '400px', 'height': '98vh', 'flex': '0 0 400px', 'overflow': 'auto'}
@@ -425,29 +453,65 @@ app.layout = html.Div([
 # ================= CALLBACK TO SWITCH TABS =================
 @app.callback(
     [Output("state-space-tab", "style"),
-     Output("dag-tab", "style")],
-    [Input("view-dag", "n_clicks")],
-    [Input("view-statespace", "n_clicks")]
+     Output("dag-tab", "style"),
+     Output("active-tab", "data"),
+     Output("tab-state-space", "style"),
+     Output("tab-dag-view", "style")],
+    [Input("tab-state-space", "n_clicks"),
+     Input("tab-dag-view", "n_clicks")],
+    [State("active-tab", "data")]
 )
-def switch_tabs(ss, dag):
-    if not ctx.triggered or ctx.triggered[0]["prop_id"].split(".")[0] == "view-statespace":
-        print("ss")
-        return {"display": "block"}, {"display": "none"}
-    else:  # dag-view
-        print("dag")
-        return {"display": "none"}, {"display": "block"}
+def switch_tabs(state_clicks, dag_clicks, current_tab):
+    ctx = dash.callback_context
 
-"""@app.callback(
-    [Output("state-space-tab", "style"),
-     Output("dag-tab", "style")],
-    [Input("tab-selector", "value")]
-)
-def switch_tabs(selected_tab):
-    if selected_tab == "state-space":
-        return {"display": "block"}, {"display": "none"}
-    else:  # dag-view
-        return {"display": "none"}, {"display": "block"}
-"""
+    # Determine which button was clicked
+    if not ctx.triggered:
+        button_id = "tab-state-space"
+    else:
+        button_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+    # Set active tab based on button click
+    if button_id == "tab-state-space":
+        active_tab = "state-space"
+    elif button_id == "tab-dag-view":
+        active_tab = "dag-view"
+    else:
+        active_tab = current_tab
+
+    # Base button styles
+    active_style = {
+        "border": "2px solid #3b82f6",
+        "backgroundColor": "#3b82f6",
+        "color": "white",
+        "transition": "all 0.3s ease",
+    }
+    inactive_style = {
+        "border": "2px solid #e5e7eb",
+        "backgroundColor": "white",
+        "color": "#6b7280",
+        "transition": "all 0.3s ease",
+    }
+    top_style = {"border-top-left-radius": "8px", "border-top-right-radius": "8px"}
+    bottom_style = {"border-bottom-left-radius": "8px", "border-bottom-right-radius": "8px"}
+
+    # Apply styles based on active tab
+    if active_tab == "state-space":
+
+        return (
+            {"display": "block"},
+            {"display": "none"},
+            "state-space",
+            active_style | top_style,
+            inactive_style | bottom_style
+        )
+    else:
+        return (
+            {"display": "none"},
+            {"display": "block"},
+            "dag-view",
+            inactive_style | top_style,
+            active_style | bottom_style
+        )
 
 # Downprojection parameter header
 @app.callback(

@@ -146,7 +146,7 @@ def update_state_space_t(df, selected_ids=[]):
         xaxis_title="X",
         yaxis_title="Y",
         hovermode='closest',
-        template='plotly',
+        template='plotly_dark',
         margin=dict(l=40, r=40, t=40, b=40)
     )
 
@@ -201,7 +201,8 @@ def create_dag_legend(vmin, vmax, colorscale, flow_attr):
         yaxis=dict(visible=False),
         margin=dict(l=0, r=0, t=0, b=0),
         paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)'
+        plot_bgcolor='rgba(0,0,0,0)',
+        template="plotly_dark"
     )
 
     return fig
@@ -821,7 +822,7 @@ def update_state_space(df, selected_ids=[]):
     fig.update_layout(
         autosize=True,
         title=f"Final Objects downprojected<br><sup>Size shows total reward",
-        template='plotly',
+        template='plotly_dark',
         legend=dict(
             itemsizing='constant',  # ensures marker size is not scaled
         )
@@ -988,7 +989,7 @@ def update_bump(df, n_top, selected_ids, testset_bounds=None):
         legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="left", x=0),
         xaxis_title="Iteration",
         yaxis_title="Rank",
-        template='plotly'
+        template='plotly_dark'
     )
 
     fig.update_yaxes(autorange="reversed")

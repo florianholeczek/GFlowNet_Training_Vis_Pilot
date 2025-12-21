@@ -668,9 +668,10 @@ def compute_downprojections(method, param_value, trajectories, iteration, use_te
             learning_rate='auto'
         ).fit_transform(features_t)
     elif method == "umap":
-        reducer = UMAP(n_neighbors=param_value)
-        proj_s = reducer.fit_transform(features_s)
-        proj_t = reducer.fit_transform(features_t)
+        reducer_s = UMAP(n_neighbors=min(param_value, len(features_s)-1))
+        reducer_t = UMAP(n_neighbors=min(param_value, len(features_t)-1))
+        proj_s = reducer_s.fit_transform(features_s)
+        proj_t = reducer_t.fit_transform(features_t)
     else:
         raise NotImplementedError("Method not implemented")
 

@@ -942,6 +942,21 @@ def update_bump(df, n_top, selected_ids, testset_bounds=None):
             )
         )
 
+    first_iter = (
+        tmp.groupby("text")["iteration"]
+        .min()
+    )
+    # Map iteration categories to numeric indices
+    iter_to_idx = {it: i for i, it in enumerate(iterations)}
+    first_iter_idx = first_iter.map(iter_to_idx)
+    emrld = px.colors.sequential.Emrld
+    n_colors = len(emrld)
+    # Normalize first-iteration index → color
+    obj_color = {
+        text: emrld[int(idx / max(1, len(iterations) - 1) * (n_colors - 1))]
+        for text, idx in first_iter_idx.items()
+    }
+
     # Plot the ranked objects
     for obj in first_ranks:
         obj_df = tmp[tmp["text"] == obj].sort_values("iteration")
@@ -964,7 +979,7 @@ def update_bump(df, n_top, selected_ids, testset_bounds=None):
                     marker=dict(
                         symbol="circle",
                         size=sub_df["sampled"],
-                        color=px.colors.sequential.Emrld[-1],
+                        color=obj_color[obj],
                     ),
                     line=dict(width=2),
                     opacity=opacity,

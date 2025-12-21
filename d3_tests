@@ -1,0 +1,295 @@
+chart = {
+
+  // Example DAG data
+        const data = {
+            nodes: [
+                { id: "root", node_type: "start", step: 0 },
+                { id: "node1", node_type: "intermediate", step: 1, image: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMTUiIGZpbGw9IiM0YzlhZmYiLz48L3N2Zz4=" },
+                { id: "node2", node_type: "intermediate", step: 1, image: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMTUiIGZpbGw9IiNmZjljNGMiLz48L3N2Zz4=" },
+                { id: "node3", node_type: "intermediate", step: 2, image: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3QgeD0iNSIgeT0iNSIgd2lkdGg9IjMwIiBoZWlnaHQ9IjMwIiBmaWxsPSIjNTBjODc4Ii8+PC9zdmc+" },
+                { id: "node4", node_type: "intermediate", step: 2, image: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3QgeD0iNSIgeT0iNSIgd2lkdGg9IjMwIiBoZWlnaHQ9IjMwIiBmaWxsPSIjZmY2YjZiIi8+PC9zdmc+" },
+                { id: "node5", node_type: "intermediate", step: 3, image: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMTUiIGZpbGw9IiNjOTRjZmYiLz48L3N2Zz4=" },
+                { id: "node6", node_type: "final", step: 3, image: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBvbHlnb24gcG9pbnRzPSIyMCw1IDM1LDM1IDUsMzUiIGZpbGw9IiNmZmQ3MDAiLz48L3N2Zz4=" },
+              { id: "node7", node_type: "final", step: 1, image: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBvbHlnb24gcG9pbnRzPSIyMCw1IDM1LDM1IDUsMzUiIGZpbGw9IiNmZmQ3MDAiLz48L3N2Zz4=" },
+              { id: "node8", node_type: "final", step: 2, image: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBvbHlnb24gcG9pbnRzPSIyMCw1IDM1LDM1IDUsMzUiIGZpbGw9IiNmZmQ3MDAiLz48L3N2Zz4=" },
+              { id: "node9", node_type: "final", step: 3, image: "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBvbHlnb24gcG9pbnRzPSIyMCw1IDM1LDM1IDUsMzUiIGZpbGw9IiNmZmQ3MDAiLz48L3N2Zz4=" }
+            ],
+            edges: [
+                { source: "root", target: "node1", color: "rgb(84,48,5)" },
+                { source: "root", target: "node2", color: "rgb(100,60,20)" },
+                { source: "node1", target: "node3", color: "rgb(50,120,200)" },
+                { source: "node1", target: "node4", color: "rgb(200,50,50)" },
+                { source: "node2", target: "node4", color: "rgb(150,100,50)" },
+                { source: "node3", target: "node5", color: "rgb(100,200,100)" },
+                { source: "node4", target: "node5", color: "rgb(200,100,150)" },
+                { source: "node4", target: "node6", color: "rgb(150,150,50)" },
+                { source: "node2", target: "node5", color: "rgb(255,100,0)" },
+                { source: "root", target: "node7", color: "rgb(255,100,0)" },
+                { source: "node7", target: "node8", color: "rgb(255,100,0)" },
+                { source: "node8", target: "node9", color: "rgb(255,100,0)" }
+            ]
+        };
+
+        // Build node map with parent/child relationships
+        function buildNodeMap(nodes, edges) {
+            const nodeMap = new Map(nodes.map(n => [n.id, {
+                ...n,
+                parents: [],
+                children: [],
+                collapsed: false
+            }]));
+
+            edges.forEach(edge => {
+                const parent = nodeMap.get(edge.source);
+                const child = nodeMap.get(edge.target);
+                if (parent && child) {
+                    if (!child.parents.includes(edge.source)) {
+                        child.parents.push(edge.source);
+                    }
+                    if (!parent.children.includes(edge.target)) {
+                        parent.children.push(edge.target);
+                    }
+                }
+            });
+
+            return nodeMap;
+        }
+
+        const nodeMap = buildNodeMap(data.nodes, data.edges);
+
+        const width = 928;
+        const marginTop = 10;
+        const marginRight = 10;
+        const marginBottom = 10;
+        const marginLeft = 40;
+        const dx = 50;
+        const dy = 150;
+
+        const svg = d3.create("svg")
+            .attr("width", width)
+            .attr("height", 700)
+            .attr("viewBox", [-marginLeft, -marginTop, width, 400])
+            .attr("style", "max-width: 100%; height: auto; font: 10px sans-serif; user-select: none;");
+
+        const gLink = svg.append("g")
+            .attr("fill", "none");
+
+        const gNode = svg.append("g")
+            .attr("cursor", "pointer")
+            .attr("pointer-events", "all");
+
+        // Calculate positions based on step (layer)
+        function calculatePositions(nodeMap) {
+            const positions = new Map();
+            const layers = new Map();
+
+            // Group nodes by step
+            nodeMap.forEach(node => {
+                if (!layers.has(node.step)) {
+                    layers.set(node.step, []);
+                }
+                layers.get(node.step).push(node.id);
+            });
+
+            // Position nodes in each layer
+            layers.forEach((nodeIds, step) => {
+                const y = step * dy;
+                const spacing = width / (nodeIds.length + 1);
+                nodeIds.forEach((nodeId, i) => {
+                    positions.set(nodeId, { x: (i + 1) * spacing - marginLeft, y });
+                });
+            });
+
+            return positions;
+        }
+
+        // Check if a node is visible (has at least one visible, non-collapsed parent path to root)
+        function isNodeVisible(nodeId, nodeMap, visited = new Set()) {
+            if (visited.has(nodeId)) return false; // Cycle detection
+            visited.add(nodeId);
+
+            const node = nodeMap.get(nodeId);
+            if (!node) return false;
+
+            // Root is always visible
+            if (node.parents.length === 0) return true;
+
+            // A node is visible if at least one parent is visible AND not collapsed
+            for (const parentId of node.parents) {
+                const parent = nodeMap.get(parentId);
+                if (!parent) continue;
+
+                // Check if parent is visible
+                if (isNodeVisible(parentId, nodeMap, new Set(visited))) {
+                    // Check if parent has collapsed this child
+                    if (!parent.collapsed) {
+                        return true; // Found a visible, non-collapsed parent
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        // Get visible ancestor for a hidden node
+        function getVisibleAncestor(nodeId, nodeMap, positions, visited = new Set()) {
+            if (visited.has(nodeId)) return null;
+            visited.add(nodeId);
+
+            const node = nodeMap.get(nodeId);
+            if (!node) return null;
+
+            if (isNodeVisible(nodeId, nodeMap)) {
+                const pos = positions.get(nodeId);
+                return pos ? { id: nodeId, ...pos } : null;
+            }
+
+            // Find first visible parent
+            for (const parentId of node.parents) {
+                const ancestor = getVisibleAncestor(parentId, nodeMap, positions, new Set(visited));
+                if (ancestor) return ancestor;
+            }
+
+            return null;
+        }
+
+        function update() {
+            const duration = 200;
+            const t = svg.transition().duration(duration);
+            const positions = calculatePositions(nodeMap);
+
+            // Determine which nodes are visible
+            const visibleNodes = [];
+            nodeMap.forEach((node, nodeId) => {
+                if (isNodeVisible(nodeId, nodeMap)) {
+                    const pos = positions.get(nodeId);
+                    visibleNodes.push({ ...node, ...pos });
+                }
+            });
+
+            // Prepare edges
+            const visibleEdges = [];
+            data.edges.forEach(edge => {
+                const sourceVisible = isNodeVisible(edge.source, nodeMap);
+                const targetVisible = isNodeVisible(edge.target, nodeMap);
+
+                let sourcePos, targetPos, color;
+
+                if (sourceVisible && targetVisible) {
+                    sourcePos = positions.get(edge.source);
+                    targetPos = positions.get(edge.target);
+                    color = edge.color;
+                } else {
+                    const sourceAncestor = getVisibleAncestor(edge.source, nodeMap, positions);
+                    const targetAncestor = getVisibleAncestor(edge.target, nodeMap, positions);
+
+                    if (sourceAncestor && targetAncestor) {
+                        sourcePos = { x: sourceAncestor.x, y: sourceAncestor.y };
+                        targetPos = { x: targetAncestor.x, y: targetAncestor.y };
+                        color = "#000";
+                    } else {
+                        return; // Skip edge if we can't find visible endpoints
+                    }
+                }
+
+                visibleEdges.push({
+                    source: sourcePos,
+                    target: targetPos,
+                    color,
+                    truncated: edge.truncated,
+                    id: `${edge.source}-${edge.target}`
+                });
+            });
+
+            // Update links
+            const link = gLink.selectAll("path")
+                .data(visibleEdges, d => d.id);
+
+            link.exit().remove();
+
+            const linkEnter = link.enter().append("path")
+                .attr("stroke-opacity", 0.6)
+                .attr("stroke-width", 1.5);
+
+            link.merge(linkEnter)
+    .transition(t)
+    .attr("stroke", d => d.color)
+    .attr("stroke-dasharray", d => d.truncated ? "5,5" : "0")
+    .attr("d", d => `M ${d.source.x},${d.source.y} L ${d.target.x},${d.target.y}`);
+
+
+            // Update nodes
+            const node = gNode.selectAll("g")
+                .data(visibleNodes, d => d.id);
+
+            node.exit().remove();
+
+            const nodeEnter = node.enter().append("g")
+    .attr("transform", d => `translate(${d.x},${d.y})`)
+    .style("opacity", 0)
+    .on("click", (event, d) => {          // ← attach event BEFORE transition
+        const node = nodeMap.get(d.id);
+        if (node.children.length > 0) {
+            node.collapsed = !node.collapsed;
+            update();
+        }
+    });
+
+nodeEnter
+    .transition()                         // ← now animate
+    .delay(duration)
+    .duration(250)
+    .style("opacity", 1);
+
+
+            // Add images for non-root nodes
+            nodeEnter.each(function(d) {
+                if (d.image) {
+                    d3.select(this).append("image")
+                        .attr("xlink:href", d.image)
+                        .attr("x", -15)
+                        .attr("y", -15)
+                        .attr("width", 30)
+                        .attr("height", 30);
+                }
+
+                // Show text ID for all nodes (for debugging)
+                d3.select(this).append("text")
+                    .attr("dy", "0.31em")
+                    .attr("text-anchor", "middle")
+                    .attr("y", d.image ? 25 : 0)
+                    .text(d.id)
+                    .attr("stroke-linejoin", "round")
+                    .attr("stroke-width", 3)
+                    .attr("stroke", "white")
+                    .attr("paint-order", "stroke")
+                    .style("font-weight", "bold")
+                    .style("font-size", "10px");
+
+                // Add circle to indicate collapsible nodes
+                d3.select(this).append("circle")
+                    .attr("r", 4)
+                    .attr("cy", 20)
+                    .attr("stroke-width", 2);
+            });
+
+            node.merge(nodeEnter)
+    .transition(t)
+    .attr("transform", d => `translate(${d.x},${d.y})`)
+                .select("circle")
+                    .attr("fill", d => {
+                        const n = nodeMap.get(d.id);
+                        return (n.children.length > 0 && n.collapsed) ? "#555" : "none";
+                    })
+                    .attr("stroke", d => {
+                        const n = nodeMap.get(d.id);
+                        return (n.children.length > 0 && n.collapsed) ? "#555" : "none";
+                    });
+        }
+
+        // Initial render
+        update();
+
+
+  return svg.node();
+}

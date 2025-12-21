@@ -1,13 +1,12 @@
 import dash
-from dash import dcc, html, Input, Output, State, no_update
+from dash import dcc, html, Input, Output, State, no_update, dash_table
+from dash.dash_table.Format import Format, Scheme
 import dash_cytoscape as cyto
 from dash.exceptions import PreventUpdate
-
 from plot_utils import *
 
 # Load data
-#data = pd.read_csv('train_data.csv')
-data = pd.read_csv('train_data_big.csv')
+data = pd.read_csv('train_data.csv')
 data.insert(loc=10, column="istestset", value=False)
 data_dps = None
 data_dpt = None
@@ -16,7 +15,6 @@ data_test["final_id"]+=len(data)
 data_test["iteration"]=0
 data_test.insert(loc=10, column="istestset", value=True)
 testset_reward_bounds = (data_test["total_reward"].min(), data_test["total_reward"].max())
-n_final_objects =data["final_id"].nunique()
 
 
 # add ranked reward for filtering for performance
@@ -39,6 +37,8 @@ app.layout = html.Div([
     dcc.Store(id="selected-objects", data=[]),  # selected objects based on final_id
     dcc.Store(id="data-dps", data=data_dps), #downprojections
     dcc.Store(id="data-dpt", data=data_dpt),
+    dcc.Store(id="full-dag", data=None),
+    dcc.Store(id="dag-build-ids", data=[]),
 
     # ================= LEFT COLUMN (12%) =================
     html.Div([
@@ -59,9 +59,8 @@ app.layout = html.Div([
                     id="iteration",
                     min=0,
                     max=data["iteration"].max(),
-                    #step=25,
+                    step=25,
                     value=[0, data["iteration"].max()],
-                    #marks=None,
                     #marks={500: "500", 5000: "5000", 10000: "10000"},
                     tooltip={"placement": "bottom", "always_visible": False}
                 ),
@@ -121,14 +120,10 @@ app.layout = html.Div([
                 dcc.Slider(
                     id="limit-trajectories",
                     min=1,
-                    max=n_final_objects,
+                    max=100,
                     step=1,
                     value=5,
-                    marks={
-                        1: '1',
-                        int(n_final_objects/2): f'{int(n_final_objects / 2)}',
-                        n_final_objects: f'{n_final_objects}',
-                    },
+                    marks={0: '0', 100: '100'},
                     tooltip={"placement": "bottom", "always_visible": False}
                 )
             ], style={
@@ -138,7 +133,7 @@ app.layout = html.Div([
             }),
 
 
-            # -------- Limit Trajectories --------
+            # --------Use Testset --------
             dcc.Checklist(["Use Testset"], [], id="use-testset", style={
                 "display": "flex",
                 "flexDirection": "column",
@@ -175,7 +170,7 @@ app.layout = html.Div([
                             {"label": "Dagre", "value": "dagre"},
                             {"label": "Breadthfirst", "value": "breadthfirst"}
                         ],
-                        value="breadthfirst",
+                        value="klay",
                         clearable=False
                     )
                 ], style={
@@ -301,58 +296,70 @@ app.layout = html.Div([
 
                 html.Div([
 
-                    html.Div([
-                        # DAG graph
-                        cyto.Cytoscape(
-                            id='dag-graph',
-                            layout={
-                                'name': 'klay',
-                                'directed': True,
-                                'spacingFactor': 0.5,
-                                'animate': False
-                            },
-                            style={
-                                'flex': '1',
-                                'height': '49vh',
-                                'width': '100%',
-                                'background-color': '#cfcfcf',
-                                'position': 'relative'
-                            },
-                            elements=[],
-                            stylesheet=[]
-                        ),
-
-                        # Floating image overlay
-                        html.Img(
-                            id="dag-hover-image",
-                            style={
-                                "position": "absolute",
-                                "top": "10px",
-                                "left": "10px",
-                                "width": "150px",
-                                "height": "150px",
-                                "border": "1px solid #ccc",
-                                "background": "white",
-                                "display": "none",  # hidden by default
-                                "zIndex": 999
-                            }
-                        ),
-
-                        # Optional: hide image when leaving graph
-                        html.Div(id="dag-mouseleave-area", style={"display": "none"})
-                    ], style={"position": "relative", "height": "49vh", "width": "100%"}),
-
                     dcc.Graph(
                         id='dag-legend',
                         style={'width': '75px', 'height': '49vh', 'flex': '0 0 75px'}
+                    ),
+
+                    cyto.Cytoscape(
+                        id='dag-graph',
+                        layout={
+                            'name': 'klay',
+                            'directed': True,
+                            'spacingFactor': 0.5,
+                            'animate': False
+                        },
+                        style={'flex': '1', 'height': '49vh', 'width': '0px', 'background-color': '#cfcfcf'},
+                        elements=[],
+                        stylesheet=[]
+                    ),
+
+                    dash_table.DataTable(
+                        id='dag-table',
+                        columns=[
+                            {
+                                "name": "Image",
+                                "id": "image",
+                                "presentation": "markdown",
+                            },
+                            {
+                                "name": "Final",
+                                "id": "final",
+                                "type": "any",
+                            },
+                            {
+                                "name": "Logprobs",
+                                "id": "metric",
+                                "type": "numeric",
+                                "format": Format(precision=4, scheme=Scheme.fixed),
+                            },
+                            {
+                                "name": "Reward",
+                                "id": "reward",
+                                "type": "numeric",
+                                "format": Format(precision=4, scheme=Scheme.fixed),
+                            },
+                        ],
+                        row_selectable="multi",
+                        filter_action="native",
+                        sort_action="native",
+                        page_size=10,
+                        markdown_options={"html": True},
+                        style_cell={
+                                'fontFamily': 'Arial',
+                            },
+                            style_header={
+                                'backgroundColor': 'rgb(230, 230, 230)',
+                                'fontWeight': 'bold'
+                            },
+                        style_table={'width': '400px', 'height': '49vh', 'flex': '0 0 400px'}
                     )
 
                 ], style={
                     "display": "flex",
                     "flexDirection": "row",
                     "width": "100%"
-                }),
-
+                })
 
             ], style={
                 "flex": 1,
@@ -427,6 +434,7 @@ def update_projection_param(method):
 # Main selection update
 @app.callback(
     Output("selected-objects", "data"),
+    Output("dag-table", "data"),
     Input("clear-selection", "n_clicks"),
     Input("state-space-plot", "selectedData"),
     Input("trajectory-plot", "selectedData"),
@@ -445,7 +453,7 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
 
     # -------- Clear button --------
     if "clear-selection" in trigger:
-        return []
+        return [], None
 
     # ---------- State-space lasso ----------
     if "state-space-plot.selectedData" in trigger:
@@ -453,36 +461,38 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
             return no_update
 
         selected_ids = {pt["customdata"][0] for pt in ss_select["points"]}
-        return list(selected_ids)
+        return list(selected_ids), None
 
     # ---------- Trajectory lasso ----------
     elif "trajectory-plot.selectedData" in trigger:
         if not traj_select or not traj_select.get("points"):
-            return no_update
+            return no_update, None
 
         selected_ids = {pt["customdata"][1] for pt in traj_select["points"]}
-        return list(selected_ids)
+        return list(selected_ids), None
 
     # ---------- Bump chart lasso ----------
     elif "bumpchart.selectedData" in trigger:
         if not bump_select or not bump_select.get("points"):
-            return no_update
+            return no_update, None
 
         selected_ids = {pt["customdata"][0] for pt in bump_select["points"]}
-        return list(selected_ids)
+        return list(selected_ids), None
 
     # ---------- DAG node click ----------
     elif "dag-graph.tapNodeData" in trigger:
         if not dag_node:
             return no_update
 
-        text = dag_node.get("id")
-        final_id = data.loc[data["text"] == text, "final_id"]\
-                       .dropna()\
-                       .unique()\
-                       .tolist()
-
-        return final_id if final_id else []
+        if dag_node.get("node_type") == 'handler':
+            return [], dag_node.get("child_data")
+        else:
+            text = dag_node.get("id")
+            final_id = data.loc[data["text"] == text, "final_id"]\
+                           .dropna()\
+                           .unique()\
+                           .tolist()
+            return (final_id, None) if final_id else ([], None)
 
     return no_update
 
@@ -574,18 +584,14 @@ def update_projection_plots(selected_ids, data_s, data_t):
 
 # DAG Callback
 @app.callback(
-    [Output("dag-graph", "elements"),
-     Output("dag-graph", "stylesheet"),
-     Output("dag-graph", "layout"),
-     Output("dag-legend", "figure")],
+    Output("full-dag", "data"),
     Input("flow-attr", "value"),
     Input("edge-truncation", "value"),
-    Input("dag-layout", "value"),
     Input("limit-trajectories", "value"),
     Input(  "iteration", "value"),
     Input("selected-objects", "data"),
 )
-def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories, iteration, selected_ids):
+def build_graph(flow_attr, edge_truncation, trajectories, iteration, selected_ids):
     tmp = data.iloc[:, :10]
     tmp = tmp[tmp["iteration"] <= iteration[1]]
     tmp = tmp[tmp["iteration"] >= iteration[0]]
@@ -593,13 +599,27 @@ def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories, i
     tmp = tmp[tmp["reward_ranked"].isin(top_ranks)]
     if selected_ids:
         tmp=tmp[tmp["final_id"].isin(selected_ids)]
-    graph = prepare_graph(tmp)
+    graph = prepare_graph(tmp, flow_attr, edge_truncation)
+
+    return (graph, flow_attr)
+
+# DAG Callback
+@app.callback(
+    [Output("dag-graph", "elements"),
+     Output("dag-graph", "stylesheet"),
+     Output("dag-graph", "layout"),
+     Output("dag-legend", "figure")],
+    Input("full-dag", "data"),
+    Input("dag-layout", "value"),
+    Input("dag-build-ids", "data")
+)
+def update_dag(graph_data, layout_name, build_ids):
+    graph, flow_attr = graph_data
 
     result = update_DAG(
         graph,
         flow_attr,
-        edge_truncation,
-        selected_ids
+        built_ids = build_ids
     )
 
     # Configure layout based on selection
@@ -611,19 +631,30 @@ def update_dag_callback(flow_attr, edge_truncation, layout_name, trajectories, i
 
     # Add layout-specific parameters
     if layout_name == 'klay':
-        layout_config['spacingFactor'] = 1
+        layout_config['spacingFactor'] = 1.2
     elif layout_name == 'dagre':
-        layout_config['spacingFactor'] = 0.7
+        layout_config['spacingFactor'] = 1
         layout_config['rankDir'] = 'LR'  # Left to right
     elif layout_name == 'breadthfirst':
-        layout_config['spacingFactor'] = 1
+        layout_config['spacingFactor'] = 1.2
         layout_config['roots'] = '[id = "START"]'
-
-    if not selected_ids:
-        layout_config['spacingFactor'] *= 0.7
-
-
     return result['elements'], result['stylesheet'], layout_config, result['legend']
+
+# Callback for dag-table
+@app.callback(
+    Output('dag-build-ids', 'data'),
+    Input('dag-table', 'selected_rows'),
+    State('dag-table', 'data'),
+    State("dag-build-ids", "data"),
+)
+def save_selected_rows(selected_rows, table_data, stored_ids):
+    if selected_rows:
+        selected_ids = [table_data[i]['id'] for i in selected_rows]
+        new_store = list(set(stored_ids + selected_ids))
+        print(new_store, "selected")
+        return new_store
+    else:
+        return no_update
 
 #hover state space
 @app.callback(
@@ -722,34 +753,6 @@ def display_image_tooltip3(hoverData):
     ]
 
     return True, bbox, children
-
-
-@app.callback(
-    Output("dag-hover-image", "src"),
-    Output("dag-hover-image", "style"),
-    Input("dag-graph", "mouseoverNodeData"),
-
-    State("dag-hover-image", "style"),
-)
-def update_dag_hover_image(hoverNode, style):
-    new_style = style.copy()
-
-    if hoverNode is None:
-        # Hide image when not hovering
-        new_style["display"] = "none"
-        return dash.no_update, new_style
-
-    # Show image
-    img = hoverNode.get("image")
-    if not img:
-        new_style["display"] = "none"
-        return dash.no_update, new_style
-
-    new_style["display"] = "block"
-    return img, new_style
-
-
-
 
 # Run the dashboard
 if __name__ == "__main__":

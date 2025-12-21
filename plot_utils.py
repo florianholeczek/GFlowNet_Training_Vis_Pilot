@@ -244,7 +244,7 @@ def collapse_consecutive_texts(df, sum_cols=['logprobs_forward', 'logprobs_backw
     return pd.DataFrame(collapsed_rows)
 
 
-def prepare_graph(df):
+def prepare_graph(df, flow_attr, truncation_pct):
     """
     Prepare DAG data structure from trajectory CSV.
 
@@ -268,7 +268,9 @@ def prepare_graph(df):
             'id': 'START',
             'label': '#',
             'node_type': 'start',
-            'step': -1
+            'step': -1,
+            'image': None,
+            'reward': None,
         }
     })
     node_set.add('START')
@@ -292,6 +294,7 @@ def prepare_graph(df):
                         'node_type': "final" if final_object else "intermediate",
                         'step': step,
                         'image': f"data:image/svg+xml;base64,{row['image']}",
+                        'reward': row['total_reward'],
                     }
                 })
                 node_set.add(node_id)
@@ -305,6 +308,7 @@ def prepare_graph(df):
                     'target': node_id,
                     'trajectory_id': final_id,
                     'iteration': iteration,
+                    'edge_type': "standard",
                     'logprobs_forward': row['logprobs_forward'],
                     'logprobs_backward': row['logprobs_backward']
                 }
@@ -353,16 +357,47 @@ def prepare_graph(df):
                 'source': source,
                 'target': target,
                 'trajectory_id': edge_list[0]['data']['trajectory_id'],
+                'edge_type': 'standard',
                 'logprobs_forward': logprobs_forward_latest,
                 'logprobs_backward': logprobs_backward_latest,
                 'logprobs_forward_change': logprobs_forward_change,
-                'logprobs_backward_change': logprobs_backward_change,
-                'truncated': "False"
+                'logprobs_backward_change': logprobs_backward_change
             }
         })
 
+    # from prepare
 
-    return {'nodes': nodes, 'edges': unique_edges}
+    if flow_attr in ['logprobs_backward', 'logprobs_backward_change']:
+        for edge in edges:
+            edge['data']['source'], edge['data']['target'] = \
+                edge['data']['target'], edge['data']['source']
+
+    # Calculate flow values and determine edges to keep
+    flow_values = []
+    for edge in edges:
+        flow_val = edge['data'].get(flow_attr, 0)
+        flow_values.append(abs(flow_val))
+
+    edges_to_keep = set()
+    if truncation_pct < 100:
+        # Keep top (100 - truncation_pct)% of edges
+        keep_pct = (100 - truncation_pct) / 100
+        threshold_idx = int(len(flow_values) * keep_pct)
+
+        if threshold_idx > 0:
+            sorted_flows = sorted(flow_values, reverse=True)
+            threshold = sorted_flows[min(threshold_idx - 1, len(sorted_flows) - 1)]
+
+            for edge in edges:
+                if abs(edge['data'].get(flow_attr, 0)) >= threshold:
+                    edges_to_keep.add(edge['data']['id'])
+
+    # Apply truncation if needed
+    if truncation_pct > 0:
+        nodes, edges = truncate_linear_chains(nodes, unique_edges, edges_to_keep)
+
+
+    return {'nodes': nodes, 'edges': edges}
 
 
 
@@ -442,6 +477,8 @@ def truncate_linear_chains(nodes, edges, edges_to_keep_ids):
 
                 total_forward = edge['data'].get('logprobs_forward', 0)
                 total_backward = edge['data'].get('logprobs_backward', 0)
+                total_forward_change = edge['data'].get('logprobs_forward_change', 0)
+                total_backward_change = edge['data'].get('logprobs_backward_change', 0)
 
                 while current not in nodes_to_keep:
                     if len(out_edges[current]) == 0:
@@ -451,6 +488,8 @@ def truncate_linear_chains(nodes, edges, edges_to_keep_ids):
 
                     total_forward += next_edge['data'].get('logprobs_forward', 0)
                     total_backward += next_edge['data'].get('logprobs_backward', 0)
+                    total_forward_change += next_edge['data'].get('logprobs_forward_change', 0)
+                    total_backward_change += next_edge['data'].get('logprobs_backward_change', 0)
 
                     current = next_edge['data']['target']
 
@@ -463,9 +502,11 @@ def truncate_linear_chains(nodes, edges, edges_to_keep_ids):
                             'source': chain_start,
                             'target': current,
                             'trajectory_id': trajectory_id,
-                            'truncated': "True",
+                            'edge_type': 'truncated',
                             'logprobs_forward': total_forward,
-                            'logprobs_backward': total_backward
+                            'logprobs_backward': total_backward,
+                            'logprobs_forward_change': total_forward_change,
+                            'logprobs_backward_change': total_backward_change
                         }
                     })
 
@@ -475,7 +516,7 @@ def truncate_linear_chains(nodes, edges, edges_to_keep_ids):
     return new_nodes, new_edges
 
 
-def update_DAG(dag_data, flow_attr='logprobs_forward', truncation_pct=0, selected_ids=[]):
+def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
     """
     Update DAG visualization based on flow attribute and truncation percentage.
 
@@ -495,34 +536,65 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', truncation_pct=0, selecte
     nodes = dag_data['nodes'].copy()
     edges = dag_data['edges'].copy()
 
-    if flow_attr in ['logprobs_backward', 'logprobs_backward_change']:
-        for edge in edges:
-            edge['data']['source'], edge['data']['target'] = \
-                edge['data']['target'], edge['data']['source']
-
-    # Calculate flow values and determine edges to keep
-    flow_values = []
+    built_nodes = [{
+        'data': {
+            'id': 'START',
+            'label': '#',
+            'node_type': 'start',
+            'step': -1,
+        }
+    }]
+    built_edges = []
+    built_node_ids = ['START',]
+    child_counter = defaultdict(list)
+    for node in nodes:
+        if node['data']['id'] in built_ids:
+            built_nodes.append(node)
+            built_node_ids.append(node['data']['id'])
     for edge in edges:
-        flow_val = edge['data'].get(flow_attr, 0)
-        flow_values.append(abs(flow_val))
+        if edge['data']['source'] in built_node_ids:
+            if edge['data']['target'] in built_node_ids:
+                built_edges.append(edge)
+            else:
+                child_counter[edge['data']['source']].append({
+                    'id': edge['data']['target'],
+                    'metric': edge['data'][flow_attr]
+                })
 
-    edges_to_keep = set()
-    if truncation_pct < 100:
-        # Keep top (100 - truncation_pct)% of edges
-        keep_pct = (100 - truncation_pct) / 100
-        threshold_idx = int(len(flow_values) * keep_pct)
+    for k,v in child_counter.items():
+        child_data = []
+        for child in v:
+            for node in nodes:
+                if child['id'] == node['data']['id']:
+                    child_data.append({
+                        'id': child['id'],
+                        'metric': child['metric'],
+                        'final': node['data']['node_type']=='final',
+                        'image': f'<img src="{node["data"]["image"]}" width="100">',
+                        'reward': node['data']['reward'],
+                    })
+                    break
+        built_nodes.append({
+                    'data': {
+                        'id': k+"selector",
+                        'node_type': "handler",
+                        'label': f"Other: {len(v)} children ▾",
+                        'child_data': child_data,
+                    }
+                })
+        built_edges.append({
+                        'data': {
+                            'id': f"{k}_handler",
+                            'source': k,
+                            'target': k+"selector",
+                            'edge_type': 'handler',
+                        }
+                    })
 
-        if threshold_idx > 0:
-            sorted_flows = sorted(flow_values, reverse=True)
-            threshold = sorted_flows[min(threshold_idx - 1, len(sorted_flows) - 1)]
 
-            for edge in edges:
-                if abs(edge['data'].get(flow_attr, 0)) >= threshold:
-                    edges_to_keep.add(edge['data']['id'])
 
-    # Apply truncation if needed
-    if truncation_pct > 0:
-        nodes, edges = truncate_linear_chains(nodes, edges, edges_to_keep)
+
+
 
     # Compute color scale for non-truncated edges
     # Fixed ranges by attribute
@@ -556,149 +628,101 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', truncation_pct=0, selecte
         return colorscale[idx]
 
     # Build stylesheet
+    edges = built_edges
+    nodes = built_nodes
     elements = nodes + edges
-    if selected_ids:
 
-        stylesheet = [
-            # Default node style
-            {
-                'selector': 'node',
-                'style': {
-                    'background-color': '#fff',
-                    'background-image': 'data(image)',
-                    'background-fit': 'contain',
-                    'background-clip': 'none',
-                    'label': '',  # Hide label when showing image
-                    'shape': 'round-rectangle',
-                    'width': '50px',
-                    'height': '40px',
-                    'border-width': '1px',
-                    'border-color': '#000000'
-                }
-            },
-            # START node (keep text label)
-            {
-                'selector': 'node[node_type = "start"]',
-                'style': {
-                    'background-color': '#BAEB9D',
-                    'background-image': 'none',  # No image for start node
-                    'label': 'data(label)',
-                    'text-valign': 'center',
-                    'text-halign': 'center',
-                    'font-size': '12px',
-                    'shape': 'diamond',
-                    'width': '40px',
-                    'height': '40px',
-                    'border-color': '#000000',
-                    'border-width': '2px',
-                    'font-weight': 'bold',
-                    'text-wrap': 'wrap',
-                    'text-max-width': '55px'
-                }
-            },
-            # Final node (show image)
-            {
-                'selector': 'node[node_type = "final"]',
-                'style': {
-                    'background-color': '#fff',
-                    'background-image': 'data(image)',
-                    'background-fit': 'contain',
-                    'background-clip': 'none',
-                    'label': '',  # Hide label for final nodes
-                    'shape': 'round-rectangle',
-                    'width': '60px',
-                    'height': '45px',
-                    'border-width': '3px',
-                    'border-color': '#000000'
-                }
-            },
-            # Default edge style
-            {
-                'selector': 'edge',
-                'style': {
-                    'width': 3,
-                    'target-arrow-shape': 'triangle',
-                    'curve-style': 'bezier',
-                    'arrow-scale': 1.5
-                }
-            },
-            {
-                'selector': 'edge[truncated = "True"]',
-                'style': {
-                    'line-style': 'dashed'
-                }
-            },
-        ]
-    else:
-        stylesheet = [
-            # Default node style
-            {
-                'selector': 'node',
-                'style': {
-                    'shape': 'ellipse',
-                    'width': '5px',
-                    'height': '5px',
-                    'background-color': '#FFFFFF',
-                    'label': '',
-                    'border-width': 1,
-                    'border-color': '#000000'
-                }
-            },
-            # START node (keep text label)
-            {
-                'selector': 'node[node_type = "start"]',
-                'style': {
-                    'background-color': '#BAEB9D',
-                    'background-image': 'none',  # No image for start node
-                    'label': 'data(label)',
-                    'text-valign': 'center',
-                    'text-halign': 'center',
-                    'font-size': '10px',
-                    'shape': 'diamond',
-                    'width': '25px',
-                    'height': '25px',
-                    'border-color': '#000000',
-                    'border-width': '2px',
-                    'font-weight': 'bold',
-                    'text-wrap': 'wrap',
-                    'text-max-width': '55px'
-                }
-            },
-            # Final node (show image)
-            {
-                'selector': 'node[node_type = "final"]',
-                'style': {
-                    'shape': 'ellipse',
-                    'width': '7px',
-                    'height': '7px',
-                    'background-color': '#000000',
-                    'label': '',
-                    'border-width': 0
-                }
-            },
-            # Default edge style
-            {
-                'selector': 'edge',
-                'style': {
-                    'width': 1,
-                    'target-arrow-shape': 'triangle',
-                    'curve-style': 'bezier',
-                    'arrow-scale': 0.8
-                }
-            },
-            {
-                'selector': 'edge[truncated = "True"]',
-                'style': {
-                    'line-style': 'dashed'
-                }
-            },
-        ]
+    stylesheet = [
+        # Default node style
+        {
+            'selector': 'node',
+            'style': {
+                'background-color': '#fff',
+                'background-image': 'data(image)',
+                'background-fit': 'contain',
+                'background-clip': 'none',
+                'shape': 'round-rectangle',
+                'width': '50px',
+                'height': '40px',
+                'border-width': '1px',
+                'border-color': '#000000'
+            }
+        },
+        # START node (keep text label)
+        {
+            'selector': 'node[node_type = "start"]',
+            'style': {
+                'background-color': '#BAEB9D',
+                'background-image': 'none',  # No image for start node
+                'label': f'data(label)',
+                'text-valign': 'center',
+                'text-halign': 'center',
+                'font-size': '12px',
+                'shape': 'diamond',
+                'width': '40px',
+                'height': '40px',
+                'border-color': '#000000',
+                'border-width': '2px',
+                'font-weight': 'bold',
+                'text-wrap': 'wrap',
+                'text-max-width': '55px'
+            }
+        },
+        # Final node
+        {
+            'selector': 'node[node_type = "final"]',
+            'style': {
+                'background-color': '#fff',
+                'background-image': 'data(image)',
+                'background-fit': 'contain',
+                'background-clip': 'none',
+                'shape': 'round-rectangle',
+                'width': '60px',
+                'height': '45px',
+                'border-width': '3px',
+                'border-color': '#000000'
+            }
+        },
+        # Handler node
+        {
+            'selector': 'node[node_type = "handler"]',
+            'style': {
+                'background-color': '#fff',
+                'background-image': 'none',
+                'label': 'data(label)',
+                'text-valign': 'center',
+                'text-halign': 'center',
+                'font-size': '10px',
+                'shape': 'round-rectangle',
+                'width': '90px',
+                'height': '20px',
+                'border-width': '2px',
+                'border-color': '#000000',
+                #'font-weight': 'bold',
+                'text-wrap': 'wrap',
+                'text-max-width': '90px'
+            }
+        },
+        # Default edge style
+        {
+            'selector': 'edge',
+            'style': {
+                'width': 3,
+                'target-arrow-shape': 'triangle',
+                'curve-style': 'bezier',
+                'arrow-scale': 1.5
+            }
+        }
+    ]
 
     # Add color styles for each edge
     for edge in edges:
         edge_id = edge['data']['id']
         flow_val = edge['data'].get(flow_attr, 0)
-        color = get_color(flow_val, vmin, vmax, colorscale)
+        if edge['data']['edge_type'] == 'handler':
+            color = '#000000'
+        else:
+            color = get_color(flow_val, vmin, vmax, colorscale)
 
         stylesheet.append({
             'selector': f'edge[id = "{edge_id}"]',
@@ -707,7 +731,6 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', truncation_pct=0, selecte
                 'target-arrow-color': color
             }
         })
-
 
     return {
         'elements': elements,

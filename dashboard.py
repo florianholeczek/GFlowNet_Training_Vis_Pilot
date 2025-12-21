@@ -143,12 +143,12 @@ app.layout = html.Div([
             "height": "40px"
         }),
 
+        html.H4("Projection", id="sidebar-tab-header"),
         # --------------- Projection Controls ---------------
-        html.H4("Projection"),
+
 
         html.Div([
             html.Div([
-
                 # -------- Projection method --------
                 html.Div([
                     html.Div("Method", style={"textAlign": "center"}),
@@ -195,25 +195,16 @@ app.layout = html.Div([
                 "gap": "50px"
             })
 
-        ], style={
+        ], id = "sidebar-projection", style={
             "display": "flex",
             "flexDirection": "column",
             "gap": "50px"
         }),
 
 
-        html.Div(style={
-            "display": "flex",
-            "flexDirection": "column",
-            "gap": "50px",
-            "height": "40px"
-        }),
         # --------------- DAG Controls ---------------
-        html.H4("DAG"),
-
         html.Div([
             html.Div([
-
                 # -------- Layout --------
                 html.Div([
                     html.Div("Layout", style={"textAlign": "center"}),
@@ -274,7 +265,7 @@ app.layout = html.Div([
                 "gap": "50px"
             })
 
-        ], style={
+        ], id = "sidebar-dag", style={
             "display": "flex",
             "flexDirection": "column",
             "gap": "50px"
@@ -482,7 +473,10 @@ app.layout = html.Div([
      Output("dag-tab", "style"),
      Output("active-tab", "data"),
      Output("tab-state-space", "style"),
-     Output("tab-dag-view", "style")],
+     Output("tab-dag-view", "style"),
+     Output("sidebar-projection", "style"),
+     Output("sidebar-dag", "style"),
+     Output("sidebar-tab-header", "children")],
     [Input("tab-state-space", "n_clicks"),
      Input("tab-dag-view", "n_clicks")],
     [State("active-tab", "data")]
@@ -528,7 +522,10 @@ def switch_tabs(state_clicks, dag_clicks, current_tab):
             {"display": "none"},
             "state-space",
             active_style | top_style,
-            inactive_style | bottom_style
+            inactive_style | bottom_style,
+            {"display": "block"},
+            {"display": "none"},
+            "Projection"
         )
     else:
         return (
@@ -536,7 +533,10 @@ def switch_tabs(state_clicks, dag_clicks, current_tab):
             {"display": "block"},
             "dag-view",
             inactive_style | top_style,
-            active_style | bottom_style
+            active_style | bottom_style,
+            {"display": "none"},
+            {"display": "block"},
+            "DAG"
         )
 
 # Downprojection parameter header

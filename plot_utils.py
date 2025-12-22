@@ -211,315 +211,6 @@ def create_dag_legend(vmin, vmax, colorscale, flow_attr):
     return fig
 
 
-def collapse_consecutive_texts(df, sum_cols=['logprobs_forward', 'logprobs_backward']):
-    """
-    Collapse consecutive identical texts within each trajectory.
-    Sums specified numeric columns and keeps the last value for other columns.
-    """
-    collapsed_rows = []
-
-    for final_id, group in df.groupby('final_id'):
-        group = group.sort_values('step', ascending=True)
-
-        prev_text = None
-        agg_row = None
-
-        for _, row in group.iterrows():
-            if row['text'] == prev_text:
-                # Aggregate sum columns
-                for col in sum_cols:
-                    agg_row[col] += row[col]
-                # Keep the last value for other columns
-                for col in row.index:
-                    if col not in sum_cols + ['text', 'final_id']:
-                        agg_row[col] = row[col]
-            else:
-                # Save previous aggregated row
-                if agg_row is not None:
-                    collapsed_rows.append(agg_row)
-                # Start new aggregation
-                agg_row = row.to_dict()
-                prev_text = row['text']
-
-        # Add the last row
-        if agg_row is not None:
-            collapsed_rows.append(agg_row)
-
-    return pd.DataFrame(collapsed_rows)
-
-
-def prepare_graph(df, flow_attr, truncation_pct):
-    """
-    Prepare DAG data structure from trajectory CSV.
-
-    Returns:
-    --------
-    dict : Dictionary containing nodes and edges data
-    """
-
-    # Sort by final_id and step
-    df = df.sort_values(['final_id', 'step'], ascending=[True, True])
-    df = collapse_consecutive_texts(df)
-
-    # Create nodes and edges
-    nodes = []
-    edges = []
-    node_set = set()
-
-    # Add START node
-    nodes.append({
-        'data': {
-            'id': 'START',
-            'label': '#',
-            'node_type': 'start',
-            'step': -1,
-            'image': None,
-            'reward': None,
-        }
-    })
-    node_set.add('START')
-
-    # Process each trajectory
-    for final_id, group in df.groupby('final_id'):
-        group = group.sort_values('step', ascending=True)
-        prev_node = 'START'
-
-        for idx, row in group.iterrows():
-            node_id = row['text']
-            step = row['step']
-            iteration = row['iteration']
-            final_object = row['final_object']
-
-            # Add node if not already added
-            if node_id not in node_set:
-                nodes.append({
-                    'data': {
-                        'id': node_id,
-                        'node_type': "final" if final_object else "intermediate",
-                        'step': step,
-                        'image': f"data:image/svg+xml;base64,{row['image']}",
-                        'reward': row['total_reward'],
-                    }
-                })
-                node_set.add(node_id)
-
-            # Add edge from previous node
-            edge_id = f"{prev_node}_to_{node_id}"
-            edges.append({
-                'data': {
-                    'id': edge_id,
-                    'source': prev_node,
-                    'target': node_id,
-                    'trajectory_id': final_id,
-                    'iteration': iteration,
-                    'edge_type': "standard",
-                    'logprobs_forward': row['logprobs_forward'],
-                    'logprobs_backward': row['logprobs_backward']
-                }
-            })
-
-            prev_node = node_id
-
-    # Deduplicate edges and compute flow statistics
-    edge_groups = defaultdict(list)
-    for edge in edges:
-        key = (edge['data']['source'], edge['data']['target'])
-        edge_groups[key].append(edge)
-
-    unique_edges = []
-    for (source, target), edge_list in edge_groups.items():
-
-        # Find max iteration
-        max_iter = max(e['data']['iteration'] for e in edge_list)
-        max_iter_edges = [e for e in edge_list if e['data']['iteration'] == max_iter]
-
-        # Latest averages (highest iteration)
-        logprobs_forward_latest = sum(
-            e['data']['logprobs_forward'] for e in max_iter_edges
-        ) / len(max_iter_edges)
-
-        logprobs_backward_latest = sum(
-            e['data']['logprobs_backward'] for e in max_iter_edges
-        ) / len(max_iter_edges)
-
-        # Overall (all iteration) averages
-        logprobs_forward_overall = sum(
-            e['data']['logprobs_forward'] for e in edge_list
-        ) / len(edge_list)
-
-        logprobs_backward_overall = sum(
-            e['data']['logprobs_backward'] for e in edge_list
-        ) / len(edge_list)
-
-        # Changes = latest avg - overall avg
-        logprobs_forward_change = logprobs_forward_latest - logprobs_forward_overall
-        logprobs_backward_change = logprobs_backward_latest - logprobs_backward_overall
-
-        unique_edges.append({
-            'data': {
-                'id': f"{source}_to_{target}",
-                'source': source,
-                'target': target,
-                'trajectory_id': edge_list[0]['data']['trajectory_id'],
-                'edge_type': 'standard',
-                'logprobs_forward': logprobs_forward_latest,
-                'logprobs_backward': logprobs_backward_latest,
-                'logprobs_forward_change': logprobs_forward_change,
-                'logprobs_backward_change': logprobs_backward_change
-            }
-        })
-
-    # from prepare
-
-    if flow_attr in ['logprobs_backward', 'logprobs_backward_change']:
-        for edge in edges:
-            edge['data']['source'], edge['data']['target'] = \
-                edge['data']['target'], edge['data']['source']
-
-    # Calculate flow values and determine edges to keep
-    flow_values = []
-    for edge in edges:
-        flow_val = edge['data'].get(flow_attr, 0)
-        flow_values.append(abs(flow_val))
-
-    edges_to_keep = set()
-    if truncation_pct < 100:
-        # Keep top (100 - truncation_pct)% of edges
-        keep_pct = (100 - truncation_pct) / 100
-        threshold_idx = int(len(flow_values) * keep_pct)
-
-        if threshold_idx > 0:
-            sorted_flows = sorted(flow_values, reverse=True)
-            threshold = sorted_flows[min(threshold_idx - 1, len(sorted_flows) - 1)]
-
-            for edge in edges:
-                if abs(edge['data'].get(flow_attr, 0)) >= threshold:
-                    edges_to_keep.add(edge['data']['id'])
-
-    # Apply truncation if needed
-    if truncation_pct > 0:
-        nodes, edges = truncate_linear_chains(nodes, unique_edges, edges_to_keep)
-
-
-    return {'nodes': nodes, 'edges': edges}
-
-
-
-def truncate_linear_chains(nodes, edges, edges_to_keep_ids):
-    """
-    Remove intermediate nodes that only have one edge in and one edge out.
-    Only applies to edges not in edges_to_keep_ids.
-
-    Parameters:
-    -----------
-    nodes : list
-        List of node dictionaries
-    edges : list
-        List of edge dictionaries
-    edges_to_keep_ids : set
-        Set of edge IDs that should not be truncated
-
-    Returns:
-    --------
-    tuple : (truncated_nodes, truncated_edges)
-    """
-    # Build adjacency information
-    out_edges = defaultdict(list)
-    in_edges = defaultdict(list)
-    node_types = {}
-
-    for edge in edges:
-        source = edge['data']['source']
-        target = edge['data']['target']
-        out_edges[source].append(edge)
-        in_edges[target].append(edge)
-
-    for node in nodes:
-        node_types[node['data']['id']] = node['data']['node_type']
-
-    # Identify nodes to keep
-    nodes_to_keep = set()
-    for node in nodes:
-        node_id = node['data']['id']
-        node_type = node['data']['node_type']
-
-        # Always keep start and final nodes
-        if node_type in ['start', 'final']:
-            nodes_to_keep.add(node_id)
-        # Keep nodes with multiple incoming or outgoing edges
-        elif len(in_edges[node_id]) != 1 or len(out_edges[node_id]) != 1:
-            nodes_to_keep.add(node_id)
-        # Keep nodes connected to edges we must keep
-        else:
-            for edge in in_edges[node_id] + out_edges[node_id]:
-                if edge['data']['id'] in edges_to_keep_ids:
-                    nodes_to_keep.add(node_id)
-                    break
-
-    # Build new edge list
-    new_edges = []
-    processed_chains = set()
-
-    for node_id in nodes_to_keep:
-        for edge in out_edges[node_id]:
-            target = edge['data']['target']
-            edge_id = edge['data']['id']
-
-            # If edge must be kept or target is kept, add as-is
-            if edge_id in edges_to_keep_ids or target in nodes_to_keep:
-                new_edges.append(edge)
-            else:
-                # Follow the chain
-                current = target
-                chain_start = node_id
-                trajectory_id = edge['data']['trajectory_id']
-
-                chain_id = f"{chain_start}_{current}"
-                if chain_id in processed_chains:
-                    continue
-                processed_chains.add(chain_id)
-
-                total_forward = edge['data'].get('logprobs_forward', 0)
-                total_backward = edge['data'].get('logprobs_backward', 0)
-                total_forward_change = edge['data'].get('logprobs_forward_change', 0)
-                total_backward_change = edge['data'].get('logprobs_backward_change', 0)
-
-                while current not in nodes_to_keep:
-                    if len(out_edges[current]) == 0:
-                        break
-
-                    next_edge = out_edges[current][0]
-
-                    total_forward += next_edge['data'].get('logprobs_forward', 0)
-                    total_backward += next_edge['data'].get('logprobs_backward', 0)
-                    total_forward_change += next_edge['data'].get('logprobs_forward_change', 0)
-                    total_backward_change += next_edge['data'].get('logprobs_backward_change', 0)
-
-                    current = next_edge['data']['target']
-
-                # Create truncated edge
-                if current != target:
-                    new_edge_id = f"{chain_start}_to_{current}_truncated"
-                    new_edges.append({
-                        'data': {
-                            'id': new_edge_id,
-                            'source': chain_start,
-                            'target': current,
-                            'trajectory_id': trajectory_id,
-                            'edge_type': 'truncated',
-                            'logprobs_forward': total_forward,
-                            'logprobs_backward': total_backward,
-                            'logprobs_forward_change': total_forward_change,
-                            'logprobs_backward_change': total_backward_change
-                        }
-                    })
-
-    # Filter nodes
-    new_nodes = [node for node in nodes if node['data']['id'] in nodes_to_keep]
-
-    return new_nodes, new_edges
-
-
 def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
     """
     Update DAG visualization based on flow attribute and truncation percentage.
@@ -571,7 +262,9 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
         row['logprobs_forward_change'] = row['logprobs_forward'] - mean_forward
         row['logprobs_backward_change'] = row['logprobs_backward'] - mean_backward
         return row
+
     edges = edges.groupby(['source', 'target']).apply(get_max_iteration_row).reset_index(drop=True)
+
 
     # get number of children
     placeholders = ",".join("?" for _ in nodelist)
@@ -599,14 +292,19 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
     handler_nodes = nodes[nodes['n_children']>=0].copy().drop(["image", "reward"], axis=1)
     handler_nodes["node_type"]="handler"
     handler_nodes["id"]="handler_" + handler_nodes["id"]
-    print(handler_nodes)
     handler_nodes["label"] = "Select children: " + handler_nodes["n_children"].astype(str)
     handler_edges = children.drop("target", axis=1).groupby('source', as_index=False).mean()
     handler_edges["target"] = "handler_" + handler_edges["source"]
+    handler_edges["logprobs_forward_change"]=0
+    handler_edges["logprobs_backward_change"] = 0
+    print(edges)
+    print(handler_edges)
 
 
     nodes = pd.concat([nodes, handler_nodes], ignore_index=True)
     edges = pd.concat([edges, handler_edges], ignore_index=True)
+
+    print(edges)
 
 
 

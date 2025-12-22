@@ -48,7 +48,8 @@ df.to_csv("traindata1.csv", index=False)"""
 
 import sqlite3
 df = pd.read_csv('traindata1/traindata1.csv')
-conn = sqlite3.connect("traindata1/traindata1.db")
+print(len(df))
+"""conn = sqlite3.connect("traindata1/traindata1.db")
 df.to_sql(
     "points",
     conn,
@@ -67,4 +68,4 @@ cur.execute("CREATE INDEX idx_points_lpbackward ON points(logprobs_backward)")
 
 
 conn.commit()
-conn.close()
+conn.close()"""

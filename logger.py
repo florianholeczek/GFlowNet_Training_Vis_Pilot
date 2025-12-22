@@ -3,6 +3,8 @@ from typing import Callable
 import torch
 import numpy as np
 
+#TODO: rewrite: Save as SQLite, clean up before save such that states with same text get truncated to one state, add loss, from max reward to on policy stuff
+#TODO: Logprobs s0 check
 
 class VisLogger:
     def __init__(

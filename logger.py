@@ -5,6 +5,7 @@ import numpy as np
 
 #TODO: rewrite: Save as SQLite, clean up before save such that states with same text get truncated to one state, add loss, from max reward to on policy stuff
 #TODO: Logprobs s0 check
+#TODO: clean before writing to db: same consecutive texts should be merged. before image/feature calculation
 
 class VisLogger:
     def __init__(

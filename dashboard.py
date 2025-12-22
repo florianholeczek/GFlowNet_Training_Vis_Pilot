@@ -1,3 +1,5 @@
+import sqlite3
+
 import dash
 from dash import dcc, html, Input, Output, State, no_update, dash_table, ctx
 import dash_bootstrap_components as dbc
@@ -7,7 +9,7 @@ from dash.exceptions import PreventUpdate
 from plot_utils import *
 
 # Load data
-data = pd.read_csv('train_data.csv')
+data = pd.read_csv('traindata1/train_data.csv')
 data.insert(loc=10, column="istestset", value=False)
 data_dps = None
 data_dpt = None
@@ -38,8 +40,8 @@ app.layout = html.Div([
     dcc.Store(id="selected-objects", data=[]),
     dcc.Store(id="data-dps", data=data_dps),
     dcc.Store(id="data-dpt", data=data_dpt),
-    dcc.Store(id="full-dag", data=None),
-    dcc.Store(id="dag-build-ids", data=[]),
+    dcc.Store(id="current-dag", data=None),
+    dcc.Store(id="build-ids", data=[]),
     dcc.Store(id="prev-node-truncation", data=0),
 
     # ================= LEFT SIDEBAR (12%) - FIXED =================
@@ -712,26 +714,6 @@ def update_projection_plots(selected_ids, data_s, data_t):
         update_state_space_t(pd.DataFrame(data_t), selected_ids)
     )
 
-# DAG Callback
-@app.callback(
-    Output("full-dag", "data"),
-    Input("flow-attr", "value"),
-    Input("edge-truncation", "value"),
-    Input("limit-trajectories", "value"),
-    Input(  "iteration", "value"),
-    Input("selected-objects", "data"),
-)
-def build_graph(flow_attr, edge_truncation, trajectories, iteration, selected_ids):
-    tmp = data.iloc[:, :10]
-    tmp = tmp[tmp["iteration"] <= iteration[1]]
-    tmp = tmp[tmp["iteration"] >= iteration[0]]
-    top_ranks = sorted(tmp['reward_ranked'].dropna().unique())[:trajectories]
-    tmp = tmp[tmp["reward_ranked"].isin(top_ranks)]
-    if selected_ids:
-        tmp=tmp[tmp["final_id"].isin(selected_ids)]
-    graph = prepare_graph(tmp, flow_attr, edge_truncation)
-
-    return (graph, flow_attr)
 
 # DAG Callback
 @app.callback(
@@ -739,17 +721,22 @@ def build_graph(flow_attr, edge_truncation, trajectories, iteration, selected_id
      Output("dag-graph", "stylesheet"),
      Output("dag-graph", "layout"),
      Output("dag-legend", "figure")],
-    Input("full-dag", "data"),
     Input("dag-layout", "value"),
-    Input("dag-build-ids", "data")
+    Input("flow-attr", "value"),
+    Input(  "iteration", "value"),
+    Input("selected-objects", "data"),
+    Input("build-ids", "data"),
 )
-def update_dag(graph_data, layout_name, build_ids):
-    graph, flow_attr = graph_data
+def update_dag(layout_name, flow_attr, iteration, selected_objects, build_ids):
+    if selected_objects:
+        #TODO: return selected
+        return None, None, None, None
+    build_ids = ["#", "C1CCOC1"] if not build_ids else build_ids
 
     result = update_DAG(
-        graph,
+        iteration,
         flow_attr,
-        built_ids = build_ids
+        build_ids=build_ids,
     )
 
     # Configure layout based on selection
@@ -772,10 +759,10 @@ def update_dag(graph_data, layout_name, build_ids):
 
 # Callback for dag-table
 @app.callback(
-    Output('dag-build-ids', 'data'),
+    Output('build-ids', 'data'),
     Input('dag-table', 'selected_rows'),
     State('dag-table', 'data'),
-    State("dag-build-ids", "data"),
+    State("build-ids", "data"),
 )
 def save_selected_rows(selected_rows, table_data, stored_ids):
     if selected_rows:

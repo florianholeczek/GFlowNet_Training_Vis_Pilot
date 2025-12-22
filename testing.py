@@ -118,7 +118,7 @@ conn.close()"""
 
 
 
-
+"""
 import dash
 from dash import html
 import dash_cytoscape as cyto
@@ -198,3 +198,20 @@ app.layout = html.Div([
 if __name__ == '__main__':
     app.run(debug=True)
 
+"""
+
+
+import pandas as pd
+
+# Example data
+df = pd.DataFrame({
+    'trajectory_id': [10, 5, 20, 20, 20, 30],
+    'id': [1, 1, 2, 2, 2, 3],
+    'logprobs_forward': [-0.2, -0.4, -0.1, -0.3, -0.2, -0.5],
+    'logprobs_backward': [-0.1, -0.2, -0.3, -0.4, -0.2, -0.6]
+})
+
+# Group by trajectory_id and id, then take mean of logprobs
+df_agg = df.groupby(['trajectory_id', 'id'], as_index=False)[['logprobs_forward', 'logprobs_backward']].mean()
+
+print(df_agg)

@@ -1,3 +1,5 @@
+import sqlite3
+
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
@@ -517,7 +519,7 @@ def truncate_linear_chains(nodes, edges, edges_to_keep_ids):
     return new_nodes, new_edges
 
 
-def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
+def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
     """
     Update DAG visualization based on flow attribute and truncation percentage.
 
@@ -534,71 +536,77 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
     --------
     dict : Cytoscape elements and stylesheet
     """
-    nodes = dag_data['nodes'].copy()
-    edges = dag_data['edges'].copy()
 
-    built_nodes = [{
-        'data': {
-            'id': 'START',
-            'label': '#',
-            'node_type': 'start',
-            'step': -1,
-        }
-    }]
-    built_edges = []
-    built_node_ids = ['START',]
-    child_counter = defaultdict(list)
-    for node in nodes:
-        if node['data']['id'] in built_ids:
-            built_nodes.append(node)
-            built_node_ids.append(node['data']['id'])
-    for edge in edges:
-        if edge['data']['source'] in built_node_ids:
-            if edge['data']['target'] in built_node_ids:
-                built_edges.append(edge)
-            else:
-                child_counter[edge['data']['source']].append({
-                    'id': edge['data']['target'],
-                    'metric': edge['data'][flow_attr]
-                })
+    conn = sqlite3.connect("traindata1/traindata1_1.db")
+    placeholders = ",".join("?" for _ in build_ids)
+    query = f"""
+        SELECT id, source, target, iteration, logprobs_forward, logprobs_backward
+        FROM edges
+        WHERE source IN ({placeholders})
+           AND target IN ({placeholders})
+           AND iteration BETWEEN ? AND ?
+        """
+    params = build_ids + build_ids + [iteration[0], iteration[1]]
+    edges = pd.read_sql_query(query, conn, params=params)
+    query = f"""
+            SELECT *
+            FROM nodes
+            WHERE id IN ({placeholders})
+            """
+    nodes = pd.read_sql_query(query, conn, params=build_ids)
 
-    for k,v in child_counter.items():
-        child_data = []
-        for child in v:
-            for node in nodes:
-                if child['id'] == node['data']['id']:
-                    child_data.append({
-                        'id': child['id'],
-                        'metric': child['metric'],
-                        'final': node['data']['node_type']=='final',
-                        'image': f'<img src="{node["data"]["image"]}" width="100">',
-                        'reward': node['data']['reward'],
-                    })
-                    break
-        built_nodes.append({
-                    'data': {
-                        'id': k+"selector",
-                        'node_type': "handler",
-                        'label': f"Other: {len(v)} children ▾",
-                        'child_data': child_data,
-                    }
-                })
-        built_edges.append({
-                        'data': {
-                            'id': f"{k}_handler",
-                            'source': k,
-                            'target': k+"selector",
-                            'edge_type': 'handler',
-                        }
-                    })
+    # drop nodes without edges (because of iteration slider)
+    nodelist = pd.unique(edges[['source', 'target']].values.ravel()).tolist() + ['#']
+    nodes = nodes[nodes['id'].isin(nodelist)]
 
+    # collapse edges with same source and target
+    def get_max_iteration_row(group):
+        max_iter_idx = group['iteration'].idxmax()
+        row = group.loc[max_iter_idx]
+        row['id'] = '-'.join(group['id'].astype(str))
+        row['iteration'] = group['iteration'].max()
+        mean_forward = group['logprobs_forward'].mean()
+        mean_backward = group['logprobs_backward'].mean()
+        row['logprobs_forward_change'] = row['logprobs_forward'] - mean_forward
+        row['logprobs_backward_change'] = row['logprobs_backward'] - mean_backward
+        return row
+    edges = edges.groupby(['source', 'target']).apply(get_max_iteration_row).reset_index(drop=True)
 
+    # get number of children
+    placeholders = ",".join("?" for _ in nodelist)
+    query = f"""
+                SELECT source, target, logprobs_forward, logprobs_backward
+                FROM edges
+                WHERE source IN ({placeholders})
+                    AND target NOT IN ({placeholders})
+                """
+    children = pd.read_sql_query(query, conn, params=nodelist+nodelist)
+    counts = children.groupby('source')['target'].nunique()
+    nodes['n_children'] = nodes['id'].map(counts).fillna(0).astype(int)
+    print(nodes)
 
+    #create handlers
+    handler_nodes = nodes[nodes['n_children']>=0].copy().drop(["image", "reward"], axis=1)
+    handler_nodes["node_type"]="handler"
+    handler_nodes["id"]="handler_" + handler_nodes["id"]
+    handler_edges = children.drop("target", axis=1).groupby('source', as_index=False).mean()
+    handler_edges["target"] = "handler_" + handler_edges["source"]
+
+    nodes = pd.concat([nodes, handler_nodes], ignore_index=True)
+    edges = pd.concat([edges, handler_edges], ignore_index=True)
 
 
 
-    # Compute color scale for non-truncated edges
-    # Fixed ranges by attribute
+
+    # convert to cytoscape structure
+    nodes = [{"data": row} for row in nodes.to_dict(orient="records")]
+    edges = [{"data": row} for row in edges.to_dict(orient="records")]
+
+    conn.close()
+
+    #OLD
+
+    # Compute color scale
     if flow_attr in ['logprobs_forward', 'logprobs_backward']:
         vmin, vmax = -8, 0
         colorscale = px.colors.sequential.Emrld
@@ -614,23 +622,18 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
 
     # Create color mapping
     def get_color(value, vmin, vmax, colorscale):
-
         if value < vmin:
             return colorscale[0]  # lowest color
         if value > vmax:
             return colorscale[-1]  # highest color
-
         if vmax == vmin:
             norm = 0.5
         else:
             norm = (value - vmin) / (vmax - vmin)
-
         idx = int(norm * (len(colorscale) - 1))
         return colorscale[idx]
 
     # Build stylesheet
-    edges = built_edges
-    nodes = built_nodes
     elements = nodes + edges
 
     stylesheet = [
@@ -655,7 +658,7 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
             'style': {
                 'background-color': '#BAEB9D',
                 'background-image': 'none',  # No image for start node
-                'label': f'data(label)',
+                'label': f'data(id)',
                 'text-valign': 'center',
                 'text-halign': 'center',
                 'font-size': '12px',
@@ -720,10 +723,7 @@ def update_DAG(dag_data, flow_attr='logprobs_forward', built_ids=[]):
     for edge in edges:
         edge_id = edge['data']['id']
         flow_val = edge['data'].get(flow_attr, 0)
-        if edge['data']['edge_type'] == 'handler':
-            color = '#000000'
-        else:
-            color = get_color(flow_val, vmin, vmax, colorscale)
+        color = get_color(flow_val, vmin, vmax, colorscale)
 
         stylesheet.append({
             'selector': f'edge[id = "{edge_id}"]',
@@ -1010,3 +1010,4 @@ def update_bump(df, n_top, selected_ids, testset_bounds=None):
     fig.update_yaxes(autorange="reversed")
 
     return fig
+

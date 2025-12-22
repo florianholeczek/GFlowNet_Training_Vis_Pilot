@@ -1,3 +1,4 @@
+import base64
 import sqlite3
 
 import pandas as pd
@@ -583,14 +584,26 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
     children = pd.read_sql_query(query, conn, params=nodelist+nodelist)
     counts = children.groupby('source')['target'].nunique()
     nodes['n_children'] = nodes['id'].map(counts).fillna(0).astype(int)
-    print(nodes)
+
+    # create images as base64
+    def encode_image(path):
+        if not path:
+            return None
+        with open(path, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode()
+        return f"data:image/png;base64,{b64}"
+    nodes['image'] = nodes['image'].apply(encode_image)
+
 
     #create handlers
     handler_nodes = nodes[nodes['n_children']>=0].copy().drop(["image", "reward"], axis=1)
     handler_nodes["node_type"]="handler"
     handler_nodes["id"]="handler_" + handler_nodes["id"]
+    print(handler_nodes)
+    handler_nodes["label"] = "Select children: " + handler_nodes["n_children"].astype(str)
     handler_edges = children.drop("target", axis=1).groupby('source', as_index=False).mean()
     handler_edges["target"] = "handler_" + handler_edges["source"]
+
 
     nodes = pd.concat([nodes, handler_nodes], ignore_index=True)
     edges = pd.concat([edges, handler_edges], ignore_index=True)

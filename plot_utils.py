@@ -297,16 +297,9 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
     handler_edges["target"] = "handler_" + handler_edges["source"]
     handler_edges["logprobs_forward_change"]=0
     handler_edges["logprobs_backward_change"] = 0
-    print(edges)
-    print(handler_edges)
-
 
     nodes = pd.concat([nodes, handler_nodes], ignore_index=True)
     edges = pd.concat([edges, handler_edges], ignore_index=True)
-
-    print(edges)
-
-
 
 
     # convert to cytoscape structure
@@ -314,8 +307,6 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
     edges = [{"data": row} for row in edges.to_dict(orient="records")]
 
     conn.close()
-
-    #OLD
 
     # Compute color scale
     if flow_attr in ['logprobs_forward', 'logprobs_backward']:

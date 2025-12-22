@@ -40,9 +40,7 @@ app.layout = html.Div([
     dcc.Store(id="selected-objects", data=[]),
     dcc.Store(id="data-dps", data=data_dps),
     dcc.Store(id="data-dpt", data=data_dpt),
-    dcc.Store(id="current-dag", data=None),
     dcc.Store(id="build-ids", data=[]),
-    dcc.Store(id="prev-node-truncation", data=0),
 
     # ================= LEFT SIDEBAR (12%) - FIXED =================
     html.Div([
@@ -236,24 +234,6 @@ app.layout = html.Div([
                         value="logprobs_forward",
                         clearable=False,
                         style={"color": "black"}
-                    )
-                ], style={
-                    "display": "flex",
-                    "flexDirection": "column",
-                    "gap": "6px"
-                }),
-
-                # -------- Truncate Edges --------
-                html.Div([
-                    html.Div("Truncate Edges", style={"textAlign": "center"}),
-                    dcc.Slider(
-                        id="edge-truncation",
-                        min=0,
-                        max=100,
-                        step=5,
-                        value=100,
-                        marks={0: '0%', 50: '50%', 100: '100%'},
-                        tooltip={"placement": "bottom", "always_visible": True}
                     )
                 ], style={
                     "display": "flex",

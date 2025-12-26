@@ -594,16 +594,28 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
     elif "dag-graph.tapNodeData" in trigger:
         if not dag_node:
             return no_update
-
+        if dag_node.get("id") == "#":
+            # root selection clears selection
+            return [], None
         if dag_node.get("node_type") == 'handler':
             return [], dag_node.get("child_data")
         else:
             text = dag_node.get("id")
-            final_id = data.loc[data["text"] == text, "final_id"]\
-                           .dropna()\
-                           .unique()\
-                           .tolist()
-            return (final_id, None) if final_id else ([], None)
+            iteration0 = int(dag_node.get("iteration0"))
+            iteration1 = int(dag_node.get("iteration1"))
+            print(text, iteration0, iteration1)
+            conn = sqlite3.connect("traindata1/traindata1_1.db")
+            query = f"""
+                        SELECT DISTINCT
+                            trajectory_id
+                        FROM edges
+                        WHERE target = ?
+                          AND iteration BETWEEN ? AND ?
+                    """
+            selected_ids = pd.read_sql_query(query, conn, params=[text, iteration0, iteration1])
+            selected_ids = list(selected_ids["trajectory_id"])
+            conn.close()
+            return (selected_ids, None) if selected_ids else ([], None)
 
     return no_update
 
@@ -709,9 +721,21 @@ def update_projection_plots(selected_ids, data_s, data_t):
 )
 def update_dag(layout_name, flow_attr, iteration, selected_objects, build_ids):
     if selected_objects:
-        #TODO: return selected
-        return None, None, None, None
-    build_ids = ["#", "C1CCOC1"] if not build_ids else build_ids
+        # If final objects are selected via another vis, display the full dag of these
+        conn = sqlite3.connect("traindata1/traindata1_1.db")
+        placeholders = ",".join("?" for _ in selected_objects)
+        query = f"""
+                            SELECT DISTINCT
+                                target
+                            FROM edges
+                            WHERE trajectory_id IN ({placeholders})
+                              AND iteration BETWEEN ? AND ?
+                        """
+        build_ids = pd.read_sql_query(query, conn, params=selected_objects +  [iteration[0], iteration[1]])
+        build_ids = list(build_ids['target']) + ['#']
+        conn.close()
+    elif not build_ids:
+        build_ids = ["#", "C1CCOC1"]
 
     result = update_DAG(
         iteration,

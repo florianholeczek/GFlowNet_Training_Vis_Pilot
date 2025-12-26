@@ -248,10 +248,12 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
     nodes = pd.read_sql_query(query, conn, params=build_ids)
 
     # drop nodes without edges (because of iteration slider)
+    # TODO: Check, neccessary?
     nodelist = pd.unique(edges[['source', 'target']].values.ravel()).tolist() + ['#']
     nodes = nodes[nodes['id'].isin(nodelist)]
 
     # collapse edges with same source and target
+    # TODO: Check, move to querys?
     def get_max_iteration_row(group):
         max_iter_idx = group['iteration'].idxmax()
         row = group.loc[max_iter_idx]
@@ -265,18 +267,24 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
 
     edges = edges.groupby(['source', 'target']).apply(get_max_iteration_row).reset_index(drop=True)
 
-
     # get number of children
     placeholders = ",".join("?" for _ in nodelist)
     query = f"""
-                SELECT source, target, logprobs_forward, logprobs_backward
-                FROM edges
-                WHERE source IN ({placeholders})
-                    AND target NOT IN ({placeholders})
+                    SELECT
+                        source,
+                        COUNT(DISTINCT target) AS n_children
+                    FROM edges
+                    WHERE source IN ({placeholders})
+                      AND target NOT IN ({placeholders})
+                    GROUP BY source
                 """
-    children = pd.read_sql_query(query, conn, params=nodelist+nodelist)
-    counts = children.groupby('source')['target'].nunique()
-    nodes['n_children'] = nodes['id'].map(counts).fillna(0).astype(int)
+    counts = pd.read_sql_query(query, conn, params=nodelist + nodelist)
+    nodes = nodes.merge(
+        counts,  # DataFrame with columns ['source', 'child_count']
+        left_on='id',
+        right_on='source',
+        how='left'
+    )
 
     # create images as base64
     def encode_image(path):
@@ -292,14 +300,14 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
     handler_nodes = nodes[nodes['n_children']>=0].copy().drop(["image", "reward"], axis=1)
     handler_nodes["node_type"]="handler"
     handler_nodes["id"]="handler_" + handler_nodes["id"]
-    handler_nodes["label"] = "Select children: " + handler_nodes["n_children"].astype(str)
-    handler_edges = children.drop("target", axis=1).groupby('source', as_index=False).mean()
+    handler_nodes["label"] = "Select children: " + handler_nodes["n_children"].astype(int).astype(str)
+    handler_edges = counts.drop("n_children", axis=1)
     handler_edges["target"] = "handler_" + handler_edges["source"]
-    handler_edges["logprobs_forward_change"]=0
-    handler_edges["logprobs_backward_change"] = 0
 
     nodes = pd.concat([nodes, handler_nodes], ignore_index=True)
     edges = pd.concat([edges, handler_edges], ignore_index=True)
+    nodes["iteration0"]= iteration[0]
+    nodes["iteration1"]= iteration[1]
 
 
     # convert to cytoscape structure
@@ -324,6 +332,8 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
 
     # Create color mapping
     def get_color(value, vmin, vmax, colorscale):
+        if np.isnan(value):
+            return "#8e8e8e"
         if value < vmin:
             return colorscale[0]  # lowest color
         if value > vmax:

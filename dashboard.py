@@ -28,7 +28,7 @@ data.insert(9, 'reward_ranked', ranks)
 
 
 
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY], assets_folder="traindata1")
 
 # Load extra layouts for cytoscape
 cyto.load_extra_layouts()
@@ -397,12 +397,12 @@ app.layout = html.Div([
                         },
                         {
                             "name": "Final",
-                            "id": "final",
+                            "id": "node_type",
                             "type": "any",
                         },
                         {
                             "name": "Logprobs",
-                            "id": "metric",
+                            "id": "logprobs",
                             "type": "numeric",
                             "format": Format(precision=4, scheme=Scheme.fixed),
                         },
@@ -650,7 +650,10 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
             children_n = pd.read_sql_query(query, conn, params=targets)
             conn.close()
             children = pd.merge(children_n, children_e, on="id")
-            #children = children[["image", "node_type", "logprobs", "reward"]]
+            children["image"] = children["image"].apply(
+                lambda p: f"![img]({p.replace('traindata1', 'assets')})"
+            )
+            #children["image"] = '![myImage-1](assets/images/image_0.png)'
             return [], children.to_dict("records")
         else:
             text = dag_node.get("id")
@@ -819,20 +822,13 @@ def update_dag(layout_name, flow_attr, iteration, selected_objects, build_ids):
 )
 def save_selected_rows(selected_rows, table_data):
     if selected_rows:
-        """if len(selected_rows)>len(build_ids):
-            build_ids = selected_rows
-        elif len(selected_rows)<len(build_ids):
-            
-            
-        print(build_ids)
-        selected_ids = [table_data[i]['id'] for i in selected_rows]
-        new_store = list(set(build_ids + selected_ids + ["#", "C1CCOC1"]))
-        print(new_store, "selected")"""
         print(selected_rows)
-        print(ctx.triggered)
         return list(set(selected_rows +  ["#", "C1CCOC1"]))
     else:
-        return no_update
+        print("else triggered", selected_rows)
+        print(table_data)
+        children = [r["id"] for r in table_data]
+        return list(set(selected_rows)-set(children))
 
 #hover state space
 @app.callback(

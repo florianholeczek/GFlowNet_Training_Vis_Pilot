@@ -548,6 +548,8 @@ def update_projection_param(method):
 @app.callback(
     Output("selected-objects", "data"),
     Output("dag-table", "data"),
+    Output("dag-table", "selected_row_ids"),
+    Output("dag-table", "selected_rows"),
     Input("clear-selection", "n_clicks"),
     Input("state-space-plot", "selectedData"),
     Input("trajectory-plot", "selectedData"),
@@ -566,7 +568,7 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
 
     # -------- Clear button --------
     if "clear-selection" in trigger:
-        return [], None
+        return [], None, [], []
 
     # ---------- State-space lasso ----------
     if "state-space-plot.selectedData" in trigger:
@@ -574,23 +576,23 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
             return no_update
 
         selected_ids = {pt["customdata"][0] for pt in ss_select["points"]}
-        return list(selected_ids), None
+        return list(selected_ids), None, [], []
 
     # ---------- Trajectory lasso ----------
     elif "trajectory-plot.selectedData" in trigger:
         if not traj_select or not traj_select.get("points"):
-            return no_update, None
+            return no_update, None, [], []
 
         selected_ids = {pt["customdata"][1] for pt in traj_select["points"]}
-        return list(selected_ids), None
+        return list(selected_ids), None, [], []
 
     # ---------- Bump chart lasso ----------
     elif "bumpchart.selectedData" in trigger:
         if not bump_select or not bump_select.get("points"):
-            return no_update, None
+            return no_update, None, [], []
 
         selected_ids = {pt["customdata"][0] for pt in bump_select["points"]}
-        return list(selected_ids), None
+        return list(selected_ids), None, [], []
 
     # ---------- DAG node click ----------
     elif "dag-graph.tapNodeData" in trigger:
@@ -598,7 +600,7 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
             return no_update
         if dag_node.get("id") == "#":
             # root selection clears selection
-            return [], None
+            return [], None, [], []
 
 
         iteration0 = int(dag_node.get("iteration0"))
@@ -655,7 +657,7 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
                 lambda p: f"![img]({p.replace('traindata1', 'assets')})"
             )
             #children["image"] = '![myImage-1](assets/images/image_0.png)'
-            return [], children.to_dict("records")
+            return [], children.to_dict("records"), [], []
         else:
             text = dag_node.get("id")
             conn = sqlite3.connect("traindata1/traindata1_1.db")
@@ -669,7 +671,7 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
             selected_ids = pd.read_sql_query(query, conn, params=[text, iteration0, iteration1])
             selected_ids = list(selected_ids["trajectory_id"])
             conn.close()
-            return (selected_ids, None) if selected_ids else ([], None)
+            return (selected_ids, None, [], []) if selected_ids else ([], None, [], [])
 
     return no_update
 

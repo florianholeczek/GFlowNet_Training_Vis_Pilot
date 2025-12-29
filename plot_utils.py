@@ -301,6 +301,7 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
     handler_nodes["node_type"]="handler"
     handler_nodes["id"]="handler_" + handler_nodes["id"]
     handler_nodes["label"] = "Select children: " + handler_nodes["n_children"].astype(int).astype(str)
+    handler_nodes["flow_attr"] = flow_attr
     handler_edges = counts.drop("n_children", axis=1)
     handler_edges["target"] = "handler_" + handler_edges["source"]
 
@@ -308,6 +309,7 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
     edges = pd.concat([edges, handler_edges], ignore_index=True)
     nodes["iteration0"]= iteration[0]
     nodes["iteration1"]= iteration[1]
+
 
 
     # convert to cytoscape structure

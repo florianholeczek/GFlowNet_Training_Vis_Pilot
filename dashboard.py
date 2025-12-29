@@ -41,7 +41,7 @@ app.layout = html.Div([
     dcc.Store(id="selected-objects", data=[]),
     dcc.Store(id="data-dps", data=data_dps),
     dcc.Store(id="data-dpt", data=data_dpt),
-    dcc.Store(id="build-ids", data=[]),
+    dcc.Store(id="build-ids", data= ["#", "C1CCOC1"]),
 
     # ================= LEFT SIDEBAR (12%) - FIXED =================
     html.Div([
@@ -417,6 +417,7 @@ app.layout = html.Div([
                     row_selectable="multi",
                     filter_action="native",
                     sort_action="native",
+                    selected_row_ids=["#", "C1CCOC1"],
                     page_size=10,
                     markdown_options={"html": True},
                     style_cell={
@@ -427,7 +428,7 @@ app.layout = html.Div([
                         'backgroundColor': '#222222',
                         'fontWeight': 'bold'
                     },
-                    style_table={'width': '400px', 'height': '98vh', 'flex': '0 0 400px', 'overflow': 'auto'}
+                    style_table={'width': '400px', 'height': '95vh', 'flex': '0 0 400px', 'overflow': 'auto'}
                 )
             ], style={
                 "display": "flex",
@@ -598,13 +599,62 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
         if dag_node.get("id") == "#":
             # root selection clears selection
             return [], None
+
+
+        iteration0 = int(dag_node.get("iteration0"))
+        iteration1 = int(dag_node.get("iteration1"))
+
         if dag_node.get("node_type") == 'handler':
-            return [], dag_node.get("child_data")
+            text = dag_node.get("id")[8:]
+            print(text, dag_node.get("id"))
+            col = "_".join(dag_node.get("flow_attr").split("_")[:2])
+            print(col)
+
+            conn = sqlite3.connect("traindata1/traindata1_1.db")
+            query = f"""
+                WITH ranked AS (
+                    SELECT
+                        target,
+                        iteration,
+                        {col} AS logprobs,
+                        AVG({col}) OVER (PARTITION BY target) AS avg_logprobs,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY target
+                            ORDER BY iteration DESC
+                        ) AS rn
+                    FROM edges
+                    WHERE source = ?
+                    AND iteration BETWEEN ? AND ?
+                )
+                SELECT
+                    target,
+                    logprobs AS latest_logprobs,
+                    avg_logprobs
+                FROM ranked
+                WHERE rn = 1;
+                """
+            children_e = pd.read_sql_query(query, conn, params=[text, iteration0, iteration1])
+
+            if "change" in dag_node.get("flow_attr"):
+                children_e["latest_logprobs"] -= children_e["avg_logprobs"]
+            children_e.rename(columns={"target": "id", "latest_logprobs": "logprobs"}, inplace=True)
+            children_e = children_e[["id", "logprobs"]]
+
+            targets = list(children_e["id"])
+            placeholders = ",".join("?" for _ in targets)
+            query = f"""
+                        SELECT DISTINCT
+                            id, image, node_type, reward
+                        FROM nodes
+                        WHERE id IN ({placeholders})
+                    """
+            children_n = pd.read_sql_query(query, conn, params=targets)
+            conn.close()
+            children = pd.merge(children_n, children_e, on="id")
+            #children = children[["image", "node_type", "logprobs", "reward"]]
+            return [], children.to_dict("records")
         else:
             text = dag_node.get("id")
-            iteration0 = int(dag_node.get("iteration0"))
-            iteration1 = int(dag_node.get("iteration1"))
-            print(text, iteration0, iteration1)
             conn = sqlite3.connect("traindata1/traindata1_1.db")
             query = f"""
                         SELECT DISTINCT
@@ -765,16 +815,23 @@ def update_dag(layout_name, flow_attr, iteration, selected_objects, build_ids):
 # Callback for dag-table
 @app.callback(
     Output('build-ids', 'data'),
-    Input('dag-table', 'selected_rows'),
+    Input('dag-table', 'selected_row_ids'),
     State('dag-table', 'data'),
-    State("build-ids", "data"),
 )
-def save_selected_rows(selected_rows, table_data, stored_ids):
+def save_selected_rows(selected_rows, table_data):
     if selected_rows:
+        """if len(selected_rows)>len(build_ids):
+            build_ids = selected_rows
+        elif len(selected_rows)<len(build_ids):
+            
+            
+        print(build_ids)
         selected_ids = [table_data[i]['id'] for i in selected_rows]
-        new_store = list(set(stored_ids + selected_ids))
-        print(new_store, "selected")
-        return new_store
+        new_store = list(set(build_ids + selected_ids + ["#", "C1CCOC1"]))
+        print(new_store, "selected")"""
+        print(selected_rows)
+        print(ctx.triggered)
+        return list(set(selected_rows +  ["#", "C1CCOC1"]))
     else:
         return no_update
 

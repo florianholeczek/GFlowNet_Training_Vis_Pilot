@@ -231,36 +231,64 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
 
     conn = sqlite3.connect("traindata1/traindata1_1.db")
     placeholders = ",".join("?" for _ in build_ids)
+
     query = f"""
-        SELECT id, source, target, iteration, logprobs_forward, logprobs_backward
-        FROM edges
-        WHERE source IN ({placeholders})
-           AND target IN ({placeholders})
-           AND iteration BETWEEN ? AND ?
+        WITH edge_groups AS (
+            SELECT 
+                source,
+                target,
+                MAX(iteration) as max_iteration,
+                AVG(logprobs_forward) as mean_forward,
+                AVG(logprobs_backward) as mean_backward
+            FROM edges
+            WHERE source IN ({placeholders})
+               AND target IN ({placeholders})
+               AND iteration BETWEEN ? AND ?
+            GROUP BY source, target
+        ),
+        edge_ids AS (
+            SELECT 
+                source,
+                target,
+                GROUP_CONCAT(id, '-') as id
+            FROM edges
+            WHERE source IN ({placeholders})
+               AND target IN ({placeholders})
+               AND iteration BETWEEN ? AND ?
+            GROUP BY source, target
+        )
+        SELECT 
+            ei.id,
+            e.source,
+            e.target,
+            eg.max_iteration as iteration,
+            e.logprobs_forward,
+            e.logprobs_backward,
+            e.logprobs_forward - eg.mean_forward as logprobs_forward_change,
+            e.logprobs_backward - eg.mean_backward as logprobs_backward_change
+        FROM edge_groups eg
+        JOIN edges e ON e.source = eg.source 
+                     AND e.target = eg.target 
+                     AND e.iteration = eg.max_iteration
+        JOIN edge_ids ei ON ei.source = eg.source 
+                         AND ei.target = eg.target
+        WHERE e.source IN ({placeholders})
+           AND e.target IN ({placeholders})
+           AND e.iteration BETWEEN ? AND ?
         """
-    params = build_ids + build_ids + [iteration[0], iteration[1]]
+
+    params = build_ids + build_ids + [iteration[0], iteration[1]] + \
+             build_ids + build_ids + [iteration[0], iteration[1]] + \
+             build_ids + build_ids + [iteration[0], iteration[1]]
+
     edges = pd.read_sql_query(query, conn, params=params)
+
     query = f"""
-            SELECT *
-            FROM nodes
-            WHERE id IN ({placeholders})
-            """
+        SELECT *
+        FROM nodes
+        WHERE id IN ({placeholders})
+        """
     nodes = pd.read_sql_query(query, conn, params=build_ids)
-
-    # collapse edges with same source and target
-    # TODO: Check, move to querys?
-    def get_max_iteration_row(group):
-        max_iter_idx = group['iteration'].idxmax()
-        row = group.loc[max_iter_idx]
-        row['id'] = '-'.join(group['id'].astype(str))
-        row['iteration'] = group['iteration'].max()
-        mean_forward = group['logprobs_forward'].mean()
-        mean_backward = group['logprobs_backward'].mean()
-        row['logprobs_forward_change'] = row['logprobs_forward'] - mean_forward
-        row['logprobs_backward_change'] = row['logprobs_backward'] - mean_backward
-        return row
-
-    edges = edges.groupby(['source', 'target']).apply(get_max_iteration_row, include_groups=True).reset_index(drop=True)
 
     # get number of children
     placeholders = ",".join("?" for _ in build_ids)

@@ -265,7 +265,7 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
         row['logprobs_backward_change'] = row['logprobs_backward'] - mean_backward
         return row
 
-    edges = edges.groupby(['source', 'target']).apply(get_max_iteration_row).reset_index(drop=True)
+    edges = edges.groupby(['source', 'target']).apply(get_max_iteration_row, include_groups=True).reset_index(drop=True)
 
     # get number of children
     placeholders = ",".join("?" for _ in nodelist)

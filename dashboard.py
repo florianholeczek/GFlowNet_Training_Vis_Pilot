@@ -417,7 +417,7 @@ app.layout = html.Div([
                     row_selectable="multi",
                     filter_action="native",
                     sort_action="native",
-                    selected_row_ids=["#", "C1CCOC1"],
+                    selected_row_ids=[],
                     page_size=10,
                     markdown_options={"html": True},
                     style_cell={
@@ -548,17 +548,18 @@ def update_projection_param(method):
 @app.callback(
     Output("selected-objects", "data"),
     Output("dag-table", "data"),
-    Output("dag-table", "selected_row_ids"),
     Output("dag-table", "selected_rows"),
+    Output("dag-table", "selected_row_ids"),
     Input("clear-selection", "n_clicks"),
     Input("state-space-plot", "selectedData"),
     Input("trajectory-plot", "selectedData"),
     Input("bumpchart", "selectedData"),
     Input("dag-graph", "tapNodeData"),
     State("selected-objects", "data"),
+    State("build-ids", "data"),
     prevent_initial_call=True
 )
-def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, dag_node, current_ids):
+def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, dag_node, current_ids, build_ids):
 
     ctx = dash.callback_context
     if not ctx.triggered:
@@ -568,7 +569,7 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
 
     # -------- Clear button --------
     if "clear-selection" in trigger:
-        return [], None, [], []
+        return [], None, [], no_update
 
     # ---------- State-space lasso ----------
     if "state-space-plot.selectedData" in trigger:
@@ -576,23 +577,23 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
             return no_update
 
         selected_ids = {pt["customdata"][0] for pt in ss_select["points"]}
-        return list(selected_ids), None, [], []
+        return list(selected_ids), None, [], no_update
 
     # ---------- Trajectory lasso ----------
     elif "trajectory-plot.selectedData" in trigger:
         if not traj_select or not traj_select.get("points"):
-            return no_update, None, [], []
+            return no_update, None, [], no_update
 
         selected_ids = {pt["customdata"][1] for pt in traj_select["points"]}
-        return list(selected_ids), None, [], []
+        return list(selected_ids), None, [], no_update
 
     # ---------- Bump chart lasso ----------
     elif "bumpchart.selectedData" in trigger:
         if not bump_select or not bump_select.get("points"):
-            return no_update, None, [], []
+            return no_update, None, [], no_update
 
         selected_ids = {pt["customdata"][0] for pt in bump_select["points"]}
-        return list(selected_ids), None, [], []
+        return list(selected_ids), None, [], no_update
 
     # ---------- DAG node click ----------
     elif "dag-graph.tapNodeData" in trigger:
@@ -600,7 +601,7 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
             return no_update
         if dag_node.get("id") == "#":
             # root selection clears selection
-            return [], None, [], []
+            return [], None, [], no_update
 
 
         iteration0 = int(dag_node.get("iteration0"))
@@ -608,9 +609,7 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
 
         if dag_node.get("node_type") == 'handler':
             text = dag_node.get("id")[8:]
-            print(text, dag_node.get("id"))
             col = "_".join(dag_node.get("flow_attr").split("_")[:2])
-            print(col)
 
             conn = sqlite3.connect("traindata1/traindata1_1.db")
             query = f"""
@@ -657,7 +656,13 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
                 lambda p: f"![img]({p.replace('traindata1', 'assets')})"
             )
             #children["image"] = '![myImage-1](assets/images/image_0.png)'
-            return [], children.to_dict("records"), [], []
+            selected_row_ids = list(set.intersection(set(build_ids), set(list(children["id"]))))
+            selected_rows = [
+                idx for idx, row in enumerate(children.to_dict("records"))
+                if row["id"] in selected_row_ids
+            ]
+            print(selected_row_ids, selected_rows)
+            return no_update, children.to_dict("records"), selected_rows, selected_row_ids
         else:
             text = dag_node.get("id")
             conn = sqlite3.connect("traindata1/traindata1_1.db")
@@ -671,7 +676,7 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
             selected_ids = pd.read_sql_query(query, conn, params=[text, iteration0, iteration1])
             selected_ids = list(selected_ids["trajectory_id"])
             conn.close()
-            return (selected_ids, None, [], []) if selected_ids else ([], None, [], [])
+            return (selected_ids, None, [], no_update) if selected_ids else ([], None, [], no_update)
 
     return no_update
 
@@ -822,16 +827,20 @@ def update_dag(layout_name, flow_attr, iteration, selected_objects, build_ids):
     Output('build-ids', 'data'),
     Input('dag-table', 'selected_row_ids'),
     State('dag-table', 'data'),
+    State("build-ids", "data")
 )
-def save_selected_rows(selected_rows, table_data):
+def save_selected_rows(selected_rows, table_data, build_ids):
     if selected_rows:
-        print(selected_rows)
-        return list(set(selected_rows +  ["#", "C1CCOC1"]))
+        children = set([r["id"] for r in table_data])
+        unselected = children - set(selected_rows)
+        build_ids = set(build_ids) - unselected
+        build_ids = set(selected_rows) | build_ids | set(["#", "C1CCOC1"])
+        return list(build_ids)
+    elif table_data:
+        children = set([r["id"] for r in table_data])
+        return list(set(selected_rows)-children)
     else:
-        print("else triggered", selected_rows)
-        print(table_data)
-        children = [r["id"] for r in table_data]
-        return list(set(selected_rows)-set(children))
+        return ["#", "C1CCOC1"]
 
 #hover state space
 @app.callback(

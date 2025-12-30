@@ -285,6 +285,8 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
         right_on='source',
         how='left'
     )
+    nodes["n_children"] = nodes["n_children"].fillna(0)
+    print(nodes["n_children"])
 
     # create images as base64
     def encode_image(path):
@@ -297,13 +299,18 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
 
 
     #create handlers
-    handler_nodes = nodes[nodes['n_children']>=0].copy().drop(["image", "reward"], axis=1)
+    handler_nodes = nodes[nodes['node_type']!="final"].copy().drop(["image", "reward"], axis=1)
     handler_nodes["node_type"]="handler"
     handler_nodes["id"]="handler_" + handler_nodes["id"]
     handler_nodes["label"] = "Select children: " + handler_nodes["n_children"].astype(int).astype(str)
     handler_nodes["flow_attr"] = flow_attr
-    handler_edges = counts.drop("n_children", axis=1)
-    handler_edges["target"] = "handler_" + handler_edges["source"]
+    #handler_edges = counts.drop("n_children", axis=1)
+    #handler_edges["target"] = "handler_" + handler_edges["source"]
+    handler_edges = handler_nodes["id"].copy().to_frame().rename(columns={"id": "target"})
+    print(handler_edges)
+    handler_edges["source"] = handler_edges["target"].str.removeprefix("handler_")
+
+
 
     nodes = pd.concat([nodes, handler_nodes], ignore_index=True)
     edges = pd.concat([edges, handler_edges], ignore_index=True)

@@ -660,7 +660,6 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
                 idx for idx, row in enumerate(children.to_dict("records"))
                 if row["id"] in selected_row_ids
             ]
-            print(selected_row_ids, selected_rows)
             return no_update, children.to_dict("records"), selected_rows
         else:
             text = dag_node.get("id")

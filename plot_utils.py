@@ -247,11 +247,6 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
             """
     nodes = pd.read_sql_query(query, conn, params=build_ids)
 
-    # drop nodes without edges (because of iteration slider)
-    # TODO: Check, neccessary?
-    nodelist = pd.unique(edges[['source', 'target']].values.ravel()).tolist() + ['#']
-    nodes = nodes[nodes['id'].isin(nodelist)]
-
     # collapse edges with same source and target
     # TODO: Check, move to querys?
     def get_max_iteration_row(group):
@@ -268,7 +263,7 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
     edges = edges.groupby(['source', 'target']).apply(get_max_iteration_row, include_groups=True).reset_index(drop=True)
 
     # get number of children
-    placeholders = ",".join("?" for _ in nodelist)
+    placeholders = ",".join("?" for _ in build_ids)
     query = f"""
                     SELECT
                         source,
@@ -278,7 +273,7 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
                       AND target NOT IN ({placeholders})
                     GROUP BY source
                 """
-    counts = pd.read_sql_query(query, conn, params=nodelist + nodelist)
+    counts = pd.read_sql_query(query, conn, params=build_ids + build_ids)
     nodes = nodes.merge(
         counts,  # DataFrame with columns ['source', 'child_count']
         left_on='id',
@@ -286,7 +281,6 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
         how='left'
     )
     nodes["n_children"] = nodes["n_children"].fillna(0)
-    print(nodes["n_children"])
 
     # create images as base64
     def encode_image(path):
@@ -304,10 +298,7 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
     handler_nodes["id"]="handler_" + handler_nodes["id"]
     handler_nodes["label"] = "Select children: " + handler_nodes["n_children"].astype(int).astype(str)
     handler_nodes["flow_attr"] = flow_attr
-    #handler_edges = counts.drop("n_children", axis=1)
-    #handler_edges["target"] = "handler_" + handler_edges["source"]
     handler_edges = handler_nodes["id"].copy().to_frame().rename(columns={"id": "target"})
-    print(handler_edges)
     handler_edges["source"] = handler_edges["target"].str.removeprefix("handler_")
 
 

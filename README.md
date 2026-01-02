@@ -58,8 +58,7 @@ This helps answering the following questions:
 
 
 ## How to run the dashboard
-You will need [git lfs](https://git-lfs.com/) for the dataset and the images of the molecules. 
-The repo contains only the first 1000 of 2500 images, so some objects might appear empty.
+You will need [git lfs](https://git-lfs.com/) for the dataset and the images of the molecules.
 
 
 Clone the repo and set up a venv using the requirements_db.txt file.
@@ -84,6 +83,10 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements_db.txt
 ```
+
+The repo contains only the first 1000 of 2500 images, so some objects might appear empty.
+To solve this unpack the image.zip in the traindata1 folder into the folder images.
+
 
 Start the dashboard with:
 

@@ -8,7 +8,7 @@ from plot_utils import *
 
 
 # Load data
-data = pd.read_csv('train_data.csv')
+data = pd.read_csv('traindata1/train_data.csv')
 data.insert(loc=10, column="istestset", value=False)
 data_dps = None
 data_dpt = None

@@ -735,6 +735,7 @@ def update_bump(df, n_top, selected_ids, testset_bounds=None):
 
 def update_DAG_overview(direction, metric):
     column = "logprobs_"+direction
+    top_n = 150
 
     conn = sqlite3.connect("traindata1/traindata1_1.db")
 
@@ -760,7 +761,7 @@ def update_DAG_overview(direction, metric):
                     FROM edges
                     GROUP BY source, target
                     ORDER BY min_val ASC
-                    LIMIT 300
+                    LIMIT {top_n}
                 )
                 SELECT e.source, e.target, e.iteration, e.{column} as value, em.min_val as metric_val
                 FROM edges e
@@ -789,7 +790,7 @@ def update_DAG_overview(direction, metric):
                     INNER JOIN edge_stats es ON e.source = es.source AND e.target = es.target
                     GROUP BY es.source, es.target, es.mean_val, es.cnt
                     ORDER BY variance DESC
-                    LIMIT 300
+                    LIMIT {top_n}
                 )
                 SELECT e.source, e.target, e.iteration, e.{column} as value, ev.mean_val, ev.variance as metric_val
                 FROM edges e
@@ -803,7 +804,7 @@ def update_DAG_overview(direction, metric):
                     FROM edges
                     GROUP BY source, target
                     ORDER BY freq DESC
-                    LIMIT 300
+                    LIMIT {top_n}
                 )
                 SELECT e.source, e.target, e.iteration, e.{column} as value, ef.freq as metric_val
                 FROM edges e
@@ -882,7 +883,7 @@ def update_DAG_overview(direction, metric):
         margin=dict(l=40, r=40, t=40, b=40),
         title=title,
         xaxis=dict(
-            title="Edges (top 300, ordered by metric)",
+            title=f"Edges (Top {top_n}, ordered by Metric)",
             showticklabels=False,
             showgrid=False
         ),

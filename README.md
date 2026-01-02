@@ -12,9 +12,13 @@ The dashboard contains all visualizations with the possibility to crossfilter an
 <img width="2528" height="1388" alt="Replay Buffer" src="https://github.com/user-attachments/assets/5d7e60e2-14af-4d1f-b8ed-4720e748d351" />
 Shows the top n items based on reward for each iteration. This alows seeing when changes happen in the most interesting objects as well as a quick overview of the highest ranking objects.
 Switching between reward and loss and highest/lowest will be added to allow answering the following questions:
+
 - What are the highest ranking objects sampled?
+
 - Does the range of the rewards match the testset reward range?
+
 - What objects have the highest loss? These show where the model struggles and what parts of the state space are newly discovered
+
 - What objects have the lowest loss? These areas of the state space have been visited more often.
 
 
@@ -22,7 +26,9 @@ Switching between reward and loss and highest/lowest will be added to allow answ
 <img width="2550" height="1360" alt="State space" src="https://github.com/user-attachments/assets/9dd414ba-741b-4cdc-a737-54c1d41d6fdf" />
 Shows the final objects downprojected in two dimensions (In this case based on the fingerprints of the molecules). Adding the data of the testset is possible here.
 This helps answer the questions:
+
 - What parts of the state space covered by the testset are discovered by the model?
+
 - What parts of the state space are discovered at which point in training?
 
 ### Trajectory explorer
@@ -40,9 +46,13 @@ This shows the Directed Acyclic Graph of the sampled objects. To reduce the size
 4. Alternatively final objects can be selected in other visualizations and their trajectories will be expanded (until deselection)
 The edge color shows the forward/backward logprobabilities of the last iteration it occured or the change in the forward/backward logprobabilities (last iteration - Mean(all iterations)).
 This helps answering the following questions:
+
 - How did the transition probabilities change during training?
+  
 - Which transitions increased/decreased most?
+  
 - How does the model sample trajectories in detail?
+  
 - How does the forward/backward policy differ in detail?
 
 

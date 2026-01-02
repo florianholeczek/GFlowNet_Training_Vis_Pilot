@@ -5,6 +5,9 @@ import dash_bootstrap_components as dbc
 from dash.dash_table.Format import Format, Scheme
 import dash_cytoscape as cyto
 from dash.exceptions import PreventUpdate
+from sklearn import manifold
+from umap import UMAP
+
 from plot_utils import *
 
 

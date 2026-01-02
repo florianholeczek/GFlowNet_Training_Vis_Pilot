@@ -7,7 +7,6 @@ import dash_cytoscape as cyto
 from dash.exceptions import PreventUpdate
 from sklearn import manifold
 from umap import UMAP
-
 from plot_utils import *
 
 

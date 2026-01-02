@@ -62,7 +62,7 @@ app.layout = html.Div([
             "flexDirection": "column",
             #"gap": "12px"
         }),
-        dcc.Store(id="active-tab", data="state-space"),
+        dcc.Store(id="active-tab", data="dag-view"),
 
         html.Div(style={
             "display": "flex",
@@ -224,6 +224,36 @@ app.layout = html.Div([
                     "gap": "6px"
                 }),
 
+                # -------- Direction --------
+                html.Div([
+                    html.Div("Direction", style={"textAlign": "center"}),
+                    dcc.RadioItems(
+                        id="dag-direction",
+                        options=["forward", "backward"],
+                        value="forward",
+                    ),
+                ], style={
+                    "display": "flex",
+                    "flexDirection": "column",
+                    "gap": "6px"
+                }),
+
+                # -------- Direction --------
+                html.Div([
+                    html.Div("Metric", style={"textAlign": "center"}),
+                    dcc.Dropdown(
+                        id="dag-metric",
+                        options=["highest", "lowest", "variance", "frequency"],
+                        value="highest",
+                        clearable=False,
+                        style={"color": "black"}
+                    )
+                ], style={
+                    "display": "flex",
+                    "flexDirection": "column",
+                    "gap": "6px"
+                }),
+
                 # -------- Edge coloring --------
                 html.Div([
                     html.Div("Edge coloring", style={"textAlign": "center"}),
@@ -346,7 +376,9 @@ app.layout = html.Div([
                 # LEFT SIDE - DAG AREA
                 html.Div([
                     # TOP 25% - EMPTY
-                    html.Div([], style={
+                    html.Div([
+                        dcc.Graph(id="dag-overview", clear_on_unhover=True),
+                    ], style={
                         "height": "25vh",
                         #"border": "1px solid #ddd",
                         "boxSizing": "border-box"
@@ -466,7 +498,7 @@ app.layout = html.Div([
 def switch_tabs(state_clicks, dag_clicks, current_tab):
     ctx = dash.callback_context
     if not ctx.triggered:
-        button_id = "tab-state-space"
+        button_id = "tab-dag-view"
     else:
         button_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
@@ -927,6 +959,17 @@ def display_image_tooltip3(hoverData):
     ]
 
     return True, bbox, children
+
+
+#dag overview
+@app.callback(
+    Output("dag-overview", "figure"),
+    Input("dag-direction", "value"),
+    Input("dag-metric", "value"),
+)
+def update_dag_overview(direction, metric):
+    pass
+
 
 # Run the dashboard
 if __name__ == "__main__":

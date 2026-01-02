@@ -1,5 +1,4 @@
 import sqlite3
-
 import dash
 from dash import dcc, html, Input, Output, State, no_update, dash_table, ctx
 import dash_bootstrap_components as dbc
@@ -26,9 +25,6 @@ last_rewards = data.groupby('final_id')['total_reward'].transform('last')
 ranks = last_rewards.rank(method='dense', ascending=False).astype(int)
 data.insert(9, 'reward_ranked', ranks)
 
-
-
-
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY], assets_folder="traindata1")
 
 # Load extra layouts for cytoscape
@@ -41,7 +37,7 @@ app.layout = html.Div([
     dcc.Store(id="selected-objects", data=[]),
     dcc.Store(id="data-dps", data=data_dps),
     dcc.Store(id="data-dpt", data=data_dpt),
-    dcc.Store(id="build-ids", data= ["#", "C1CCOC1"]),
+    dcc.Store(id="build-ids", data= ["#"]),
 
     # ================= LEFT SIDEBAR (12%) - FIXED =================
     html.Div([
@@ -467,14 +463,11 @@ app.layout = html.Div([
 )
 def switch_tabs(state_clicks, dag_clicks, current_tab):
     ctx = dash.callback_context
-
-    # Determine which button was clicked
     if not ctx.triggered:
         button_id = "tab-state-space"
     else:
         button_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
-    # Set active tab based on button click
     if button_id == "tab-state-space":
         active_tab = "state-space"
     elif button_id == "tab-dag-view":
@@ -534,13 +527,9 @@ def switch_tabs(state_clicks, dag_clicks, current_tab):
     Input("projection-method", "value")
 )
 def update_projection_param(method):
-
     if method == "umap":
-        # UMAP wants n_neighbors (usually 2–200)
         return "n_neighbors", 2, 200, 1, {2: "2", 50: "50", 100: "100", 200: "200"}, 15
-
     else:
-        # t-SNE wants perplexity (usually 5–50)
         return "perplexity", 5, 50, 1, {5: "5", 25: "25", 50: "50"}, 30
 
 
@@ -654,7 +643,6 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
             children["image"] = children["image"].apply(
                 lambda p: f"![img]({p.replace('traindata1', 'assets')})"
             )
-            #children["image"] = '![myImage-1](assets/images/image_0.png)'
             selected_row_ids = list(set.intersection(set(build_ids), set(list(children["id"]))))
             selected_rows = [
                 idx for idx, row in enumerate(children.to_dict("records"))
@@ -794,7 +782,7 @@ def update_dag(layout_name, flow_attr, iteration, selected_objects, build_ids):
         build_ids = list(build_ids['target']) + ['#']
         conn.close()
     elif not build_ids:
-        build_ids = ["#", "C1CCOC1"]
+        build_ids = ["#"]
 
     result = update_DAG(
         iteration,
@@ -832,13 +820,13 @@ def save_selected_rows(selected_rows, table_data, build_ids):
         children = set([r["id"] for r in table_data])
         unselected = children - set(selected_rows)
         build_ids = set(build_ids) - unselected
-        build_ids = set(selected_rows) | build_ids | set(["#", "C1CCOC1"])
+        build_ids = set(selected_rows) | build_ids | set(["#"])
         return list(build_ids)
     elif table_data:
         children = set([r["id"] for r in table_data])
         return list(set(selected_rows)-children)
     else:
-        return ["#", "C1CCOC1"]
+        return ["#"]
 
 #hover state space
 @app.callback(

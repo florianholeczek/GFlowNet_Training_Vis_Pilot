@@ -731,4 +731,160 @@ def update_bump(df, n_top, selected_ids, testset_bounds=None):
     return fig
 
 
+def update_DAG_overview(direction, metric):
+    column = "logprobs_"+direction
+    # Connect to database
+    conn = sqlite3.connect("traindata1/traindata1_1.db")
 
+    # Build query based on metric
+    if metric == "highest":
+        query = f"""
+                WITH edge_max AS (
+                    SELECT source, target, MAX({column}) as max_val
+                    FROM edges
+                    GROUP BY source, target
+                    ORDER BY max_val DESC
+                    LIMIT 300
+                )
+                SELECT e.source, e.target, e.iteration, e.{column} as value, em.max_val as metric_val
+                FROM edges e
+                INNER JOIN edge_max em ON e.source = em.source AND e.target = em.target
+                ORDER BY em.max_val DESC, e.source, e.target, e.iteration
+            """
+    elif metric == "lowest":
+        query = f"""
+                WITH edge_min AS (
+                    SELECT source, target, MIN({column}) as min_val
+                    FROM edges
+                    GROUP BY source, target
+                    ORDER BY min_val ASC
+                    LIMIT 300
+                )
+                SELECT e.source, e.target, e.iteration, e.{column} as value, em.min_val as metric_val
+                FROM edges e
+                INNER JOIN edge_min em ON e.source = em.source AND e.target = em.target
+                ORDER BY em.min_val ASC, e.source, e.target, e.iteration
+            """
+    elif metric == "variance":
+        query = f"""
+                WITH edge_stats AS (
+                    SELECT 
+                        source, 
+                        target,
+                        AVG({column}) as mean_val,
+                        COUNT(*) as cnt
+                    FROM edges
+                    GROUP BY source, target
+                    HAVING cnt > 1
+                ),
+                edge_variance AS (
+                    SELECT 
+                        es.source,
+                        es.target,
+                        es.mean_val,
+                        SUM((e.{column} - es.mean_val) * (e.{column} - es.mean_val)) / es.cnt as variance
+                    FROM edges e
+                    INNER JOIN edge_stats es ON e.source = es.source AND e.target = es.target
+                    GROUP BY es.source, es.target, es.mean_val, es.cnt
+                    ORDER BY variance DESC
+                    LIMIT 300
+                )
+                SELECT e.source, e.target, e.iteration, e.{column} as value, ev.mean_val, ev.variance as metric_val
+                FROM edges e
+                INNER JOIN edge_variance ev ON e.source = ev.source AND e.target = ev.target
+                ORDER BY ev.variance DESC, e.source, e.target, e.iteration
+            """
+    elif metric == "frequency":
+        query = f"""
+                WITH edge_freq AS (
+                    SELECT source, target, COUNT(*) as freq
+                    FROM edges
+                    GROUP BY source, target
+                    ORDER BY freq DESC
+                    LIMIT 300
+                )
+                SELECT e.source, e.target, e.iteration, e.{column} as value, ef.freq as metric_val
+                FROM edges e
+                INNER JOIN edge_freq ef ON e.source = ef.source AND e.target = ef.target
+                ORDER BY ef.freq DESC, e.source, e.target, e.iteration
+            """
+
+    # Execute query
+    df = pd.read_sql_query(query, conn)
+    conn.close()
+
+    if df.empty:
+        return go.Figure().add_annotation(text="No data found", showarrow=False)
+
+    # Create edge identifier and preserve order
+    df['edge_id'] = df['source'].astype(str) + '-' + df['target'].astype(str)
+
+    # Get unique edges in order (already ordered by metric in SQL)
+    unique_edges = df['edge_id'].unique()
+    edge_to_idx = {edge: idx for idx, edge in enumerate(unique_edges)}
+    df['edge_idx'] = df['edge_id'].map(edge_to_idx)
+
+    # For variance metric, adjust values to be zero-based (value - mean)
+    if metric == "variance":
+        edge_means = df.groupby('edge_id')['value'].transform('mean')
+        df['plot_value'] = df['value'] - edge_means
+    else:
+        df['plot_value'] = df['value']
+
+    # Create pivot table for heatmap
+    heatmap_data = df.pivot_table(
+        index='iteration',
+        columns='edge_idx',
+        values='plot_value',
+        aggfunc='first'
+    )
+
+    # Sort iterations
+    heatmap_data = heatmap_data.sort_index()
+
+    # Select color scale
+    if metric == "variance":
+        color_scale = px.colors.diverging.BrBG
+    else:
+        color_scale = px.colors.sequential.Emrld
+
+    # Create heatmap
+    fig = go.Figure(data=go.Heatmap(
+        z=heatmap_data.values,
+        x=heatmap_data.columns,
+        y=heatmap_data.index,
+        colorscale=color_scale,
+        showscale=True,
+        zmin=heatmap_data.values[~np.isnan(heatmap_data.values)].min() if metric != "variance" else None,
+        zmax=heatmap_data.values[~np.isnan(heatmap_data.values)].max() if metric != "variance" else None,
+        zmid=0 if metric == "variance" else None,
+        hovertemplate='Edge: %{x}<br>Iteration: %{y}<br>Value: %{z:.4f}<extra></extra>',
+        colorbar=dict(title=dict(text="Value" if metric != "variance" else "Value - Mean"))
+    ))
+
+    # Update layout
+    fig.update_layout(
+        autosize=True,
+        template='plotly_dark',
+        title=f"Edge Heatmap - {direction.capitalize()} - {metric.capitalize()}",
+        xaxis=dict(
+            title="Edges (top 300, ordered by metric)",
+            showticklabels=False,
+            showgrid=False
+        ),
+        yaxis=dict(
+            title="Iteration",
+            showgrid=False
+        ),
+        #plot_bgcolor='black',
+    )
+
+    # Set missing values to black
+    #fig.update_traces(
+    #    colorscale=[[0, 'black']] + [[i / (len(color_scale) - 1), c] for i, c in enumerate(color_scale)]
+    #)
+
+    return fig
+
+
+    return None

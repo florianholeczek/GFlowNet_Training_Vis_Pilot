@@ -41,7 +41,7 @@ app.layout = html.Div([
     dcc.Store(id="data-dpt", data=data_dpt),
     dcc.Store(id="build-ids", data= ["#"]),
 
-    # ================= LEFT SIDEBAR (12%) - FIXED =================
+    # ================= LEFT SIDEBAR (12%) =================
     html.Div([
 
 # -------- TAB SELECTOR --------
@@ -377,7 +377,12 @@ app.layout = html.Div([
                 html.Div([
                     # TOP 25% - EMPTY
                     html.Div([
-                        dcc.Graph(id="dag-overview", clear_on_unhover=True),
+                        dcc.Graph(
+                            id="dag-overview",
+                            clear_on_unhover=True,
+                            style={"height": "100%", "width": "100%"},
+                            config={"responsive": True},
+                        ),
                     ], style={
                         "height": "25vh",
                         #"border": "1px solid #ddd",
@@ -968,7 +973,7 @@ def display_image_tooltip3(hoverData):
     Input("dag-metric", "value"),
 )
 def update_dag_overview(direction, metric):
-    pass
+    return update_DAG_overview(direction, metric)
 
 
 # Run the dashboard

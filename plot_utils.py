@@ -5,10 +5,6 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
-from networkx.algorithms.traversal import dfs_edges
-from sklearn import manifold
-from umap import UMAP
-from collections import defaultdict
 
 
 def update_state_space_t(df, selected_ids=[]):
@@ -217,16 +213,10 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
 
     Parameters:
     -----------
-    dag_data : dict
-        Dictionary containing 'nodes' and 'edges' from prepare_DAG
-    flow_attr : str
-        Flow attribute to use for coloring and truncation -> Logprobs
-    truncation_pct : float
-        Truncation percentage (0-100)
-
-    Returns:
-    --------
-    dict : Cytoscape elements and stylesheet
+    iteration : list with rang of iterations
+    flow_attr : str, Logprobs attribute to use for coloring
+    build_ids: list of str, ids of objects of the graph
+    Returns: dict : Cytoscape elements and stylesheet
     """
 
     conn = sqlite3.connect("traindata1/traindata1_1.db")
@@ -277,9 +267,8 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
            AND e.iteration BETWEEN ? AND ?
         """
 
-    params = build_ids + build_ids + [iteration[0], iteration[1]] + \
-             build_ids + build_ids + [iteration[0], iteration[1]] + \
-             build_ids + build_ids + [iteration[0], iteration[1]]
+    params = build_ids + build_ids + [iteration[0], iteration[1]]
+    params *= 3
 
     edges = pd.read_sql_query(query, conn, params=params)
 
@@ -291,7 +280,6 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
     nodes = pd.read_sql_query(query, conn, params=build_ids)
 
     # get number of children
-    placeholders = ",".join("?" for _ in build_ids)
     query = f"""
                     SELECT
                         source,
@@ -303,7 +291,7 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
                 """
     counts = pd.read_sql_query(query, conn, params=build_ids + build_ids)
     nodes = nodes.merge(
-        counts,  # DataFrame with columns ['source', 'child_count']
+        counts,
         left_on='id',
         right_on='source',
         how='left'
@@ -319,7 +307,6 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
         return f"data:image/png;base64,{b64}"
     nodes['image'] = nodes['image'].apply(encode_image)
 
-
     #create handlers
     handler_nodes = nodes[nodes['node_type']!="final"].copy().drop(["image", "reward"], axis=1)
     handler_nodes["node_type"]="handler"
@@ -329,14 +316,10 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
     handler_edges = handler_nodes["id"].copy().to_frame().rename(columns={"id": "target"})
     handler_edges["source"] = handler_edges["target"].str.removeprefix("handler_")
 
-
-
     nodes = pd.concat([nodes, handler_nodes], ignore_index=True)
     edges = pd.concat([edges, handler_edges], ignore_index=True)
     nodes["iteration0"]= iteration[0]
     nodes["iteration1"]= iteration[1]
-
-
 
     # convert to cytoscape structure
     nodes = [{"data": row} for row in nodes.to_dict(orient="records")]
@@ -648,13 +631,11 @@ def update_bump(df, n_top, selected_ids, testset_bounds=None):
         for it in iterations:
             iter_data = tmp[tmp["iteration"] == it].sort_values("value")
 
-            # Find the line just BELOW the max_reward threshold
-            # We want the worst rank (highest number) that still has reward >= max_reward
+            # worst rank (highest number) that still has reward >= max_reward
             at_or_above_max = iter_data[iter_data["total_reward"] >= max_reward]
             rank_above = at_or_above_max["value"].max()-0.5 if not at_or_above_max.empty else 0.5
 
-            # Find the line just ABOVE the min_reward threshold
-            # We want the best rank (lowest number) that still has reward <= min_reward
+            # best rank (lowest number) that still has reward <= min_reward
             at_or_below_min = iter_data[iter_data["total_reward"] <= min_reward]
             rank_below = at_or_below_min["value"].min()+0.5 if not at_or_below_min.empty else n_top + 0.5
 
@@ -667,7 +648,6 @@ def update_bump(df, n_top, selected_ids, testset_bounds=None):
         shade_df = pd.DataFrame(shade_data)
 
         # Add shaded area between the bound ranks
-        # Use a separate trace name to help Dash identify it
         fig.add_trace(
             go.Scatter(
                 x=shade_df["iteration"].tolist() + shade_df["iteration"].tolist()[::-1],
@@ -697,7 +677,6 @@ def update_bump(df, n_top, selected_ids, testset_bounds=None):
         for text, idx in first_iter_idx.items()
     }
 
-    # Plot the ranked objects
     for obj in first_ranks:
         obj_df = tmp[tmp["text"] == obj].sort_values("iteration")
 

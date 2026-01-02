@@ -329,10 +329,10 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
 
     # Compute color scale
     if flow_attr in ['logprobs_forward', 'logprobs_backward']:
-        vmin, vmax = -8, 0
+        vmin, vmax = -10, 0
         colorscale = px.colors.sequential.Emrld
     elif flow_attr in ['logprobs_forward_change', 'logprobs_backward_change']:
-        vmin, vmax = -2, 2
+        vmin, vmax = -3, 3
         colorscale = px.colors.diverging.BrBG
     else:
         vmin, vmax = -1, 1  # fallback
@@ -548,7 +548,8 @@ def update_state_space(df, selected_ids=[]):
         template='plotly_dark',
         legend=dict(
             itemsizing='constant',  # ensures marker size is not scaled
-        )
+        ),
+        margin=dict(l=40, r=40, t=40, b=40)
     )
 
     return fig
@@ -723,7 +724,8 @@ def update_bump(df, n_top, selected_ids, testset_bounds=None):
         legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="left", x=0),
         xaxis_title="Iteration",
         yaxis_title="Rank",
-        template='plotly_dark'
+        template='plotly_dark',
+        margin=dict(l=40, r=40, t=40, b=40)
     )
 
     fig.update_yaxes(autorange="reversed")
@@ -733,7 +735,7 @@ def update_bump(df, n_top, selected_ids, testset_bounds=None):
 
 def update_DAG_overview(direction, metric):
     column = "logprobs_"+direction
-    # Connect to database
+
     conn = sqlite3.connect("traindata1/traindata1_1.db")
 
     # Build query based on metric
@@ -809,7 +811,6 @@ def update_DAG_overview(direction, metric):
                 ORDER BY ef.freq DESC, e.source, e.target, e.iteration
             """
 
-    # Execute query
     df = pd.read_sql_query(query, conn)
     conn.close()
 
@@ -825,9 +826,12 @@ def update_DAG_overview(direction, metric):
     df['edge_idx'] = df['edge_id'].map(edge_to_idx)
 
     # For variance metric, adjust values to be zero-based (value - mean)
+    # For frequency metric, use the frequency value itself for coloring
     if metric == "variance":
         edge_means = df.groupby('edge_id')['value'].transform('mean')
         df['plot_value'] = df['value'] - edge_means
+    elif metric == "frequency":
+        df['plot_value'] = df['metric_val']  # Use frequency for coloring
     else:
         df['plot_value'] = df['value']
 
@@ -839,34 +843,44 @@ def update_DAG_overview(direction, metric):
         aggfunc='first'
     )
 
-    # Sort iterations
     heatmap_data = heatmap_data.sort_index()
 
-    # Select color scale
     if metric == "variance":
         color_scale = px.colors.diverging.BrBG
-    else:
+        zmin, zmax, zmid = -3, 3, 0
+        colorbar_title = "Value - Mean"
+        title = f"Edge Heatmap - Highest Variance of {direction.capitalize()} Logprobabilities"
+    elif metric == "frequency":
         color_scale = px.colors.sequential.Emrld
+        zmin = 0
+        zmax = df['metric_val'].max()  # Maximum frequency in the data
+        zmid = None
+        colorbar_title = "Frequency"
+        title = f"Edge Heatmap - Frequency"
+    else:  # highest or lowest
+        color_scale = px.colors.sequential.Emrld
+        zmin, zmax, zmid = -10, 0, None
+        colorbar_title = "Value"
+        title = f"Edge Heatmap - {metric.capitalize()} Value of {direction.capitalize()} Logprobabilities"
 
-    # Create heatmap
     fig = go.Figure(data=go.Heatmap(
         z=heatmap_data.values,
         x=heatmap_data.columns,
         y=heatmap_data.index,
         colorscale=color_scale,
         showscale=True,
-        zmin=heatmap_data.values[~np.isnan(heatmap_data.values)].min() if metric != "variance" else None,
-        zmax=heatmap_data.values[~np.isnan(heatmap_data.values)].max() if metric != "variance" else None,
-        zmid=0 if metric == "variance" else None,
+        zmin=zmin,
+        zmax=zmax,
+        zmid=zmid,
         hovertemplate='Edge: %{x}<br>Iteration: %{y}<br>Value: %{z:.4f}<extra></extra>',
-        colorbar=dict(title=dict(text="Value" if metric != "variance" else "Value - Mean"))
+        colorbar=dict(title=dict(text=colorbar_title))
     ))
 
-    # Update layout
     fig.update_layout(
         autosize=True,
         template='plotly_dark',
-        title=f"Edge Heatmap - {direction.capitalize()} - {metric.capitalize()}",
+        margin=dict(l=40, r=40, t=40, b=40),
+        title=title,
         xaxis=dict(
             title="Edges (top 300, ordered by metric)",
             showticklabels=False,
@@ -876,15 +890,7 @@ def update_DAG_overview(direction, metric):
             title="Iteration",
             showgrid=False
         ),
-        #plot_bgcolor='black',
     )
-
-    # Set missing values to black
-    #fig.update_traces(
-    #    colorscale=[[0, 'black']] + [[i / (len(color_scale) - 1), c] for i, c in enumerate(color_scale)]
-    #)
 
     return fig
 
-
-    return None

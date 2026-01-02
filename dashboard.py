@@ -40,6 +40,7 @@ app.layout = html.Div([
     dcc.Store(id="data-dps", data=data_dps),
     dcc.Store(id="data-dpt", data=data_dpt),
     dcc.Store(id="build-ids", data= ["#"]),
+    dcc.Store(id="max-frequency", data= 0),
 
     # ================= LEFT SIDEBAR (12%) =================
     html.Div([
@@ -801,11 +802,14 @@ def update_projection_plots(selected_ids, data_s, data_t):
      Output("dag-legend", "figure")],
     Input("dag-layout", "value"),
     Input("flow-attr", "value"),
+    Input("dag-direction", "value"),
+    Input("dag-metric", "value"),
     Input(  "iteration", "value"),
     Input("selected-objects", "data"),
     Input("build-ids", "data"),
+    Input("max-frequency", "data")
 )
-def update_dag(layout_name, flow_attr, iteration, selected_objects, build_ids):
+def update_dag(layout_name, flow_attr, direction, metric, iteration, selected_objects, build_ids, max_freq):
     if selected_objects:
         # If final objects are selected via another vis, display the full dag of these
         conn = sqlite3.connect("traindata1/traindata1_1.db")
@@ -826,6 +830,9 @@ def update_dag(layout_name, flow_attr, iteration, selected_objects, build_ids):
     result = update_DAG(
         iteration,
         flow_attr,
+        direction,
+        metric,
+        max_freq,
         build_ids=build_ids,
     )
 
@@ -969,11 +976,16 @@ def display_image_tooltip3(hoverData):
 #dag overview
 @app.callback(
     Output("dag-overview", "figure"),
+    Output("max-frequency", "data"),
     Input("dag-direction", "value"),
     Input("dag-metric", "value"),
 )
 def update_dag_overview(direction, metric):
-    return update_DAG_overview(direction, metric)
+    fig, max_freq = update_DAG_overview(direction, metric)
+    print("mf", max_freq)
+    if max_freq:
+        return fig, max_freq
+    return fig, no_update
 
 
 # Run the dashboard

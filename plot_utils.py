@@ -171,6 +171,7 @@ def create_dag_legend(vmin, vmax, colorscale, flow_attr):
     plotly.graph_objects.Figure
     """
     # Create a dummy scatter plot with just the colorbar
+    print(vmin, vmax)
     fig = go.Figure(data=go.Scatter(
         x=[None],
         y=[None],
@@ -207,7 +208,14 @@ def create_dag_legend(vmin, vmax, colorscale, flow_attr):
     return fig
 
 
-def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
+def update_DAG(
+        iteration,
+        flow_attr='logprobs_forward',
+        direction="forward",
+        metric="highest",
+        max_freq = 0,
+        build_ids=[]
+):
     """
     Update DAG visualization based on flow attribute and truncation percentage.
 
@@ -271,6 +279,7 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
     params *= 3
 
     edges = pd.read_sql_query(query, conn, params=params)
+    print(edges)
 
     query = f"""
         SELECT *
@@ -313,6 +322,8 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
     handler_nodes["id"]="handler_" + handler_nodes["id"]
     handler_nodes["label"] = "Select children: " + handler_nodes["n_children"].astype(int).astype(str)
     handler_nodes["flow_attr"] = flow_attr
+    handler_nodes["metric"] = metric
+    handler_nodes["direction"] = direction
     handler_edges = handler_nodes["id"].copy().to_frame().rename(columns={"id": "target"})
     handler_edges["source"] = handler_edges["target"].str.removeprefix("handler_")
 
@@ -328,12 +339,15 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
     conn.close()
 
     # Compute color scale
-    if flow_attr in ['logprobs_forward', 'logprobs_backward']:
+    if metric in ['highest', 'lowest']:
         vmin, vmax = -10, 0
         colorscale = px.colors.sequential.Emrld
-    elif flow_attr in ['logprobs_forward_change', 'logprobs_backward_change']:
+    elif metric == "variance":
         vmin, vmax = -3, 3
         colorscale = px.colors.diverging.BrBG
+    elif metric == "frequency":
+        vmin, vmax = 0, max_freq
+        colorscale = px.colors.sequential.Emrld
     else:
         vmin, vmax = -1, 1  # fallback
         colorscale = px.colors.sequential.Viridis
@@ -442,11 +456,17 @@ def update_DAG(iteration, flow_attr='logprobs_forward', build_ids=[]):
         }
     ]
 
+    if metric == "frequency":
+        edge_attr = flow_attr
+    else:
+        edge_attr = f"logprobs_{direction}"
+    if metric == "variance":
+        edge_attr += "_change"
     # Add color styles for each edge
     for edge in edges:
         edge_id = edge['data']['id']
-        flow_val = edge['data'].get(flow_attr, 0)
-        color = get_color(flow_val, vmin, vmax, colorscale)
+        edge_val = edge['data'].get(edge_attr, 0)
+        color = get_color(edge_val, vmin, vmax, colorscale)
 
         stylesheet.append({
             'selector': f'edge[id = "{edge_id}"]',
@@ -893,5 +913,7 @@ def update_DAG_overview(direction, metric):
         ),
     )
 
-    return fig
+    if metric == "frequency":
+        return fig, zmax
+    return fig, None
 

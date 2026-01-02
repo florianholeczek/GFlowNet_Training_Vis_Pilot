@@ -6,6 +6,7 @@ import dash_cytoscape as cyto
 from dash.exceptions import PreventUpdate
 from plot_utils import *
 
+
 # Load data
 data = pd.read_csv('train_data.csv')
 data.insert(loc=10, column="istestset", value=False)

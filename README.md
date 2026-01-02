@@ -40,10 +40,15 @@ Focus on the state space of the final objects might be better.
 ### DAG
 <img width="5082" height="2938" alt="DAG" src="https://github.com/user-attachments/assets/e125a1ba-ee8b-492e-b5db-927444df453b" />
 This shows the Directed Acyclic Graph of the sampled objects. To reduce the size:
+
 1. Linear chains (one parent one chains) have been truncated and their logprobabilities added up
+
 2. Same Edges from different iterations have been merged into one
+
 3. The DAG starts empty and can be expanded by selecting the objects from the table on the right
+
 4. Alternatively final objects can be selected in other visualizations and their trajectories will be expanded (until deselection)
+
 The edge color shows the forward/backward logprobabilities of the last iteration it occured or the change in the forward/backward logprobabilities (last iteration - Mean(all iterations)).
 This helps answering the following questions:
 

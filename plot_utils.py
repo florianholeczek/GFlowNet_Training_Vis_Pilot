@@ -282,7 +282,6 @@ def update_DAG(
         params *= 2
 
     edges = pd.read_sql_query(query, conn, params=params)
-    print(edges)
 
     query = f"""
         SELECT *
@@ -463,7 +462,6 @@ def update_DAG(
         edge_id = edge['data']['id']
         edge_val = edge['data'].get("metric", 0)
         color = get_color(edge_val, vmin, vmax, colorscale)
-        print(edge_id, edge_val)
 
         stylesheet.append({
             'selector': f'edge[id = "{edge_id}"]',

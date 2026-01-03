@@ -848,6 +848,7 @@ def update_dag(layout_name, direction, metric, iteration, selected_objects, buil
     State("build-ids", "data")
 )
 def save_selected_rows(selected_rows, table_data, build_ids):
+    print(selected_rows)
     if selected_rows:
         children = set([r["id"] for r in table_data])
         unselected = children - set(selected_rows)
@@ -856,7 +857,7 @@ def save_selected_rows(selected_rows, table_data, build_ids):
         return list(build_ids)
     elif table_data:
         children = set([r["id"] for r in table_data])
-        return list(set(selected_rows)-children)
+        return list(set(build_ids)-children)
     else:
         return ["#"]
 
@@ -968,7 +969,6 @@ def display_image_tooltip3(hoverData):
 )
 def update_dag_overview(direction, metric):
     fig, max_freq = update_DAG_overview(direction, metric)
-    print("mf", max_freq)
     if max_freq:
         return fig, max_freq
     return fig, no_update

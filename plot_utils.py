@@ -391,6 +391,9 @@ def update_DAG(
     edges = pd.concat([edges, handler_edges], ignore_index=True)
     nodes["iteration0"]= iteration[0]
     nodes["iteration1"]= iteration[1]
+    if direction == "backward":
+        edges.rename(columns={"source": "target", "target": "source"}, inplace=True)
+
 
     # convert to cytoscape structure
     nodes = [{"data": row} for row in nodes.to_dict(orient="records")]

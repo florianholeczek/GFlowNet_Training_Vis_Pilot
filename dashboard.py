@@ -32,9 +32,6 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY], assets_folde
 # Load extra layouts for cytoscape
 cyto.load_extra_layouts()
 
-flow_options = ["logprobs_forward", "logprobs_backward",
-                "logprobs_forward_change", "logprobs_backward_change"]
-
 app.layout = html.Div([
     dcc.Store(id="selected-objects", data=[]),
     dcc.Store(id="data-dps", data=data_dps),
@@ -225,21 +222,7 @@ app.layout = html.Div([
                     "gap": "6px"
                 }),
 
-                # -------- Direction --------
-                html.Div([
-                    html.Div("Direction", style={"textAlign": "center"}),
-                    dcc.RadioItems(
-                        id="dag-direction",
-                        options=["forward", "backward"],
-                        value="forward",
-                    ),
-                ], style={
-                    "display": "flex",
-                    "flexDirection": "column",
-                    "gap": "6px"
-                }),
-
-                # -------- Direction --------
+                # -------- Metric --------
                 html.Div([
                     html.Div("Metric", style={"textAlign": "center"}),
                     dcc.Dropdown(
@@ -255,21 +238,20 @@ app.layout = html.Div([
                     "gap": "6px"
                 }),
 
-                # -------- Edge coloring --------
+                # -------- Direction --------
                 html.Div([
-                    html.Div("Edge coloring", style={"textAlign": "center"}),
-                    dcc.Dropdown(
-                        id="flow-attr",
-                        options=[{"label": f, "value": f} for f in flow_options],
-                        value="logprobs_forward",
-                        clearable=False,
-                        style={"color": "black"}
-                    )
+                    html.Div("Direction", style={"textAlign": "center"}),
+                    dcc.RadioItems(
+                        id="dag-direction",
+                        options=["forward", "backward"],
+                        value="forward",
+                    ),
                 ], style={
                     "display": "flex",
                     "flexDirection": "column",
                     "gap": "6px"
                 }),
+
 
             ], style={
                 "display": "flex",
@@ -392,11 +374,6 @@ app.layout = html.Div([
 
                     # BOTTOM 75% - DAG AND LEGEND
                     html.Div([
-                        dcc.Graph(
-                            id='dag-legend',
-                            style={'width': '75px', 'height': '73vh', 'flex': '0 0 75px'}
-                        ),
-
                         cyto.Cytoscape(
                             id='dag-graph',
                             layout={
@@ -464,7 +441,7 @@ app.layout = html.Div([
                         'backgroundColor': '#222222',
                         'fontWeight': 'bold'
                     },
-                    style_table={'width': '400px', 'height': '95vh', 'flex': '0 0 400px', 'overflow': 'auto'}
+                    style_table={'width': '500px', 'height': '95vh', 'flex': '0 0 400px', 'overflow': 'auto'}
                 )
             ], style={
                 "display": "flex",
@@ -809,10 +786,8 @@ def update_projection_plots(selected_ids, data_s, data_t):
 @app.callback(
     [Output("dag-graph", "elements"),
      Output("dag-graph", "stylesheet"),
-     Output("dag-graph", "layout"),
-     Output("dag-legend", "figure")],
+     Output("dag-graph", "layout")],
     Input("dag-layout", "value"),
-    Input("flow-attr", "value"),
     Input("dag-direction", "value"),
     Input("dag-metric", "value"),
     Input(  "iteration", "value"),
@@ -820,7 +795,7 @@ def update_projection_plots(selected_ids, data_s, data_t):
     Input("build-ids", "data"),
     Input("max-frequency", "data")
 )
-def update_dag(layout_name, flow_attr, direction, metric, iteration, selected_objects, build_ids, max_freq):
+def update_dag(layout_name, direction, metric, iteration, selected_objects, build_ids, max_freq):
     if selected_objects:
         # If final objects are selected via another vis, display the full dag of these
         conn = sqlite3.connect("traindata1/traindata1_1.db")
@@ -840,7 +815,6 @@ def update_dag(layout_name, flow_attr, direction, metric, iteration, selected_ob
 
     result = update_DAG(
         iteration,
-        flow_attr,
         direction,
         metric,
         max_freq,
@@ -863,7 +837,7 @@ def update_dag(layout_name, flow_attr, direction, metric, iteration, selected_ob
     elif layout_name == 'breadthfirst':
         layout_config['spacingFactor'] = 1.2
         layout_config['roots'] = '[id = "START"]'
-    return result['elements'], result['stylesheet'], layout_config, result['legend']
+    return result['elements'], result['stylesheet'], layout_config
 
 # Callback for dag-table
 @app.callback(

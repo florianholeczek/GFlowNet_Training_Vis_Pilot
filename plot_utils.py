@@ -151,66 +151,8 @@ def update_state_space_t(df, selected_ids=[]):
 
     return fig
 
-def create_dag_legend(vmin, vmax, colorscale, flow_attr):
-    """
-    Create a plotly figure showing a colorbar legend for the DAG.
-
-    Parameters:
-    -----------
-    vmin : float
-        Minimum value for the colorscale
-    vmax : float
-        Maximum value for the colorscale
-    colorscale : list
-        Plotly colorscale
-    flow_attr : str
-        Name of the flow attribute
-
-    Returns:
-    --------
-    plotly.graph_objects.Figure
-    """
-    # Create a dummy scatter plot with just the colorbar
-    print(vmin, vmax)
-    fig = go.Figure(data=go.Scatter(
-        x=[None],
-        y=[None],
-        mode='markers',
-        marker=dict(
-            colorscale=colorscale,
-            showscale=True,
-            cmin=vmin,
-            cmax=vmax,
-            colorbar=dict(
-                title=dict(
-                    text=flow_attr.replace('_', ' ').title(),
-                    side='right'
-                ),
-                thickness=20,
-                len=0.9,
-                x=0.5,
-                xanchor='center'
-            )
-        ),
-        hoverinfo='none'
-    ))
-
-    fig.update_layout(
-        showlegend=False,
-        xaxis=dict(visible=False),
-        yaxis=dict(visible=False),
-        margin=dict(l=0, r=0, t=0, b=0),
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        template="plotly_dark"
-    )
-
-    return fig
-
-
 def update_DAG(
         iteration,
-        flow_attr='logprobs_forward',
         direction="forward",
         metric="highest",
         max_freq = 0,
@@ -415,9 +357,6 @@ def update_DAG(
         vmin, vmax = -1, 1  # fallback
         colorscale = px.colors.sequential.Viridis
 
-    # Create legend
-    legend_fig = create_dag_legend(vmin, vmax, colorscale, flow_attr)
-
     # Create color mapping
     def get_color(value, vmin, vmax, colorscale):
         if np.isnan(value):
@@ -537,7 +476,6 @@ def update_DAG(
     return {
         'elements': elements,
         'stylesheet': stylesheet,
-        'legend': legend_fig
     }
 
 

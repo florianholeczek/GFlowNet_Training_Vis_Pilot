@@ -637,34 +637,45 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
 
         if dag_node.get("node_type") == 'handler':
             text = dag_node.get("id")[8:]
-            col = "_".join(dag_node.get("flow_attr").split("_")[:2])
-
             conn = sqlite3.connect("traindata1/traindata1_1.db")
-            query = f"""
-                WITH ranked AS (
+
+            if dag_node.get("metric") in ["highest", "lowest", "variance"]:
+                col = "logprobs_" + dag_node.get("direction")
+                query = f"""
+                    WITH ranked AS (
+                        SELECT
+                            target,
+                            iteration,
+                            {col} AS logprobs,
+                            AVG({col}) OVER (PARTITION BY target) AS avg_logprobs,
+                            ROW_NUMBER() OVER (
+                                PARTITION BY target
+                                ORDER BY iteration DESC
+                            ) AS rn
+                        FROM edges
+                        WHERE source = ?
+                        AND iteration BETWEEN ? AND ?
+                    )
                     SELECT
                         target,
-                        iteration,
-                        {col} AS logprobs,
-                        AVG({col}) OVER (PARTITION BY target) AS avg_logprobs,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY target
-                            ORDER BY iteration DESC
-                        ) AS rn
+                        logprobs AS latest_logprobs,
+                        avg_logprobs
+                    FROM ranked
+                    WHERE rn = 1;
+                    """
+            else: #frequency
+                query = f"""
+                    SELECT
+                        target,
+                        COUNT(*) AS latest_logprobs
                     FROM edges
                     WHERE source = ?
-                    AND iteration BETWEEN ? AND ?
-                )
-                SELECT
-                    target,
-                    logprobs AS latest_logprobs,
-                    avg_logprobs
-                FROM ranked
-                WHERE rn = 1;
-                """
+                      AND iteration BETWEEN ? AND ?
+                    GROUP BY target;
+                    """
             children_e = pd.read_sql_query(query, conn, params=[text, iteration0, iteration1])
 
-            if "change" in dag_node.get("flow_attr"):
+            if dag_node.get("metric") == "variance":
                 children_e["latest_logprobs"] -= children_e["avg_logprobs"]
             children_e.rename(columns={"target": "id", "latest_logprobs": "logprobs"}, inplace=True)
             children_e = children_e[["id", "logprobs"]]

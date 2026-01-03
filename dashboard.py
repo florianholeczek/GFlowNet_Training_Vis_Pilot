@@ -415,7 +415,7 @@ app.layout = html.Div([
                             "type": "any",
                         },
                         {
-                            "name": "Logprobs",
+                            "name": "Metric",
                             "id": "logprobs",
                             "type": "numeric",
                             "format": Format(precision=4, scheme=Scheme.fixed),
@@ -671,6 +671,7 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
             children["image"] = children["image"].apply(
                 lambda p: f"![img]({p.replace('traindata1', 'assets')})"
             )
+            children["node_type"] = children["node_type"].eq("final")
             selected_row_ids = list(set.intersection(set(build_ids), set(list(children["id"]))))
             selected_rows = [
                 idx for idx, row in enumerate(children.to_dict("records"))

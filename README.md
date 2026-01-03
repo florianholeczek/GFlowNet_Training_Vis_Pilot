@@ -103,10 +103,10 @@ python3 python/dashboard.py
 ```
 
 ## Logger
-The logger.py is the current state to allow for logging during training. 
+The logger.py allows logging during training in the format expected by the dashboard. 
 It is currently outdated as I want to switch from logging the top reward objects during training to sampling n-objects on-policy after m iterations. 
 
 
 ## Notebook
 I used the GFN_training.ipynb notebook to create the training data with this [library](https://github.com/recursionpharma/gflownet).
-To use it follow the instructions to create the training venv.
+To use it follow its instructions to create the training venv.

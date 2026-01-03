@@ -235,6 +235,7 @@ def update_DAG(
         AND target IN ({placeholders})
         AND iteration BETWEEN ? AND ?
     """
+    params = build_ids + build_ids + [iteration[0], iteration[1]]
 
     if metric in ["highest", "lowest"]:
         query = f"""
@@ -262,45 +263,53 @@ def update_DAG(
                 AND e.iteration BETWEEN ? AND ?
             GROUP BY e.source, e.target
         """
+        params *= 2
 
     elif metric == "variance":
         query = f"""
-            WITH edge_groups AS (
-                SELECT
-                    source,
-                    target,
-                    MAX(iteration) AS max_iteration,
-                    AVG({column}) AS mean_value
-                FROM edges
-                WHERE {base_where}
-                GROUP BY source, target
-            ),
-            edge_ids AS (
-                SELECT
-                    source,
-                    target,
-                    GROUP_CONCAT(id, '-') AS id
-                FROM edges
-                WHERE
-                    e.source IN ({placeholders})
-                    AND e.target IN ({placeholders})
-                    AND e.iteration BETWEEN ? AND ?
-                GROUP BY source, target
-            )
-            SELECT
-                ei.id,
-                e.source,
-                e.target,
-                e.{column} - eg.mean_value AS metric
-            FROM edge_groups eg
-            JOIN edges e
-              ON e.source = eg.source
-             AND e.target = eg.target
-             AND e.iteration = eg.max_iteration
-            JOIN edge_ids ei
-              ON ei.source = eg.source
-             AND ei.target = eg.target
+        WITH edge_groups AS (
+            SELECT 
+                source,
+                target,
+                MAX(iteration) AS max_iteration,
+                AVG({column}) AS mean_metric
+            FROM edges
+            WHERE source IN ({placeholders})
+              AND target IN ({placeholders})
+              AND iteration BETWEEN ? AND ?
+            GROUP BY source, target
+        ),
+        edge_ids AS (
+            SELECT 
+                source,
+                target,
+                GROUP_CONCAT(id, '-') AS id
+            FROM edges
+            WHERE source IN ({placeholders})
+              AND target IN ({placeholders})
+              AND iteration BETWEEN ? AND ?
+            GROUP BY source, target
+        )
+        SELECT 
+            ei.id,
+            e.source,
+            e.target,
+            eg.max_iteration AS iteration,
+            e.{column} - eg.mean_metric AS metric
+        FROM edge_groups eg
+        JOIN edges e 
+          ON e.source = eg.source
+         AND e.target = eg.target
+         AND e.iteration = eg.max_iteration
+        JOIN edge_ids ei 
+          ON ei.source = eg.source
+         AND ei.target = eg.target
+        WHERE e.source IN ({placeholders})
+          AND e.target IN ({placeholders})
+          AND e.iteration BETWEEN ? AND ?
         """
+
+        params *= 3
 
     else:
         query = f"""
@@ -328,9 +337,7 @@ def update_DAG(
                 AND e.iteration BETWEEN ? AND ?
             GROUP BY e.source, e.target
         """
-
-    params = build_ids + build_ids + [iteration[0], iteration[1]]
-    params *= 2
+        params *= 2
 
     edges = pd.read_sql_query(query, conn, params=params)
     print(edges)
@@ -512,8 +519,9 @@ def update_DAG(
     # Add color styles for each edge
     for edge in edges:
         edge_id = edge['data']['id']
-        edge_val = edge['data'].get(metric, 0)
+        edge_val = edge['data'].get("metric", 0)
         color = get_color(edge_val, vmin, vmax, colorscale)
+        print(edge_id, edge_val)
 
         stylesheet.append({
             'selector': f'edge[id = "{edge_id}"]',

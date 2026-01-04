@@ -38,6 +38,7 @@ app.layout = html.Div([
     dcc.Store(id="data-dpt", data=data_dpt),
     dcc.Store(id="build-ids", data= ["#"]),
     dcc.Store(id="max-frequency", data= 0),
+    dcc.Store(id="dag-overview-tid-list", data= []),
 
     # ================= LEFT SIDEBAR (12%) =================
     html.Div([
@@ -549,6 +550,7 @@ def update_projection_param(method):
     else:
         return "perplexity", 5, 50, 1, {5: "5", 25: "25", 50: "50"}, 30
 
+Input("dag-overview", "selectedData"),
 
 # Main selection update
 @app.callback(
@@ -560,11 +562,13 @@ def update_projection_param(method):
     Input("trajectory-plot", "selectedData"),
     Input("bumpchart", "selectedData"),
     Input("dag-graph", "tapNodeData"),
+    Input("dag-overview", "selectedData"),
     State("selected-objects", "data"),
     State("build-ids", "data"),
+    State("dag-overview-tid-list", "data"),
     prevent_initial_call=True
 )
-def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, dag_node, current_ids, build_ids):
+def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, dag_node, selected_tids, current_ids, build_ids, tid_list):
 
     ctx = dash.callback_context
     if not ctx.triggered:
@@ -693,6 +697,31 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
             conn.close()
             return (selected_ids, None, []) if selected_ids else ([], None, [])
 
+    elif "dag-overview.selectedData" in trigger:
+        if not selected_tids or "range" not in selected_tids:
+            return no_update
+
+        x_range = np.round(selected_tids["range"]["x"]).astype(int)
+        t_ids = tid_list[x_range[0]:x_range[1] + 1]
+        t_ids = list({elem for sublist in t_ids for elem in sublist})
+        iterations = np.round(selected_tids["range"]["y"]).astype(int).tolist()
+
+        # get trajectory ids that are also in iteration range and then all node ids for these trajectory_ids
+        conn = sqlite3.connect("traindata1/traindata1_1.db")
+        placeholders = ",".join("?" for _ in t_ids)
+        query = f"""
+        SELECT DISTINCT trajectory_id
+        FROM edges
+        WHERE trajectory_id IN ({placeholders})
+            AND iteration BETWEEN ? AND ?
+        """
+        params = t_ids + [iterations[0], iterations[1]]
+        selected_ids = pd.read_sql_query(query, conn, params=params)
+        selected_ids = list(set(selected_ids["trajectory_id"].to_list())) + ["#"]
+        print(selected_ids)
+        return selected_ids, None, []
+
+
     return no_update
 
 
@@ -798,16 +827,17 @@ def update_projection_plots(selected_ids, data_s, data_t):
 )
 def update_dag(layout_name, direction, metric, iteration, selected_objects, build_ids, max_freq):
     if selected_objects:
+        print("selected objects update")
         # If final objects are selected via another vis, display the full dag of these
         conn = sqlite3.connect("traindata1/traindata1_1.db")
         placeholders = ",".join("?" for _ in selected_objects)
         query = f"""
-                            SELECT DISTINCT
-                                target
-                            FROM edges
-                            WHERE trajectory_id IN ({placeholders})
-                              AND iteration BETWEEN ? AND ?
-                        """
+                    SELECT DISTINCT
+                        target
+                    FROM edges
+                    WHERE trajectory_id IN ({placeholders})
+                      AND iteration BETWEEN ? AND ?
+                """
         build_ids = pd.read_sql_query(query, conn, params=selected_objects +  [iteration[0], iteration[1]])
         build_ids = list(build_ids['target']) + ['#']
         conn.close()
@@ -964,14 +994,16 @@ def display_image_tooltip3(hoverData):
 @app.callback(
     Output("dag-overview", "figure"),
     Output("max-frequency", "data"),
+    Output("dag-overview-tid-list", "data"),
     Input("dag-direction", "value"),
     Input("dag-metric", "value"),
+    Input("iteration", "value"),
 )
-def update_dag_overview(direction, metric):
-    fig, max_freq = update_DAG_overview(direction, metric)
+def update_dag_overview(direction, metric, iteration):
+    fig, max_freq, ids = update_DAG_overview(direction, metric, iteration)
     if max_freq:
-        return fig, max_freq
-    return fig, no_update
+        return fig, max_freq, ids
+    return fig, no_update, ids
 
 
 # Run the dashboard

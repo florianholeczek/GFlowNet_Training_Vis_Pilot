@@ -747,7 +747,7 @@ def update_bump(df, n_top, selected_ids, testset_bounds=None):
     return fig
 
 
-def update_DAG_overview(direction, metric):
+def update_DAG_overview(direction, metric, iteration):
     column = "logprobs_"+direction
     top_n = 150
 
@@ -759,13 +759,15 @@ def update_DAG_overview(direction, metric):
                 WITH edge_max AS (
                     SELECT source, target, MAX({column}) as max_val
                     FROM edges
+                    WHERE iteration BETWEEN ? AND ?
                     GROUP BY source, target
                     ORDER BY max_val DESC
-                    LIMIT 300
+                    LIMIT {top_n}
                 )
-                SELECT e.source, e.target, e.iteration, e.{column} as value, em.max_val as metric_val
+                SELECT e.source, e.target, e.iteration, e.{column} as value, em.max_val as metric_val, e.trajectory_id
                 FROM edges e
                 INNER JOIN edge_max em ON e.source = em.source AND e.target = em.target
+                WHERE e.iteration BETWEEN ? AND ?
                 ORDER BY em.max_val DESC, e.source, e.target, e.iteration
             """
     elif metric == "lowest":
@@ -773,13 +775,15 @@ def update_DAG_overview(direction, metric):
                 WITH edge_min AS (
                     SELECT source, target, MIN({column}) as min_val
                     FROM edges
+                    WHERE iteration BETWEEN ? AND ?
                     GROUP BY source, target
                     ORDER BY min_val ASC
                     LIMIT {top_n}
                 )
-                SELECT e.source, e.target, e.iteration, e.{column} as value, em.min_val as metric_val
+                SELECT e.source, e.target, e.iteration, e.{column} as value, em.min_val as metric_val, e.trajectory_id
                 FROM edges e
                 INNER JOIN edge_min em ON e.source = em.source AND e.target = em.target
+                WHERE e.iteration BETWEEN ? AND ?
                 ORDER BY em.min_val ASC, e.source, e.target, e.iteration
             """
     elif metric == "variance":
@@ -791,6 +795,7 @@ def update_DAG_overview(direction, metric):
                         AVG({column}) as mean_val,
                         COUNT(*) as cnt
                     FROM edges
+                    WHERE iteration BETWEEN ? AND ?
                     GROUP BY source, target
                     HAVING cnt > 1
                 ),
@@ -802,13 +807,15 @@ def update_DAG_overview(direction, metric):
                         SUM((e.{column} - es.mean_val) * (e.{column} - es.mean_val)) / es.cnt as variance
                     FROM edges e
                     INNER JOIN edge_stats es ON e.source = es.source AND e.target = es.target
+                    WHERE e.iteration BETWEEN ? AND ?
                     GROUP BY es.source, es.target, es.mean_val, es.cnt
                     ORDER BY variance DESC
                     LIMIT {top_n}
                 )
-                SELECT e.source, e.target, e.iteration, e.{column} as value, ev.mean_val, ev.variance as metric_val
+                SELECT e.source, e.target, e.iteration, e.{column} as value, ev.mean_val, ev.variance as metric_val, e.trajectory_id
                 FROM edges e
                 INNER JOIN edge_variance ev ON e.source = ev.source AND e.target = ev.target
+                WHERE e.iteration BETWEEN ? AND ?
                 ORDER BY ev.variance DESC, e.source, e.target, e.iteration
             """
     elif metric == "frequency":
@@ -816,18 +823,22 @@ def update_DAG_overview(direction, metric):
                 WITH edge_freq AS (
                     SELECT source, target, COUNT(*) as freq
                     FROM edges
+                    WHERE iteration BETWEEN ? AND ?
                     GROUP BY source, target
                     ORDER BY freq DESC
                     LIMIT {top_n}
                 )
-                SELECT e.source, e.target, e.iteration, e.{column} as value, ef.freq as metric_val
+                SELECT e.source, e.target, e.iteration, e.{column} as value, ef.freq as metric_val, e.trajectory_id
                 FROM edges e
                 INNER JOIN edge_freq ef ON e.source = ef.source AND e.target = ef.target
+                WHERE e.iteration BETWEEN ? AND ?
                 ORDER BY ef.freq DESC, e.source, e.target, e.iteration
             """
 
-    df = pd.read_sql_query(query, conn)
+    params = iteration*3 if metric=="variance" else iteration*2
+    df = pd.read_sql_query(query, conn, params=params)
     conn.close()
+
 
     if df.empty:
         return go.Figure().add_annotation(text="No data found", showarrow=False)
@@ -850,6 +861,9 @@ def update_DAG_overview(direction, metric):
     else:
         df['plot_value'] = df['value']
 
+    trajectory_id_list = df.groupby('edge_idx')['trajectory_id'].agg(list).tolist()
+    #print(df[['trajectory_id', "edge_idx"]])
+    #print(df.groupby('edge_idx')['trajectory_id'].agg(list).tolist())
     # Create pivot table for heatmap
     heatmap_data = df.pivot_table(
         index='iteration',
@@ -878,6 +892,7 @@ def update_DAG_overview(direction, metric):
         colorbar_title = "Value"
         title = f"Edge Heatmap - {metric.capitalize()} Value of {direction.capitalize()} Logprobabilities"
 
+    print(min(heatmap_data.index), max(heatmap_data.index))
     fig = go.Figure(data=go.Heatmap(
         z=heatmap_data.values,
         x=heatmap_data.columns,
@@ -895,6 +910,7 @@ def update_DAG_overview(direction, metric):
         autosize=True,
         template='plotly_dark',
         margin=dict(l=40, r=40, t=40, b=40),
+        dragmode="select",
         title=title,
         xaxis=dict(
             title=f"Edges (Top {top_n}, ordered by Metric)",
@@ -908,6 +924,6 @@ def update_DAG_overview(direction, metric):
     )
 
     if metric == "frequency":
-        return fig, zmax
-    return fig, None
+        return fig, zmax, trajectory_id_list
+    return fig, None, trajectory_id_list
 

@@ -892,7 +892,6 @@ def update_DAG_overview(direction, metric, iteration):
         colorbar_title = "Value"
         title = f"Edge Heatmap - {metric.capitalize()} Value of {direction.capitalize()} Logprobabilities"
 
-    print(min(heatmap_data.index), max(heatmap_data.index))
     fig = go.Figure(data=go.Heatmap(
         z=heatmap_data.values,
         x=heatmap_data.columns,
@@ -915,11 +914,19 @@ def update_DAG_overview(direction, metric, iteration):
         xaxis=dict(
             title=f"Edges (Top {top_n}, ordered by Metric)",
             showticklabels=False,
-            showgrid=False
+            showline=False,
+            zeroline=False,
+            showgrid=False,
+            showspikes=False,
         ),
         yaxis=dict(
             title="Iteration",
-            showgrid=False
+            showgrid=False,
+            showline=False,
+            zeroline=False,
+            ticks="outside",
+            showticklabels=True,
+            showspikes=False,
         ),
     )
 

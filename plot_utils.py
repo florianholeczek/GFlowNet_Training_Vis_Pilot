@@ -156,6 +156,7 @@ def update_DAG(
         direction="forward",
         metric="highest",
         max_freq = 0,
+        add_handlers = True,
         build_ids=[]
 ):
     """
@@ -290,25 +291,6 @@ def update_DAG(
         """
     nodes = pd.read_sql_query(query, conn, params=build_ids)
 
-    # get number of children
-    query = f"""
-                    SELECT
-                        source,
-                        COUNT(DISTINCT target) AS n_children
-                    FROM edges
-                    WHERE source IN ({placeholders})
-                      AND target NOT IN ({placeholders})
-                    GROUP BY source
-                """
-    counts = pd.read_sql_query(query, conn, params=build_ids + build_ids)
-    nodes = nodes.merge(
-        counts,
-        left_on='id',
-        right_on='source',
-        how='left'
-    )
-    nodes["n_children"] = nodes["n_children"].fillna(0)
-
     # create images as base64
     def encode_image(path):
         if not path:
@@ -316,20 +298,43 @@ def update_DAG(
         with open(path, "rb") as f:
             b64 = base64.b64encode(f.read()).decode()
         return f"data:image/png;base64,{b64}"
+
     nodes['image'] = nodes['image'].apply(encode_image)
 
-    #create handlers
-    handler_nodes = nodes[nodes['node_type']!="final"].copy().drop(["image", "reward"], axis=1)
-    handler_nodes["node_type"]="handler"
-    handler_nodes["id"]="handler_" + handler_nodes["id"]
-    handler_nodes["label"] = "Select children: " + handler_nodes["n_children"].astype(int).astype(str)
-    handler_nodes["metric"] = metric
-    handler_nodes["direction"] = direction
-    handler_edges = handler_nodes["id"].copy().to_frame().rename(columns={"id": "target"})
-    handler_edges["source"] = handler_edges["target"].str.removeprefix("handler_")
+    if add_handlers:
+        # get number of children
+        query = f"""
+                        SELECT
+                            source,
+                            COUNT(DISTINCT target) AS n_children
+                        FROM edges
+                        WHERE source IN ({placeholders})
+                          AND target NOT IN ({placeholders})
+                        GROUP BY source
+                    """
+        counts = pd.read_sql_query(query, conn, params=build_ids + build_ids)
+        nodes = nodes.merge(
+            counts,
+            left_on='id',
+            right_on='source',
+            how='left'
+        )
+        nodes["n_children"] = nodes["n_children"].fillna(0)
 
-    nodes = pd.concat([nodes, handler_nodes], ignore_index=True)
-    edges = pd.concat([edges, handler_edges], ignore_index=True)
+        #create handlers
+        handler_nodes = nodes[nodes['node_type']!="final"].copy().drop(["image", "reward"], axis=1)
+        handler_nodes["node_type"]="handler"
+        handler_nodes["id"]="handler_" + handler_nodes["id"]
+        handler_nodes["label"] = "Select children: " + handler_nodes["n_children"].astype(int).astype(str)
+        handler_nodes["metric"] = metric
+        handler_nodes["direction"] = direction
+        handler_edges = handler_nodes["id"].copy().to_frame().rename(columns={"id": "target"})
+        handler_edges["source"] = handler_edges["target"].str.removeprefix("handler_")
+
+        nodes = pd.concat([nodes, handler_nodes], ignore_index=True)
+        edges = pd.concat([edges, handler_edges], ignore_index=True)
+
+
     nodes["iteration0"]= iteration[0]
     nodes["iteration1"]= iteration[1]
     if direction == "backward":

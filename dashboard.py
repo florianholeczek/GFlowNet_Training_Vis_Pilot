@@ -826,6 +826,7 @@ def update_projection_plots(selected_ids, data_s, data_t):
     Input("max-frequency", "data")
 )
 def update_dag(layout_name, direction, metric, iteration, selected_objects, build_ids, max_freq):
+    add_handlers = True
     if selected_objects:
         print("selected objects update")
         # If final objects are selected via another vis, display the full dag of these
@@ -841,6 +842,7 @@ def update_dag(layout_name, direction, metric, iteration, selected_objects, buil
         build_ids = pd.read_sql_query(query, conn, params=selected_objects +  [iteration[0], iteration[1]])
         build_ids = list(build_ids['target']) + ['#']
         conn.close()
+        add_handlers = False
     elif not build_ids:
         build_ids = ["#"]
 
@@ -849,6 +851,7 @@ def update_dag(layout_name, direction, metric, iteration, selected_objects, buil
         direction,
         metric,
         max_freq,
+        add_handlers,
         build_ids=build_ids,
     )
 

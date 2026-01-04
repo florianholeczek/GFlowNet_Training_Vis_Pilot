@@ -359,7 +359,6 @@ app.layout = html.Div([
             html.Div([
                 # LEFT SIDE - DAG AREA
                 html.Div([
-                    # TOP 25% - EMPTY
                     html.Div([
                         dcc.Graph(
                             id="dag-overview",
@@ -368,12 +367,31 @@ app.layout = html.Div([
                             config={"responsive": True},
                         ),
                     ], style={
-                        "height": "25vh",
+                        "height": "24vh",
                         #"border": "1px solid #ddd",
                         "boxSizing": "border-box"
                     }),
 
-                    # BOTTOM 75% - DAG AND LEGEND
+                    html.Div("DAG-title", id="dag-title", style={
+                        "height": "20px",
+                        #"border": "1px solid #ddd",
+                        "boxSizing": "border-box",
+                        "padding-top": "3px",
+                        "font-size": "12px",
+                        "font-weight": "bold",
+                        "margin-top": "2px",
+                    }),
+                    html.Div("DAG-subtitle", id="dag-subtitle", style={
+                        "height": "24px",
+                        #"border": "1px solid #ddd",
+                        "boxSizing": "border-box",
+                        "padding-top": "3px",
+                        "font-size": "10px",
+                        "margin-bottom": "13px",
+                        "margin-top": "2px",
+                        "whiteSpace": "pre-line",
+                    }),
+
                     html.Div([
                         cyto.Cytoscape(
                             id='dag-graph',
@@ -383,22 +401,22 @@ app.layout = html.Div([
                                 'spacingFactor': 0.5,
                                 'animate': False
                             },
-                            style={'flex': '1', 'height': '73vh', 'width': '0px', 'background-color': '#222222'},
+                            style={'flex': '1', 'height': '100%', 'width': '0px', 'background-color': '#222222'},
                             elements=[],
                             stylesheet=[]
                         ),
                     ], style={
                         "display": "flex",
                         "flexDirection": "row",
-                        "height": "73vh",
+                        "flex": 1,
                         #"border": "1px solid #ddd",
-                        "padding": "5px",
                         "boxSizing": "border-box"
                     })
                 ], style={
                     "flex": 1,
                     "display": "flex",
-                    "flexDirection": "column"
+                    "flexDirection": "column",
+                    "height": "100vh"
                 }),
 
                 # RIGHT SIDE - DATA TABLE
@@ -816,7 +834,9 @@ def update_projection_plots(selected_ids, data_s, data_t):
 @app.callback(
     [Output("dag-graph", "elements"),
      Output("dag-graph", "stylesheet"),
-     Output("dag-graph", "layout")],
+     Output("dag-graph", "layout"),
+     Output("dag-title", "children"),
+     Output("dag-subtitle", "children")],
     Input("dag-layout", "value"),
     Input("dag-direction", "value"),
     Input("dag-metric", "value"),
@@ -871,7 +891,20 @@ def update_dag(layout_name, direction, metric, iteration, selected_objects, buil
     elif layout_name == 'breadthfirst':
         layout_config['spacingFactor'] = 1.2
         layout_config['roots'] = '[id = "START"]'
-    return result['elements'], result['stylesheet'], layout_config
+
+    if add_handlers:
+        title = "Directed Acyclic Graph, Mode: Expand"
+        subtitle = "Click on 'Select children' nodes to expand the Graph and click on the root to collapse it. Select a node or items from other visuals to switch to selection mode. Edge coloring: "
+    else:
+        title = "Directed Acyclic Graph, Mode: Selection"
+        subtitle = "Shows all trajectories going through the selected items. Clear selection or select the root to switch to expanding mode. Edge coloring: "
+    if metric in ["highest", "lowest"]:
+        subtitle += f"{metric.capitalize()} {direction} logprobabilities of the edge over selected iterations."
+    elif metric == "variance":
+        subtitle += f"Latest {direction} logprobability of the edge (in selected iterations) - mean ({direction} logprobabilities) over selected iterations."
+    elif metric == "frequency":
+        subtitle += "Frequency of the edge over selected iterations."
+    return result['elements'], result['stylesheet'], layout_config, title, subtitle
 
 # Callback for dag-table
 @app.callback(

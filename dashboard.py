@@ -39,6 +39,7 @@ app.layout = html.Div([
     dcc.Store(id="build-ids", data= ["#"]),
     dcc.Store(id="max-frequency", data= 0),
     dcc.Store(id="dag-overview-tid-list", data= []),
+    dcc.Store(id="dag-overview-edge-list", data= []),
 
     # ================= LEFT SIDEBAR (12%) =================
     html.Div([
@@ -366,6 +367,7 @@ app.layout = html.Div([
                             style={"height": "100%", "width": "100%"},
                             config={"responsive": True},
                         ),
+                        dcc.Tooltip(id="image-tooltip4", direction="left"),
                     ], style={
                         "height": "24vh",
                         #"border": "1px solid #ddd",
@@ -937,6 +939,7 @@ def save_selected_rows(selected_rows, table_data, build_ids):
 def display_image_tooltip1(hoverData):
     if hoverData is None:
         return False, None, None
+    print(hoverData)
 
     # Extract bounding box for positioning
     bbox = hoverData["points"][0]["bbox"]
@@ -1031,15 +1034,45 @@ def display_image_tooltip3(hoverData):
     Output("dag-overview", "figure"),
     Output("max-frequency", "data"),
     Output("dag-overview-tid-list", "data"),
+    Output("dag-overview-edge-list", "data"),
     Input("dag-direction", "value"),
     Input("dag-metric", "value"),
     Input("iteration", "value"),
 )
 def update_dag_overview(direction, metric, iteration):
-    fig, max_freq, ids = update_DAG_overview(direction, metric, iteration)
+    fig, max_freq, ids, edge_list = update_DAG_overview(direction, metric, iteration)
     if max_freq:
-        return fig, max_freq, ids
-    return fig, no_update, ids
+        return fig, max_freq, ids, edge_list
+    return fig, no_update, ids, edge_list
+
+@app.callback(
+    Output("image-tooltip4", "show"),
+    Output("image-tooltip4", "bbox"),
+    Output("image-tooltip4", "children"),
+    Input("dag-overview", "hoverData"),
+    State("dag-overview-edge-list", "data"),
+)
+def display_image_tooltip4(hoverData, edge_list):
+    if hoverData is None or hoverData["points"][0]["z"] is None:
+        return False, None, None
+    print(hoverData)
+
+    value = hoverData["points"][0]["z"]
+    bbox = hoverData["points"][0]["bbox"]
+    idx = hoverData["points"][0]["x"]
+    source, target = edge_list[idx]
+    print(source, target, value)
+
+    # Build HTML content
+    children = [
+        html.Div([
+            html.Div(f"Value: {value}"),
+            html.Div(f"Source: {source}"),
+            html.Div(f"Target: {target}"),
+        ])
+    ]
+
+    return True, bbox, children
 
 
 # Run the dashboard

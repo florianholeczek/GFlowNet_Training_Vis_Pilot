@@ -866,18 +866,21 @@ def update_DAG_overview(direction, metric, iteration):
     else:
         df['plot_value'] = df['value']
 
+
+
+    # create edge list and trajectory id list for hover and selection
     trajectory_id_list = df.groupby('edge_idx')['trajectory_id'].agg(list).tolist()
-    #print(df[['trajectory_id', "edge_idx"]])
-    #print(df.groupby('edge_idx')['trajectory_id'].agg(list).tolist())
+    edge_list = df[['source', "target", "edge_idx"]]
+    edge_list = edge_list.drop_duplicates().reset_index(drop=True)
+    edge_list = list(edge_list[['source', 'target']].itertuples(index=False, name=None))
+
     # Create pivot table for heatmap
     heatmap_data = df.pivot_table(
         index='iteration',
         columns='edge_idx',
         values='plot_value',
         aggfunc='first'
-    )
-
-    heatmap_data = heatmap_data.sort_index()
+    ).sort_index()
 
     if metric == "variance":
         color_scale = px.colors.diverging.BrBG
@@ -906,7 +909,8 @@ def update_DAG_overview(direction, metric, iteration):
         zmin=zmin,
         zmax=zmax,
         zmid=zmid,
-        hovertemplate='Edge: %{x}<br>Iteration: %{y}<br>Value: %{z:.4f}<extra></extra>',
+        #customdata=customdata,
+        #hovertemplate = "<<%{customdata}>><extra></extra>",
         colorbar=dict(title=dict(text=colorbar_title))
     ))
 
@@ -936,6 +940,6 @@ def update_DAG_overview(direction, metric, iteration):
     )
 
     if metric == "frequency":
-        return fig, zmax, trajectory_id_list
-    return fig, None, trajectory_id_list
+        return fig, zmax, trajectory_id_list, edge_list
+    return fig, None, trajectory_id_list, edge_list
 

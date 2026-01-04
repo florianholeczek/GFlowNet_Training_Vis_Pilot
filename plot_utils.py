@@ -890,7 +890,7 @@ def update_DAG_overview(direction, metric, iteration):
     elif metric == "frequency":
         color_scale = px.colors.sequential.Emrld
         zmin = 0
-        zmax = df['metric_val'].max()  # Maximum frequency in the data
+        zmax = df['metric_val'].max()
         zmid = None
         colorbar_title = "Frequency"
         title = f"Edge Heatmap - Highest frequency"
@@ -963,7 +963,7 @@ def edge_hover_fig(edge_data):
 
     fig.update_layout(
         height=200,
-        width=300,
+        width=250,
         margin=dict(l=20, r=20, t=20, b=20),
         showlegend=True,
         legend=dict(x=0.3, y=1.1, orientation="h", xanchor="center", yanchor="bottom"),

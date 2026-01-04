@@ -1094,7 +1094,7 @@ def display_image_tooltip4(hoverData, edge_list):
                         [html.Div("Source:"), make_img(source_img)],
                         style={
                             "marginTop": "5px",
-                            "marginRight": "20px",
+                            "marginRight": "50px",
                             "display": "flex",
                             "textAlign": "center",
                             "alignItems": "center",
@@ -1126,7 +1126,7 @@ def display_image_tooltip4(hoverData, edge_list):
             "backgroundColor": "white",
             "padding": "10px",
             "height": "auto",
-            "width": "310px",
+            "width": "260px",
         },
     )
 

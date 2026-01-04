@@ -893,7 +893,7 @@ def update_DAG_overview(direction, metric, iteration):
         zmax = df['metric_val'].max()  # Maximum frequency in the data
         zmid = None
         colorbar_title = "Frequency"
-        title = f"Edge Heatmap - Frequency"
+        title = f"Edge Heatmap - Highest frequency"
     else:  # highest or lowest
         color_scale = px.colors.sequential.Emrld
         zmin, zmax, zmid = -10, 0, None
@@ -938,8 +938,38 @@ def update_DAG_overview(direction, metric, iteration):
             showspikes=False,
         ),
     )
+    fig.update_traces(hoverinfo="none", hovertemplate=None)
 
     if metric == "frequency":
         return fig, zmax, trajectory_id_list, edge_list
     return fig, None, trajectory_id_list, edge_list
 
+def edge_hover_fig(edge_data):
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=edge_data["iteration"],
+        y=edge_data["logprobs_forward"],
+        mode="lines+markers",
+        name="forward"
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=edge_data["iteration"],
+        y=edge_data["logprobs_backward"],
+        mode="lines+markers",
+        name="backward"
+    ))
+
+    fig.update_layout(
+        height=200,
+        width=300,
+        margin=dict(l=20, r=20, t=20, b=20),
+        showlegend=True,
+        legend=dict(x=0.3, y=1.1, orientation="h", xanchor="center", yanchor="bottom"),
+        xaxis_title="Iteration",
+        yaxis_title="Logprobs",
+        template="plotly_white"
+    )
+
+    return fig

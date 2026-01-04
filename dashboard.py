@@ -367,7 +367,6 @@ app.layout = html.Div([
                             style={"height": "100%", "width": "100%"},
                             config={"responsive": True},
                         ),
-                        dcc.Tooltip(id="image-tooltip4", direction="left"),
                     ], style={
                         "height": "24vh",
                         #"border": "1px solid #ddd",
@@ -475,7 +474,12 @@ app.layout = html.Div([
         "width": "88%",
         "height": "100vh",
         "overflow": "hidden"
-    })
+    }),
+    dcc.Tooltip(
+        id="image-tooltip4",
+        direction="bottom",
+        style = {"zIndex": 999, "pointerEvents": "none", "overflow": "visible"}
+    ),
 
 ], style={
     "display": "flex",
@@ -1050,7 +1054,7 @@ def update_dag_overview(direction, metric, iteration):
     Output("image-tooltip4", "bbox"),
     Output("image-tooltip4", "children"),
     Input("dag-overview", "hoverData"),
-    State("dag-overview-edge-list", "data"),
+    State("dag-overview-edge-list", "data")
 )
 def display_image_tooltip4(hoverData, edge_list):
     if hoverData is None or hoverData["points"][0]["z"] is None:
@@ -1059,18 +1063,72 @@ def display_image_tooltip4(hoverData, edge_list):
 
     value = hoverData["points"][0]["z"]
     bbox = hoverData["points"][0]["bbox"]
+    #bbox["x0"] += 175
+    #bbox["x1"] += 175
     idx = hoverData["points"][0]["x"]
     source, target = edge_list[idx]
     print(source, target, value)
 
-    # Build HTML content
-    children = [
-        html.Div([
-            html.Div(f"Value: {value}"),
-            html.Div(f"Source: {source}"),
-            html.Div(f"Target: {target}"),
-        ])
-    ]
+    # get images
+    conn = sqlite3.connect("traindata1/traindata1_1.db")
+    query = f"SELECT image FROM nodes WHERE id=?"
+    source_img = pd.read_sql_query(query, conn, params=[source])["image"][0]
+    target_img = pd.read_sql_query(query, conn, params=[target])["image"][0]
+    print(source_img, target_img)
+    query = "SELECT DISTINCT iteration, logprobs_forward, logprobs_backward FROM edges WHERE source = ? AND target = ?"
+    edge_data = pd.read_sql_query(query, conn, params=[source, target])
+    print(edge_data)
+    conn.close()
+
+    def make_img(img_url):
+        if img_url is None:
+            return html.Div("root")
+        return html.Img(src=img_url.replace('traindata1', 'assets'), style={"height": "100px"})
+
+    children = html.Div(
+        [
+            html.Div(f"Value: {value}", style={"fontWeight": "bold"}),
+            html.Div(
+                [
+                    html.Div(
+                        [html.Div("Source:"), make_img(source_img)],
+                        style={
+                            "marginTop": "5px",
+                            "marginRight": "20px",
+                            "display": "flex",
+                            "textAlign": "center",
+                            "alignItems": "center",
+                            "flexDirection": "column",
+                            "minHeight": "80px",
+                            "justifyContent": "flex-start",
+                        }
+                    ),
+                    html.Div(
+                        [html.Div("Target:"), make_img(target_img)],
+                        style={"marginTop": "5px"}
+                    ),
+                ],
+                style={
+                    "display": "flex",
+                    "alignItems": "center",
+                    "marginTop": "5px",
+                    "alignItems": "flex-start",
+                },
+            ),
+            dcc.Graph(
+                figure=edge_hover_fig(edge_data),
+                config={"displayModeBar": False},
+                style={"marginTop": "10px"}
+            ),
+        ],
+        style={
+            "color": "black",
+            "backgroundColor": "white",
+            "padding": "10px",
+            "height": "auto",
+            "width": "310px",
+        },
+    )
 
     return True, bbox, children
 

@@ -742,7 +742,6 @@ def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, d
         params = t_ids + [iterations[0], iterations[1]]
         selected_ids = pd.read_sql_query(query, conn, params=params)
         selected_ids = list(set(selected_ids["trajectory_id"].to_list())) + ["#"]
-        print(selected_ids)
         return selected_ids, None, []
 
 
@@ -854,7 +853,6 @@ def update_projection_plots(selected_ids, data_s, data_t):
 def update_dag(layout_name, direction, metric, iteration, selected_objects, build_ids, max_freq):
     add_handlers = True
     if selected_objects:
-        print("selected objects update")
         # If final objects are selected via another vis, display the full dag of these
         conn = sqlite3.connect("traindata1/traindata1_1.db")
         placeholders = ",".join("?" for _ in selected_objects)
@@ -920,7 +918,6 @@ def update_dag(layout_name, direction, metric, iteration, selected_objects, buil
     State("build-ids", "data")
 )
 def save_selected_rows(selected_rows, table_data, build_ids):
-    print(selected_rows)
     if selected_rows:
         children = set([r["id"] for r in table_data])
         unselected = children - set(selected_rows)
@@ -933,6 +930,22 @@ def save_selected_rows(selected_rows, table_data, build_ids):
     else:
         return ["#"]
 
+#dag overview
+@app.callback(
+    Output("dag-overview", "figure"),
+    Output("max-frequency", "data"),
+    Output("dag-overview-tid-list", "data"),
+    Output("dag-overview-edge-list", "data"),
+    Input("dag-direction", "value"),
+    Input("dag-metric", "value"),
+    Input("iteration", "value"),
+)
+def update_dag_overview(direction, metric, iteration):
+    fig, max_freq, ids, edge_list = update_DAG_overview(direction, metric, iteration)
+    if max_freq:
+        return fig, max_freq, ids, edge_list
+    return fig, no_update, ids, edge_list
+
 #hover state space
 @app.callback(
     Output("image-tooltip1", "show"),
@@ -943,7 +956,6 @@ def save_selected_rows(selected_rows, table_data, build_ids):
 def display_image_tooltip1(hoverData):
     if hoverData is None:
         return False, None, None
-    print(hoverData)
 
     # Extract bounding box for positioning
     bbox = hoverData["points"][0]["bbox"]
@@ -1032,23 +1044,6 @@ def display_image_tooltip3(hoverData):
 
     return True, bbox, children
 
-
-#dag overview
-@app.callback(
-    Output("dag-overview", "figure"),
-    Output("max-frequency", "data"),
-    Output("dag-overview-tid-list", "data"),
-    Output("dag-overview-edge-list", "data"),
-    Input("dag-direction", "value"),
-    Input("dag-metric", "value"),
-    Input("iteration", "value"),
-)
-def update_dag_overview(direction, metric, iteration):
-    fig, max_freq, ids, edge_list = update_DAG_overview(direction, metric, iteration)
-    if max_freq:
-        return fig, max_freq, ids, edge_list
-    return fig, no_update, ids, edge_list
-
 @app.callback(
     Output("image-tooltip4", "show"),
     Output("image-tooltip4", "bbox"),
@@ -1059,7 +1054,6 @@ def update_dag_overview(direction, metric, iteration):
 def display_image_tooltip4(hoverData, edge_list):
     if hoverData is None or hoverData["points"][0]["z"] is None:
         return False, None, None
-    print(hoverData)
 
     value = hoverData["points"][0]["z"]
     bbox = hoverData["points"][0]["bbox"]
@@ -1067,17 +1061,14 @@ def display_image_tooltip4(hoverData, edge_list):
     #bbox["x1"] += 175
     idx = hoverData["points"][0]["x"]
     source, target = edge_list[idx]
-    print(source, target, value)
 
     # get images
     conn = sqlite3.connect("traindata1/traindata1_1.db")
     query = f"SELECT image FROM nodes WHERE id=?"
     source_img = pd.read_sql_query(query, conn, params=[source])["image"][0]
     target_img = pd.read_sql_query(query, conn, params=[target])["image"][0]
-    print(source_img, target_img)
     query = "SELECT DISTINCT iteration, logprobs_forward, logprobs_backward FROM edges WHERE source = ? AND target = ?"
     edge_data = pd.read_sql_query(query, conn, params=[source, target])
-    print(edge_data)
     conn.close()
 
     def make_img(img_url):

@@ -25,7 +25,7 @@ Scalability:
 class VisLogger:
     def __init__(
             self,
-            path: str ="./",
+            path: str | None = None,
             s0_included: bool = True,
             fn_state_to_text: Callable | None = None,
             fn_state_to_image: Callable | None = None,
@@ -90,12 +90,11 @@ class VisLogger:
             'text',
             'iteration',
             'total_reward',
+            'loss',
             *(metrics if metrics is not None else []),
-            'loss'
             'logprobs_forward',
             'logprobs_backward',
-            'image',
-            'features_valid'
+            'features_valid_provided',
             *(features if features is not None else [])
         ]
         self.df = pd.DataFrame(columns=self.cols)
@@ -104,14 +103,16 @@ class VisLogger:
         self. current = {
             "batch_idx": None,
             "states": None,
-            "rewards": None,
-            "losses": None,
+            "total_reward": None,
+            "loss": None,
             "iteration": None,
             "logprobs_forward": None,
             "logprobs_backward": None,
         }
         self.current.update({name: None for name in metrics or []})
         self.current.update({name: None for name in features or []})
+        if self.features:
+            self.current.update({"features_valid_provided": None})
 
         # Checks and Warnings
         assert self.fn_state_to_text is not None, "No fn_state_to_text provided. This is neccessary to distinguish states."
@@ -126,12 +127,13 @@ class VisLogger:
             self,
             batch_idx: np.ndarray | torch.Tensor | None,
             states: np.ndarray | torch.Tensor | list | None,
-            total_rewards: np.ndarray | torch.Tensor | None,
-            losses: np.ndarray | torch.Tensor | None,
+            total_reward: np.ndarray | torch.Tensor | None,
+            loss: np.ndarray | torch.Tensor | None,
             iteration: int | None,
             logprobs_forward: np.ndarray | torch.Tensor | None,
             logprobs_backward: np.ndarray | torch.Tensor | None,
             metrics: np.ndarray | torch.Tensor | list[list[float]] | None = None,
+            features_valid_provided: np.ndarray | torch.Tensor | list[bool] = None,
             features: np.ndarray | torch.Tensor | list[list[float]] | None = None,
     ):
         """
@@ -143,9 +145,9 @@ class VisLogger:
             In the example above the final objects would be at index 3 for the first Trajectory and
             index 5 for the second.
             Expected size: (sum(trajectory_lengths), ).
-        :param total_rewards: array or tensor of total rewards.
+        :param total_reward: array or tensor of total rewards.
             Expected size: (batchsize, ).
-        :param losses: array or tensor of losses.
+        :param loss: array or tensor of losses.
             Expected size: (batchsize, ).
         :param iteration: current iteration
         :param states: array or tensor of states (full trajectories).
@@ -165,6 +167,8 @@ class VisLogger:
             Total reward and loss are logged seperately.
             A torch Tensor or np array of shape (len(metrics), batchsize,) or
             a nested list of the same shape.
+        :param features_valid_provided: boolean array of shape(sum(trajectory_lengths), ).
+            Flags if the provided features are valid. Otherwise they are ignored.
         :param features: Optional. Additionally logged features based on the initialized features.
             A torch Tensor or np array of shape (len(features), sum(trajectory_lengths)) or
             a nested list of the same shape.
@@ -185,10 +189,10 @@ class VisLogger:
                 self.current["states"] = states.detach().cpu()
             else:
                 self.current["states"] = to_np(states, np.float16)
-        if total_rewards is not None:
-            self.current["rewards"] = to_np(total_rewards, np.float16)
-        if losses is not None:
-            self.current["losses"] = to_np(losses, np.float16)
+        if total_reward is not None:
+            self.current["rewards"] = to_np(total_reward, np.float16)
+        if loss is not None:
+            self.current["loss"] = to_np(loss, np.float16)
         if iteration is not None:
             self.current["iteration"] = int(iteration)
         if logprobs_forward is not None:
@@ -196,11 +200,13 @@ class VisLogger:
         if logprobs_backward is not None:
             self.current["logprobs_backward"] = to_np(logprobs_backward, np.float16)
         if metrics is not None:
-            for i,r in enumerate(self.rewards):
+            for i,r in enumerate(self.metrics):
                 self.current[r] = metrics[i]
+        if features_valid_provided is not None:
+            self.current["features_valid_provided"] = to_np(features_valid_provided, np.bool_)
         if features is not None:
             for i,r in enumerate(self.features):
-                self.current[r] = features[i]
+                self.current[r] = features[:, i]
 
     def __check_data__(self):
         """
@@ -244,9 +250,9 @@ class VisLogger:
         data["logprobs_forward"] = self.current["logprobs_forward"]
         data["logprobs_backward"] = self.current["logprobs_backward"]
 
-        #expand arrays of length batchsize to db size (rewards, losses, provided additional metrics)
+        # expand arrays of length batchsize to db size (total_reward, loss, provided additional metrics)
         nan_prefill = np.full(len(self.current["batch_idx"]), np.nan)
-        metric_list = ["rewards", "losses"]
+        metric_list = ["total_reward", "loss"]
         if self.metrics is not None:
             metric_list += [i for i in self.metrics]
         for m in metric_list:
@@ -255,21 +261,23 @@ class VisLogger:
             data[m] = ar
 
         # rename
-        data.rename(columns={"rewards": "total_reward", "losses": "loss"}, inplace=True)
+        #data.rename(columns={"total_reward": "total_reward", "loss": "loss"}, inplace=True)
 
         # add provided features
         if self.features is not None:
+            data["features_valid_provided"] = self.current["features_valid_provided"]
             for i in self.features:
+                print(i)
                 data[i] = self.current[i]
+
+        # compute texts
+        data["text"] = self.fn_state_to_text(self.current["states"])
 
         # delete s0 or update step to start with 1
         if self.s0_included:
             data = data[data["step"]!=0]
         else:
             data["step"] += 1
-
-        # compute texts
-        data["text"] = self.fn_state_to_text(self.current["states"])
 
         # collapse consecutive identical texts of each trajectory (take last row and sum logprobs)
         data = data.sort_values(["final_id", "text", "step"])
@@ -292,17 +300,23 @@ class VisLogger:
             "total_reward",
             "loss"
             "logprobs_forward",
-            "logprobs_backward"
+            "logprobs_backward",
+            "features_valid_provided"
         ]]
+        print(data)
 
         #compute features
         if self.fn_compute_features is not None:
             features, features_valid = self.fn_compute_features(self.current["states"])
-            data["features_valid"] = features_valid
+            data["features_valid_computed"] = features_valid
             feature_cols = [f"computed_features_{i}" for i in range(features.shape[1])]
             features_df = pd.DataFrame(features, columns=feature_cols, index=data.index)
             data = pd.concat([data, features_df], axis=1)
 
+        # combine features_valid
+        data["features_valid_provided"] = data["features_valid_provided"] & data["features_valid_computed"]
+        data.rename({"features_valid_provided": "features_valid"})
+        data.drop("features_valid_computed", axis=1, inplace=True)
 
 
         # shift final ids and save to db
@@ -333,7 +347,7 @@ class VisLogger:
         self.current = {
             "batch_idx": None,
             "states": None,
-            "rewards": None,
+            "total_reward": None,
             "iteration": None,
             "logprobs_forward": None,
             "logprobs_backward": None,
@@ -343,43 +357,97 @@ class VisLogger:
 
 
 
-"""
-#testing
-def imagefn(inp):
-    return ["image"]*len(inp)
+# create debug data
+# Minimal working example: States are int<9
+def get_action(s):
+    p=np.random.rand()
+    if s==0:
+        if p>0.5:
+            return 1, False
+        else:
+            return 2, False
+    elif s==1:
+        return 3, False
+    elif s==2:
+        if p<0.1:
+            return 3, False
+        elif p<0.3:
+            return 4, False
+        else:
+            return 5, False
+    elif s==3:
+        return 8, True
+    elif s==4:
+        if p>0.3:
+            return 5, False
+        else:
+            return 6, True
+    elif s==5:
+        return 7, True
 
-def textfn(inp):
-    return ["text"]*len(inp)
+def get_trajectory():
+    b=False
+    t=[0]
+    while not b:
+        s, b = get_action(t[-1])
+        t.append(s)
+    return t
 
-def featurefn(inp):
-    return np.ones((len(inp),4))
+def get_trajectories(n):
+    batch_ids=[]
+    trajectories=[]
+    rewards=[]
+    losses=[]
+    losses2=[]
+    for count in range(n):
+        t=get_trajectory()
+        batch_ids +=[count]*len(t)
+        trajectories += t
+        rewards.append(t[-1])
+        losses.append(np.random.rand())
+        losses2.append(np.random.rand())
+
+    return np.array(batch_ids),np.array(trajectories),np.array(rewards),np.array(losses),losses2
+
+def to_t(ss):
+    return [str(int(s)) for s in ss]
+
+def to_f(ss):
+    return np.random.uniform(1, 2, (len(ss),3)), np.array([True]*len(ss))
+
+import base64
+
+def to_i(ss):
+    out = []
+    for s in ss:
+        dots = [(i%3, i//3) for i in range(s)]
+        svg = '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60">' + \
+              ''.join(f'<circle cx="{10+x*20}" cy="{10+y*20}" r="5" fill="black"/>' for x,y in dots) + \
+              '</svg>'
+        out.append(base64.b64encode(svg.encode()).decode())
+    return out
+
 
 logger = VisLogger(
-    path="./",
-    top_n=4,
-    rewards=["r1", "r2", "r3"],
+    #path="./debugdata",
+    s0_included=True,
+    fn_state_to_text=to_t,
+    fn_compute_features=to_f,
+    fn_state_to_image=to_i,
+    metrics=["loss2"],
     features=["f1", "f2", "f3"],
-    fn_state_to_image=imagefn,
-    fn_compute_features=featurefn,
-    fn_state_to_text=textfn,
 )
 
 for i in range(10):
-    print("newround")
+    b, t, r, l, l2 = get_trajectories(10)
+    d_length = len(b)
+    lpf = np.random.uniform(-10, 0, (d_length,))
+    lpb = np.random.uniform(-10, 0, (d_length,))
+    features = np.random.uniform(0, 1, (d_length, 5))
+    f_valid = np.array([True] * d_length)
 
-    logger.log(
-        batch_idx=np.array([0,0,0,1,2,3,4,5,6,6,6,6,7]),
-        total_rewards=np.arange(8)*(i+1),
-        states=np.random.random(13),
-        iteration=i,
-        logprobs_forward=np.arange(13) * i,
-        logprobs_backward=np.arange(13) * i,
-        rewards = np.zeros((3,13)),
-        features=np.zeros((3, 13))
-    )
+    logger.log(b, t, r, l, i, lpf, lpb, metrics= [l2], features_valid_provided= f_valid, features= features)
     print(logger.current)
-    logger.finish_iteration()
-    print(logger.top)
-logger.write_to_db()
+    logger.write_to_db()
 
-"""
+print("Done training")

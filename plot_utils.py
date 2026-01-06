@@ -299,7 +299,7 @@ def update_DAG(
             b64 = base64.b64encode(f.read()).decode()
         return f"data:image/png;base64,{b64}"
 
-    nodes['image'] = nodes['image'].apply(encode_image)
+    nodes['image'] = nodes['id'].apply(imagefn_from_smiles)
 
     if add_handlers:
         # get number of children
@@ -973,3 +973,51 @@ def edge_hover_fig(edge_data):
     )
 
     return fig
+
+
+
+
+
+# plotting function for molecules.
+# keep here for now, when reworking data loading and starting the app pass it when running the app
+# make plot utils class and define image_fn on init
+from rdkit import Chem
+from rdkit.Chem import Draw
+import base64
+
+
+def imagefn_from_smiles(smiles):
+    if smiles == "#" or smiles is None:
+        return None
+
+    try:
+        mol = Chem.MolFromSmiles(smiles)
+        if mol is not None:
+            return mol
+    except Exception:
+        pass
+    try:
+        mol = Chem.MolFromSmiles(smiles, sanitize=False)
+        if mol is not None:
+            return mol
+    except Exception:
+        pass
+    try:
+        mol = Chem.MolFromSmarts(smiles)
+        if mol is not None:
+            return mol
+    except Exception:
+        pass
+
+    if mol is None:
+       return None
+
+    svg = Draw.MolsToGridImage(
+        [mol],
+        molsPerRow=1,
+        subImgSize=(200, 200),
+        useSVG=True
+    )
+    b64 = base64.b64encode(svg.encode("latin-1")).decode("ascii")
+
+    return f"data:image/svg+xml;base64,{b64}"

@@ -1,7 +1,7 @@
 # Testing Visualizations for GFlowNet Training
 
-The goal of this project is to develop visualizations to help developers of Generative Flow Networks in understanding and improving GFlowNet training.
-Comparing logged samples to a testset representative of the state space helps assess the qulity of the trained model and areas to improve upon.
+The goal of this project is to develop visualizations to help developers of Generative Flow Networks in understanding and improving training.
+Comparing logged samples to a testset representative of the state space helps assess the quality of the trained model and find areas to improve upon.
 The dataset used for testing is created using the SEHTask, which rewards molecules with a high binding affinity to the sEH protein.
 
 
@@ -38,7 +38,8 @@ Might get removed, as downprojecting all states is very costly and grows exponen
 Focus on the state space of the final objects might be better.
 
 ### DAG
-<img width="5082" height="2938" alt="DAG" src="https://github.com/user-attachments/assets/e125a1ba-ee8b-492e-b5db-927444df453b" />
+<img width="3590" height="2420" alt="grafik" src="https://github.com/user-attachments/assets/4251f277-0ff1-413b-ba71-5194687d4bd8" />
+
 This shows the Directed Acyclic Graph of the sampled objects. To reduce the size:
 
 1. Linear chains (one parent one chains) have been truncated and their logprobabilities added up
@@ -49,7 +50,7 @@ This shows the Directed Acyclic Graph of the sampled objects. To reduce the size
 
 4. Alternatively final objects can be selected in other visualizations and their trajectories will be expanded (until deselection)
 
-The edge color shows the forward/backward logprobabilities of the last iteration it occured or the change in the forward/backward logprobabilities (last iteration - Mean(all iterations)).
+The overview on top shows the edges of the DAG with different metrics: highest/lowest logprobabilities, variance in logprobabilities or frequency. The edge coloring in the DAG fits the choosen metric.
 This helps answering the following questions:
 
 - How did the transition probabilities change during training?
@@ -91,6 +92,7 @@ pip install -r requirements_db.txt
 
 The repo contains only the first 1000 of 2500 images, so some objects might appear empty.
 To solve this unpack the image.zip in the traindata1 folder into the folder images.
+Image generation will be moved from files to on the fly generation.
 
 
 Start the dashboard with:

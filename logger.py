@@ -174,7 +174,6 @@ class VisLogger:
             a nested list of the same shape.
         :return: None
         """
-
         def to_np(x, dtype):
             if isinstance(x, torch.Tensor):
                 x = x.detach().cpu().numpy()
@@ -190,7 +189,7 @@ class VisLogger:
             else:
                 self.current["states"] = to_np(states, np.float16)
         if total_reward is not None:
-            self.current["rewards"] = to_np(total_reward, np.float16)
+            self.current["total_reward"] = to_np(total_reward, np.float16)
         if loss is not None:
             self.current["loss"] = to_np(loss, np.float16)
         if iteration is not None:
@@ -267,11 +266,13 @@ class VisLogger:
         if self.features is not None:
             data["features_valid_provided"] = self.current["features_valid_provided"]
             for i in self.features:
-                print(i)
                 data[i] = self.current[i]
 
         # compute texts
         data["text"] = self.fn_state_to_text(self.current["states"])
+
+        # add states temporarily to allow feature computation only for neccessary ones
+        data["states"] = self.current["states"]
 
         # delete s0 or update step to start with 1
         if self.s0_included:
@@ -291,23 +292,11 @@ class VisLogger:
             .drop(columns=["logprobs_forward", "logprobs_backward"])
         )
         data = last_rows.merge(logprob_sums, on=["final_id", "text"], how="left")
-        data = data[[
-            "final_id",
-            "text",
-            "step",
-            "final_object",
-            "iteration",
-            "total_reward",
-            "loss"
-            "logprobs_forward",
-            "logprobs_backward",
-            "features_valid_provided"
-        ]]
-        print(data)
 
         #compute features
+        feature_cols = None
         if self.fn_compute_features is not None:
-            features, features_valid = self.fn_compute_features(self.current["states"])
+            features, features_valid = self.fn_compute_features(list(data["states"]))
             data["features_valid_computed"] = features_valid
             feature_cols = [f"computed_features_{i}" for i in range(features.shape[1])]
             features_df = pd.DataFrame(features, columns=feature_cols, index=data.index)
@@ -315,15 +304,35 @@ class VisLogger:
 
         # combine features_valid
         data["features_valid_provided"] = data["features_valid_provided"] & data["features_valid_computed"]
-        data.rename({"features_valid_provided": "features_valid"})
-        data.drop("features_valid_computed", axis=1, inplace=True)
+        data.rename(columns={"features_valid_provided": "features_valid"}, inplace=True)
+        column_list = [
+            "final_id",
+            "text",
+            "step",
+            "final_object",
+            "iteration",
+            "total_reward",
+            "loss",
+            *(self.metrics if self.metrics is not None else []),
+            "logprobs_forward",
+            "logprobs_backward",
+            "features_valid",
+            *(self.features if self.features is not None else []),
+            *(feature_cols if feature_cols is not None else []),
+        ]
+        data = data[column_list]
+        #data.drop(columns=["features_valid_computed", "states"], inplace=True)
 
-
-        # shift final ids and save to db
+        # create db if not existing, shift final ids and save to db
         conn = sqlite3.connect(self.db)
-        query = "SELECT COALESCE(MAX(final_id), 0) AS max FROM trajectories"
-        offset = pd.read_sql_query(query, conn)["max"][0]
-        data["final_id"] = data["final_id"] + offset + 1
+        cur = conn.cursor()
+        query = "SELECT name FROM sqlite_master WHERE type='table' AND name='trajectories'"
+        cur.execute(query)
+        table_exists = cur.fetchone() is not None
+        if table_exists:
+            query = "SELECT COALESCE(MAX(final_id), 0) AS max FROM trajectories"
+            offset = pd.read_sql_query(query, conn)["max"][0]
+            data["final_id"] = data["final_id"] + offset + 1
         data.to_sql(
             "trajectories",
             conn,
@@ -331,8 +340,8 @@ class VisLogger:
             index=False
         )
 
+
         # indexing
-        cur = conn.cursor()
         cur.execute("CREATE INDEX idx_points_finalid ON trajectories(final_id)")
         cur.execute("CREATE INDEX idx_points_text ON trajectories(text)")
         cur.execute("CREATE INDEX idx_points_iteration ON trajectories(iteration)")
@@ -447,7 +456,6 @@ for i in range(10):
     f_valid = np.array([True] * d_length)
 
     logger.log(b, t, r, l, i, lpf, lpb, metrics= [l2], features_valid_provided= f_valid, features= features)
-    print(logger.current)
     logger.write_to_db()
 
 print("Done training")

@@ -1,5 +1,3 @@
-import sqlite3
-
 
 def create_tables(conn):
     """Create both nodes and edges tables in the same database"""
@@ -7,9 +5,7 @@ def create_tables(conn):
         CREATE TABLE IF NOT EXISTS nodes (
             id TEXT PRIMARY KEY,
             node_type TEXT,
-            image TEXT,
-            reward REAL,
-            loss REAL
+            reward REAL
         )
     """)
 
@@ -29,8 +25,8 @@ def create_tables(conn):
 
 def insert_root_node(conn):
     conn.execute("""
-        INSERT OR IGNORE INTO nodes (id, node_type, image, reward, loss)
-        VALUES ('#', 'start', NULL, NULL, NULL)
+        INSERT OR IGNORE INTO nodes (id, node_type, reward)
+        VALUES ('#', 'start', NULL)
     """)
     conn.commit()
 
@@ -226,10 +222,8 @@ def create_graph_dbs(conn):
             text,
             iteration,
             total_reward,
-            loss,
             logprobs_forward,
-            logprobs_backward,
-            image
+            logprobs_backward
         FROM trajectories
         ORDER BY final_id, step
     """)
@@ -245,10 +239,8 @@ def create_graph_dbs(conn):
             text,
             iteration,
             total_reward,
-            loss_read,
             logpf,
             logpb,
-            image
         ) = row
 
         # --- new trajectory starts ---
@@ -260,21 +252,20 @@ def create_graph_dbs(conn):
         if text not in seen_nodes:
             node_type = "final" if final_object == 1 else "standard"
             reward = total_reward if final_object == 1 else None
-            loss = loss_read if final_object == 1 else None
 
             write_cur.execute("""
-                INSERT INTO nodes (id, node_type, image, reward, loss)
-                VALUES (?, ?, ?, ?)
-            """, (text, node_type, image, reward, loss))
+                INSERT INTO nodes (id, node_type, reward)
+                VALUES (?, ?, ?)
+            """, (text, node_type, reward))
 
             seen_nodes.add(text)
         elif final_object == 1:
             # Node exists but this is a final occurrence - update it
             write_cur.execute("""
                 UPDATE nodes 
-                SET node_type = 'final', reward = ?, loss = ?
+                SET node_type = 'final', reward = ?
                 WHERE id = ?
-            """, (total_reward, loss, text))
+            """, (total_reward, text))
 
         # --- create edge ---
         edge_id = f"{trajectory_id}_{step}"

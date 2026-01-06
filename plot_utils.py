@@ -299,7 +299,7 @@ def update_DAG(
             b64 = base64.b64encode(f.read()).decode()
         return f"data:image/png;base64,{b64}"
 
-    nodes['image'] = nodes['id'].apply(imagefn_from_smiles)
+    nodes['image'] = nodes['image'].apply(encode_image)
 
     if add_handlers:
         # get number of children

@@ -254,7 +254,7 @@ def create_graph_dbs(conn):
             reward = total_reward if final_object == 1 else None
 
             write_cur.execute("""
-                INSERT INTO nodes (id, node_type, reward)
+                INSERT OR IGNORE INTO nodes (id, node_type, reward)
                 VALUES (?, ?, ?)
             """, (text, node_type, reward))
 

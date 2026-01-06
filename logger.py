@@ -342,11 +342,12 @@ class VisLogger:
 
 
         # indexing
-        cur.execute("CREATE INDEX idx_points_finalid ON trajectories(final_id)")
-        cur.execute("CREATE INDEX idx_points_text ON trajectories(text)")
-        cur.execute("CREATE INDEX idx_points_iteration ON trajectories(iteration)")
-        cur.execute("CREATE INDEX idx_points_reward ON trajectories(total_reward)")
-        cur.execute("CREATE INDEX idx_points_loss ON trajectories(loss)")
+        if not table_exists:
+            cur.execute("CREATE INDEX idx_points_finalid ON trajectories(final_id)")
+            cur.execute("CREATE INDEX idx_points_text ON trajectories(text)")
+            cur.execute("CREATE INDEX idx_points_iteration ON trajectories(iteration)")
+            cur.execute("CREATE INDEX idx_points_reward ON trajectories(total_reward)")
+            cur.execute("CREATE INDEX idx_points_loss ON trajectories(loss)")
 
         # compute graphs and save nodes and edges db
         create_graph_dbs(conn)
@@ -422,7 +423,7 @@ def to_t(ss):
     return [str(int(s)) for s in ss]
 
 def to_f(ss):
-    return np.random.uniform(1, 2, (len(ss),3)), np.array([True]*len(ss))
+    return np.random.uniform(1, 2, (len(ss),5)), np.array([True]*len(ss))
 
 import base64
 
@@ -438,7 +439,7 @@ def to_i(ss):
 
 
 logger = VisLogger(
-    #path="./debugdata",
+    path="./debugdata",
     s0_included=True,
     fn_state_to_text=to_t,
     fn_compute_features=to_f,
@@ -452,7 +453,7 @@ for i in range(10):
     d_length = len(b)
     lpf = np.random.uniform(-10, 0, (d_length,))
     lpb = np.random.uniform(-10, 0, (d_length,))
-    features = np.random.uniform(0, 1, (d_length, 5))
+    features = np.random.uniform(0, 1, (d_length, 3))
     f_valid = np.array([True] * d_length)
 
     logger.log(b, t, r, l, i, lpf, lpb, metrics= [l2], features_valid_provided= f_valid, features= features)

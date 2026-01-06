@@ -1,14 +1,13 @@
+import sqlite3
 import warnings
-
 import pandas as pd
 from typing import Callable
 from datetime import datetime
 import os
 import torch
 import numpy as np
+from graphdbs_from_db import create_graph_dbs
 
-#TODO: rewrite: Save as SQLite, add loss, from max reward to on policy stuff
-#TODO: clean before writing to db: same consecutive texts should be merged. before image/feature calculation
 """
 Use the provided logger to log n on-policy samples every m iterations.
 The logger saves the data in a SQLite database to be queried by the dashboard.
@@ -22,9 +21,6 @@ Scalability:
     Keeping this below 1e6 should work fine.
     Rule of thumb: 1000 samples at 20 timepoints during training should work fine for trajectories below length 50.
 """
-
-
-
 
 class VisLogger:
     def __init__(
@@ -43,9 +39,9 @@ class VisLogger:
         :param s0_included: if True, the trajectories are expected to have the start state included.
             The start states will then be removed before writing to the database.
              s0 will be specified as '#' in the visualizations
-        :param fn_state_to_text: Optional.
+        :param fn_state_to_text:
             Function to convert a batch of states to a list of readable strings to identify a single state.
-            Neccessary to distinguish states.
+            Neccessary, used to distinguish states.
             Consecutive states with the same text will be merged (logprobs will be added).
             s0 will be specified as '#' in the visualizations, make sure no state has the same identifier.
         :param fn_state_to_image: Optional.
@@ -79,6 +75,8 @@ class VisLogger:
         os.makedirs(self.path)
 
         self.db = f"{self.path}/data.db"
+        conn = sqlite3.connect(self.db)
+        conn.close()
         self.metrics = metrics
         self.features = features
         self. s0_included = s0_included
@@ -115,17 +113,12 @@ class VisLogger:
         self.current.update({name: None for name in metrics or []})
         self.current.update({name: None for name in features or []})
 
-        # Warnings
-        if not self.fn_state_to_text:
-            warnings.warn("""
-            States will not be distinguishable by text id. 
-            DAG visualizations will not be meaningful. 
-            Provide a state_to_text function when defining the logger to prevent that.
-            """)
+        # Checks and Warnings
+        assert self.fn_state_to_text is not None, "No fn_state_to_text provided. This is neccessary to distinguish states."
         if not self.fn_state_to_image:
             warnings.warn("""
             States will not be distinguishable by image. 
-            Most visualizations will not allow for identifying a state . 
+            Most visualizations will not allow for identifying a state. 
             Provide a state_to_image function when defining the logger to prevent that.
             """)
 
@@ -275,18 +268,34 @@ class VisLogger:
         else:
             data["step"] += 1
 
-        # compute texts, images and features for states using given functions
-        if self.fn_state_to_text is not None:
-            data["text"] = self.fn_state_to_text(self.current["states"])
-        else:
-            data["text"] = "No text representation provided"
+        # compute texts
+        data["text"] = self.fn_state_to_text(self.current["states"])
 
-        if self.fn_state_to_image is not None:
-            data["image"] = self.fn_state_to_image(self.current["states"])
-        else:
-            data["image"] = None
-        #TODO image saving (Track number of rows of db?)
+        # collapse consecutive identical texts of each trajectory (take last row and sum logprobs)
+        data = data.sort_values(["final_id", "text", "step"])
+        logprob_sums = (
+            data.groupby(["final_id", "text"], as_index=False)[["logprobs_forward", "logprobs_backward"]]
+            .sum()
+        )
+        last_rows = (
+            data.groupby(["final_id", "text"], as_index=False)
+            .last()
+            .drop(columns=["logprobs_forward", "logprobs_backward"])
+        )
+        data = last_rows.merge(logprob_sums, on=["final_id", "text"], how="left")
+        data = data[[
+            "final_id",
+            "text",
+            "step",
+            "final_object",
+            "iteration",
+            "total_reward",
+            "loss"
+            "logprobs_forward",
+            "logprobs_backward"
+        ]]
 
+        #compute features
         if self.fn_compute_features is not None:
             features, features_valid = self.fn_compute_features(self.current["states"])
             data["features_valid"] = features_valid
@@ -295,22 +304,32 @@ class VisLogger:
             data = pd.concat([data, features_df], axis=1)
 
 
-        #TODO from here
 
-        # TODO collapse same texts (handle no state to text fn)
-        # TODO final ids shift and save to db (create first)
+        # shift final ids and save to db
+        conn = sqlite3.connect(self.db)
+        query = "SELECT COALESCE(MAX(final_id), 0) AS max FROM trajectories"
+        offset = pd.read_sql_query(query, conn)["max"][0]
+        data["final_id"] = data["final_id"] + offset + 1
+        data.to_sql(
+            "trajectories",
+            conn,
+            if_exists="append",
+            index=False
+        )
 
-        # shift final ids for unique identifiers and write
-        prev_data = pd.read_csv(self.csv)
-        if not prev_data.empty:
-            offset = prev_data["final_id"].max()+1
-            data["final_id"] = data["final_id"] + offset
-            data = pd.concat([prev_data, data])
-        data.to_csv(self.csv, index=False)
+        # indexing
+        cur = conn.cursor()
+        cur.execute("CREATE INDEX idx_points_finalid ON trajectories(final_id)")
+        cur.execute("CREATE INDEX idx_points_text ON trajectories(text)")
+        cur.execute("CREATE INDEX idx_points_iteration ON trajectories(iteration)")
+        cur.execute("CREATE INDEX idx_points_reward ON trajectories(total_reward)")
+        cur.execute("CREATE INDEX idx_points_loss ON trajectories(loss)")
 
-        #TODO compute graphs and save nodes and edges db
+        # compute graphs and save nodes and edges db
+        create_graph_dbs(conn)
+        conn.close()
 
-        #reset
+        # reset current
         self.current = {
             "batch_idx": None,
             "states": None,
@@ -319,13 +338,13 @@ class VisLogger:
             "logprobs_forward": None,
             "logprobs_backward": None,
         }
-        self.current.update({name: None for name in self.rewards or []})
+        self.current.update({name: None for name in self.metrics or []})
         self.current.update({name: None for name in self.features or []})
 
 
 
 """
-
+#testing
 def imagefn(inp):
     return ["image"]*len(inp)
 

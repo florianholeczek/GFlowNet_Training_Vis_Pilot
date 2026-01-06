@@ -1,8 +1,5 @@
 import sqlite3
 
-INPUT_DB = "traindata1/traindata1_1.db"
-INPUT_TABLE = "trajectories"
-
 
 def create_tables(conn):
     """Create both nodes and edges tables in the same database"""
@@ -11,7 +8,8 @@ def create_tables(conn):
             id TEXT PRIMARY KEY,
             node_type TEXT,
             image TEXT,
-            reward REAL
+            reward REAL,
+            loss REAL
         )
     """)
 
@@ -31,8 +29,8 @@ def create_tables(conn):
 
 def insert_root_node(conn):
     conn.execute("""
-        INSERT OR IGNORE INTO nodes (id, node_type, image, reward)
-        VALUES ('#', 'start', NULL, NULL)
+        INSERT OR IGNORE INTO nodes (id, node_type, image, reward, loss)
+        VALUES ('#', 'start', NULL, NULL, NULL)
     """)
     conn.commit()
 
@@ -93,7 +91,7 @@ def truncate_graph(conn):
 
     # Create new edges table to build into
     conn.execute("""
-        CREATE TEMP TABLE edges_new (
+        CREATE TEMP TABLE edges_new (c
             id TEXT,
             source TEXT,
             target TEXT,
@@ -172,23 +170,20 @@ def truncate_graph(conn):
 
     print(f"Processed all {processed} edges")
 
-    # Replace old edges with new ones
-    print("\nReplacing edges...")
-    conn.execute("DELETE FROM edges")
-    conn.execute("INSERT INTO edges SELECT * FROM edges_new")
 
-    # Remove nodes that aren't in nodes_to_keep
-    print("Removing nodes...")
+    conn.execute("BEGIN")
+
+    conn.execute("ALTER TABLE edges RENAME TO edges_old")
+    conn.execute("ALTER TABLE edges_new RENAME TO edges")
     conn.execute("""
         DELETE FROM nodes 
         WHERE id NOT IN (SELECT id FROM nodes_to_keep)
     """)
-
-    # Cleanup temp tables
     conn.execute("DROP TABLE nodes_to_keep")
     conn.execute("DROP TABLE edges_to_process")
-    conn.execute("DROP TABLE edges_new")
+    conn.execute("DROP TABLE edges_old")  # drop backup
 
+    # Commit changes
     conn.commit()
     print("Truncation complete!")
 
@@ -212,8 +207,7 @@ def print_stats(conn):
         print(f"  {node_type}: {count}")
 
 
-def main():
-    conn = sqlite3.connect(INPUT_DB)
+def create_graph_dbs(conn):
 
     create_tables(conn)
     insert_root_node(conn)
@@ -232,10 +226,11 @@ def main():
             text,
             iteration,
             total_reward,
+            loss,
             logprobs_forward,
             logprobs_backward,
             image
-        FROM {INPUT_TABLE}
+        FROM trajectories
         ORDER BY final_id, step
     """)
 
@@ -250,6 +245,7 @@ def main():
             text,
             iteration,
             total_reward,
+            loss_read,
             logpf,
             logpb,
             image
@@ -264,20 +260,21 @@ def main():
         if text not in seen_nodes:
             node_type = "final" if final_object == 1 else "standard"
             reward = total_reward if final_object == 1 else None
+            loss = loss_read if final_object == 1 else None
 
             write_cur.execute("""
-                INSERT INTO nodes (id, node_type, image, reward)
+                INSERT INTO nodes (id, node_type, image, reward, loss)
                 VALUES (?, ?, ?, ?)
-            """, (text, node_type, image, reward))
+            """, (text, node_type, image, reward, loss))
 
             seen_nodes.add(text)
         elif final_object == 1:
             # Node exists but this is a final occurrence - update it
             write_cur.execute("""
                 UPDATE nodes 
-                SET node_type = 'final', reward = ?
+                SET node_type = 'final', reward = ?, loss = ?
                 WHERE id = ?
-            """, (total_reward, text))
+            """, (total_reward, loss, text))
 
         # --- create edge ---
         edge_id = f"{trajectory_id}_{step}"
@@ -345,9 +342,4 @@ def main():
 
     print_stats(conn)
 
-    conn.close()
     print("\nDone!")
-
-
-if __name__ == "__main__":
-    main()

@@ -990,28 +990,29 @@ def imagefn_from_smiles(smiles):
     if smiles == "#" or smiles is None:
         return None
 
-    try:
-        mol = Chem.MolFromSmiles(smiles)
-        if mol is not None:
-            return mol
-    except Exception:
-        pass
-    try:
-        mol = Chem.MolFromSmiles(smiles, sanitize=False)
-        if mol is not None:
-            return mol
-    except Exception:
-        pass
-    try:
-        mol = Chem.MolFromSmarts(smiles)
-        if mol is not None:
-            return mol
-    except Exception:
-        pass
+    def smiles_to_mol(smiles):
+        try:
+            mol = Chem.MolFromSmiles(smiles)
+            if mol is not None:
+                return mol
+        except Exception:
+            pass
+        try:
+            mol = Chem.MolFromSmiles(smiles, sanitize=False)
+            if mol is not None:
+                return mol
+        except Exception:
+            pass
+        try:
+            mol = Chem.MolFromSmarts(smiles)
+            if mol is not None:
+                return mol
+        except Exception:
+            pass
 
-    if mol is None:
-       return None
-
+        if mol is None:
+           return None
+    mol = smiles_to_mol(smiles)
     svg = Draw.MolsToGridImage(
         [mol],
         molsPerRow=1,

@@ -174,35 +174,31 @@ class VisLogger:
             a nested list of the same shape.
         :return: None
         """
-        def to_np(x, dtype):
-            if isinstance(x, torch.Tensor):
-                x = x.detach().cpu().numpy()
-            return x.astype(dtype, copy=False)
 
         if batch_idx is not None:
-            self.current["batch_idx"] = to_np(batch_idx, np.int16)
+            self.current["batch_idx"] = self.__to_np__(batch_idx, np.int16)
         if states is not None:
             if isinstance(states, list):
                 self.current["states"] = states
             elif isinstance(states, torch.Tensor):
                 self.current["states"] = states.detach().cpu()
             else:
-                self.current["states"] = to_np(states, np.float16)
+                self.current["states"] = self.__to_np__(states, np.float16)
         if total_reward is not None:
-            self.current["total_reward"] = to_np(total_reward, np.float16)
+            self.current["total_reward"] = self.__to_np__(total_reward, np.float16)
         if loss is not None:
-            self.current["loss"] = to_np(loss, np.float16)
+            self.current["loss"] = self.__to_np__(loss, np.float16)
         if iteration is not None:
             self.current["iteration"] = int(iteration)
         if logprobs_forward is not None:
-            self.current["logprobs_forward"] = to_np(logprobs_forward, np.float16)
+            self.current["logprobs_forward"] = self.__to_np__(logprobs_forward, np.float16)
         if logprobs_backward is not None:
-            self.current["logprobs_backward"] = to_np(logprobs_backward, np.float16)
+            self.current["logprobs_backward"] = self.__to_np__(logprobs_backward, np.float16)
         if metrics is not None:
             for i,r in enumerate(self.metrics):
                 self.current[r] = metrics[i]
         if features_valid_provided is not None:
-            self.current["features_valid_provided"] = to_np(features_valid_provided, np.bool_)
+            self.current["features_valid_provided"] = self.__to_np__(features_valid_provided, np.bool_)
         if features is not None:
             for i,r in enumerate(self.features):
                 self.current[r] = features[:, i]
@@ -219,6 +215,16 @@ class VisLogger:
         for i in [self.current["states"], self.current["logprobs_forward"], self.current["logprobs_backward"]]:
             assert len(i) == datalength, f"lengths of batch_idx, logprobs and states must match"
 
+    def __to_np__(self, x, dtype):
+        """
+        Converts to np array with given dtype
+        :param x: tensor or np array
+        :param dtype: expected dtype
+        :return:
+        """
+        if isinstance(x, torch.Tensor):
+            x = x.detach().cpu().numpy()
+        return x.astype(dtype, copy=False)
 
 
     def write_to_db(self):
@@ -365,10 +371,72 @@ class VisLogger:
         self.current.update({name: None for name in self.metrics or []})
         self.current.update({name: None for name in self.features or []})
 
+    def create_and_append_testset(
+            self,
+            texts: list | None = None,
+            total_reward: np.ndarray | torch.Tensor | None = None,
+            metrics: dict | None = None,
+            features: np.ndarray | torch.Tensor | None = None,
+            features_valid: np.ndarray | torch.Tensor | None = None,
+    ):
+        """
+        Function to create the testset in the expected format.
+        Expects final states, their reward and their features.
+        Provide the same features as in the logged training data.
+        Allows for passing the whole data at once or in chunks.
+        If passed in chunks just call the function repeatedly.
+        It then appends to the created testset each time.
+        Neccessary:
+            - Unique string representations of each state, use the same function to convert states to text as in logging
+            - total_reward
+            - features and features_valid
+        Optional: Additional metrics of the final states
+        :param texts: array of shape (chunksize,) containing unique string representations of states.
+            Use the same function to generate texts as in logging
+        :param total_reward: total rewards of the states, shape (chunksize,)
+        :param metrics: Optional: If there are more metrics of the final states specify them here.
+            Expects a dict with the title of the metric as key and the metric for all states as array, tensor or list.
+        :param features: array or tensor of shape (len(features), chunksize) for the downprojections.
+            Dtype should be int or float.
+        :param features_valid: bool array, tensor or list of shape (chunksize,),
+            Specifying if the features of a state are valid.
+        :return: None
+        """
+
+        assert texts is not None , "Specify text representation of states"
+        assert total_reward is not None, "Specify rewards of the objects"
+        assert features is not None and features_valid is not None, "Specify features of the objects"
+        assert len(texts) == len(total_reward) == features.shape[1] == len(features_valid), "lengths do not match"
+
+        df = pd.DataFrame({"text": texts, "total_reward": total_reward})
+        if metrics is not None:
+            for k,v in metrics.items():
+                df[k] = v
+        df["features_valid"] = features_valid
+        for i,f in enumerate(features):
+            df[f"f_{i}"] = f
+
+        # create db or append to it
+        conn = sqlite3.connect(self.db)
+        df.to_sql(
+            "testset",
+            conn,
+            if_exists="append",
+            index=False
+        )
+
+        # create indices the first time
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='trajectories'")
+        if cur.fetchone() is None:
+            cur.execute("CREATE INDEX idx_points_text ON testset(text)")
+            cur.execute("CREATE INDEX idx_points_reward ON testset(total_reward)")
+        conn.close()
 
 
 # create debug data
 # Minimal working example: States are int<9
+"""
 def get_action(s):
     p=np.random.rand()
     if s==0:
@@ -386,13 +454,15 @@ def get_action(s):
         else:
             return 5, False
     elif s==3:
-        return 8, True
+        return 6, False
     elif s==4:
         if p>0.3:
             return 5, False
         else:
-            return 6, True
+            return 8, True
     elif s==5:
+        return 9, True
+    elif s==6:
         return 7, True
 
 def get_trajectory():
@@ -459,4 +529,14 @@ for i in range(10):
     logger.log(b, t, r, l, i, lpf, lpb, metrics= [l2], features_valid_provided= f_valid, features= features)
     logger.write_to_db()
 
-print("Done training")
+print("logging done")
+
+r = [7]*25 + [9]*20 + [8]*5
+t = [str(i) for i in r]
+m = {"loss2": np.random.uniform(0,1,(len(r),))}
+f_valid = [True]*len(r)
+f = np.random.uniform(0,1,(8, len(r)))
+logger.create_and_append_testset(t, r, m, f, f_valid)
+
+print("Testset done")
+"""

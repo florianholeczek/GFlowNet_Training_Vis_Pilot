@@ -87,7 +87,7 @@ def truncate_graph(conn):
 
     # Create new edges table to build into
     conn.execute("""
-        CREATE TEMP TABLE edges_new (c
+        CREATE TEMP TABLE edges_new (
             id TEXT,
             source TEXT,
             target TEXT,
@@ -166,8 +166,6 @@ def truncate_graph(conn):
 
     print(f"Processed all {processed} edges")
 
-
-    conn.execute("BEGIN")
 
     conn.execute("ALTER TABLE edges RENAME TO edges_old")
     conn.execute("ALTER TABLE edges_new RENAME TO edges")

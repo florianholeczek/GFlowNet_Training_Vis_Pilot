@@ -514,7 +514,7 @@ def to_i(ss):
 
 
 logger = VisLogger(
-    #path="./debugdata",
+    path="./debugdata",
     s0_included=True,
     fn_state_to_text=to_t,
     fn_compute_features=to_f,

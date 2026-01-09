@@ -44,142 +44,151 @@ def truncate_graph(conn):
     Identify nodes to keep, then rebuild edges by following chains through removable nodes.
     Much faster than iterative removal.
     """
-    print("\nIdentifying nodes to keep...")
+    cursor = conn.cursor()
 
-    # Identify all nodes that should be KEPT:
-    # 1. start/final nodes
-    # 2. nodes with != 1 parent OR != 1 child
-    conn.execute("""
-        CREATE TEMP TABLE nodes_to_keep AS
-        WITH parent_counts AS (
-            SELECT target AS node_id, COUNT(*) AS parent_count
-            FROM edges
-            GROUP BY target
-        ),
-        child_counts AS (
-            SELECT source AS node_id, COUNT(*) AS child_count
-            FROM edges
-            GROUP BY source
-        )
-        SELECT DISTINCT n.id
-        FROM nodes n
-        LEFT JOIN parent_counts pc ON n.id = pc.node_id
-        LEFT JOIN child_counts cc ON n.id = cc.node_id
-        WHERE 
-            n.node_type IN ('start', 'final')
-            OR COALESCE(pc.parent_count, 0) != 1
-            OR COALESCE(cc.child_count, 0) != 1
-    """)
+    # Step 1: Identify removable nodes
+    # A node is removable if it has exactly 1 unique predecessor AND 1 unique successor
+    print("Step 1: Identifying removable nodes...")
+    cursor.execute("""
+            CREATE TEMP TABLE IF NOT EXISTS removable_nodes AS
+            WITH node_connections AS (
+                SELECT 
+                    n.id,
+                    COUNT(DISTINCT e_in.source) as num_predecessors,
+                    COUNT(DISTINCT e_out.target) as num_successors
+                FROM nodes n
+                LEFT JOIN edges e_in ON n.id = e_in.target
+                LEFT JOIN edges e_out ON n.id = e_out.source
+                GROUP BY n.id
+            )
+            SELECT id
+            FROM node_connections
+            WHERE num_predecessors = 1 AND num_successors = 1
+        """)
 
-    kept_count = conn.execute("SELECT COUNT(*) FROM nodes_to_keep").fetchone()[0]
-    total_count = conn.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
-    removable_count = total_count - kept_count
-
-    print(f"Nodes to keep: {kept_count}")
-    print(f"Nodes to remove: {removable_count}")
+    removable_count = cursor.execute("SELECT COUNT(*) FROM removable_nodes").fetchone()[0]
+    print(f"  Found {removable_count} removable nodes")
 
     if removable_count == 0:
-        print("No nodes to remove, graph is already truncated.")
-        conn.execute("DROP TABLE nodes_to_keep")
+        print("No nodes to remove. Exiting.")
         return
 
-    print("\nRebuilding edges by following chains...")
+    # Step 2: Create lookup table mapping each removable node to its unique successor
+    print("Step 2: Creating successor lookup table...")
+    cursor.execute("""
+            CREATE TEMP TABLE IF NOT EXISTS node_successors AS
+            SELECT DISTINCT
+                e.source as node_id,
+                e.target as successor_id
+            FROM edges e
+            WHERE e.source IN (SELECT id FROM removable_nodes)
+        """)
 
-    # Create new edges table to build into
-    conn.execute("""
-        CREATE TEMP TABLE edges_new (
-            id TEXT,
-            source TEXT,
-            target TEXT,
-            trajectory_id INTEGER,
-            iteration INTEGER,
-            logprobs_forward REAL,
-            logprobs_backward REAL
-        )
-    """)
+    # Step 3: Iteratively bypass removable nodes
+    print("Step 3: Bypassing chains...")
+    iteration = 0
+    max_iterations = 1000  # Safety limit
 
-    # For each edge that starts from a kept node, follow the chain
-    # until we reach another kept node, accumulating logprobs
-    conn.execute("""
-        CREATE TEMP TABLE edges_to_process AS
-        SELECT 
-            e.id,
-            e.source,
-            e.target,
-            e.trajectory_id,
-            e.iteration,
-            e.logprobs_forward,
-            e.logprobs_backward
-        FROM edges e
-        WHERE e.source IN (SELECT id FROM nodes_to_keep)
-    """)
+    while iteration < max_iterations:
+        iteration += 1
+        cursor.execute("DROP TABLE IF EXISTS edges_to_delete")
 
-    # Process each edge by following chains
-    cursor = conn.cursor()
-    edges_to_process = cursor.execute("SELECT * FROM edges_to_process").fetchall()
+        # Materialize edges to update/delete
+        cursor.execute("""
+            CREATE TEMP TABLE edges_to_delete AS
+            SELECT e.source, e.target, e.trajectory_id
+            FROM edges e
+            WHERE e.source NOT IN (SELECT id FROM removable_nodes)
+              AND e.target IN (SELECT id FROM removable_nodes)
+        """)
 
-    processed = 0
-    for edge_id, source, target, traj_id, iteration, logpf, logpb in edges_to_process:
-        # Follow the chain from target until we hit a kept node
-        current_target = target
-        total_logpf = logpf
-        total_logpb = logpb
+        cursor.execute("SELECT COUNT(*) FROM edges_to_delete")
+        edges_to_update = cursor.fetchone()[0]
 
-        # Keep following while current target is not in nodes_to_keep
-        while True:
-            is_kept = conn.execute("""
-                SELECT 1 FROM nodes_to_keep WHERE id = ?
-            """, (current_target,)).fetchone()
+        if edges_to_update == 0:
+            print(f"  Completed in {iteration - 1} iterations")
+            cursor.execute("DROP TABLE edges_to_delete")
+            break
 
-            if is_kept:
-                # We've reached a kept node, create the edge
-                conn.execute("""
-                    INSERT INTO edges_new (
-                        id, source, target, trajectory_id, iteration,
-                        logprobs_forward, logprobs_backward
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (edge_id, source, current_target, traj_id, iteration,
-                      total_logpf, total_logpb))
-                break
+        print(f"  Iteration {iteration}: Updating {edges_to_update} edges...")
 
-            # Current target is removable, follow to next node
-            next_edge = conn.execute("""
-                SELECT target, logprobs_forward, logprobs_backward
-                FROM edges
-                WHERE source = ?
-            """, (current_target,)).fetchone()
+        # Insert bypass edges
+        cursor.execute("""
+            INSERT INTO edges (
+                id,
+                source,
+                target,
+                trajectory_id,
+                iteration,
+                logprobs_forward,
+                logprobs_backward
+            )
+            SELECT 
+                e.id,
+                e.source,
+                ns.successor_id AS target,
+                e.trajectory_id,
+                e.iteration,
+                e.logprobs_forward + COALESCE(e_next.logprobs_forward, 0),
+                e.logprobs_backward + COALESCE(e_next.logprobs_backward, 0)
+            FROM edges e
+            INNER JOIN edges_to_delete etd
+                ON e.source = etd.source
+               AND e.target = etd.target
+               AND e.trajectory_id = etd.trajectory_id
+            INNER JOIN node_successors ns
+                ON e.target = ns.node_id
+            LEFT JOIN edges e_next
+                ON e_next.source = e.target
+               AND e_next.target = ns.successor_id
+               AND e_next.trajectory_id = e.trajectory_id
+        """)
 
-            if not next_edge:
-                # Dead end - shouldn't happen in valid graph
-                print(f"Warning: Dead end at node {current_target}")
-                break
+        # Delete only the original edges
+        cursor.execute("""
+            DELETE FROM edges
+            WHERE (source, target, trajectory_id) IN (
+                SELECT source, target, trajectory_id
+                FROM edges_to_delete
+            )
+        """)
 
-            next_target, next_logpf, next_logpb = next_edge
-            total_logpf += next_logpf
-            total_logpb += next_logpb
-            current_target = next_target
+        cursor.execute("DROP TABLE edges_to_delete")
+        conn.commit()
 
-        processed += 1
-        if processed % 1000 == 0:
-            print(f"Processed {processed}/{len(edges_to_process)} edges...")
+    if iteration >= max_iterations:
+        print(f"  Warning: Reached maximum iterations ({max_iterations})")
 
-    print(f"Processed all {processed} edges")
+    # Step 4: Handle edges between removable nodes (internal chain edges)
+    print("Step 4: Cleaning up internal chain edges...")
+    cursor.execute("""
+            DELETE FROM edges
+            WHERE source IN (SELECT id FROM removable_nodes)
+               OR target IN (SELECT id FROM removable_nodes)
+        """)
 
+    # Step 5: Remove nodes from nodes table
+    print("Step 5: Removing nodes...")
+    nodes_deleted = cursor.execute("""
+            DELETE FROM nodes
+            WHERE id IN (SELECT id FROM removable_nodes)
+        """).rowcount
+    print(f"  Deleted {nodes_deleted} nodes")
 
-    conn.execute("ALTER TABLE edges RENAME TO edges_old")
-    conn.execute("ALTER TABLE edges_new RENAME TO edges")
-    conn.execute("""
-        DELETE FROM nodes 
-        WHERE id NOT IN (SELECT id FROM nodes_to_keep)
-    """)
-    conn.execute("DROP TABLE nodes_to_keep")
-    conn.execute("DROP TABLE edges_to_process")
-    conn.execute("DROP TABLE edges_old")  # drop backup
+    # Step 6: Clean up temporary tables
+    print("Step 6: Cleaning up temporary tables...")
+    cursor.execute("DROP TABLE IF EXISTS removable_nodes")
+    cursor.execute("DROP TABLE IF EXISTS node_successors")
 
-    # Commit changes
     conn.commit()
-    print("Truncation complete!")
+    print("Compression complete!")
+
+    # Print summary statistics
+    remaining_nodes = cursor.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
+    remaining_edges = cursor.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
+    print(f"\nSummary:")
+    print(f"  Remaining nodes: {remaining_nodes}")
+    print(f"  Remaining edges: {remaining_edges}")
 
 
 def print_stats(conn):
@@ -332,3 +341,17 @@ def create_graph_dbs(conn):
     print_stats(conn)
 
     print("\nDone!")
+
+
+if __name__ == "__main__":
+    import sqlite3
+    # Connect to your database
+    conn = sqlite3.connect("debugdata/data.db")
+    conn.execute("DROP TABLE IF EXISTS edges")
+    conn.execute("DROP TABLE IF EXISTS nodes")
+    conn.commit()
+
+    try:
+        create_graph_dbs(conn)
+    finally:
+        conn.close()

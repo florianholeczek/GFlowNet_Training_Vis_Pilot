@@ -434,9 +434,14 @@ class VisLogger:
         conn.close()
 
 
-# create debug data
-# Minimal working example: States are int<9
+
 """
+create debug data
+Minimal working example: States are int<9
+"""
+
+
+
 def get_action(s):
     p=np.random.rand()
     if s==0:
@@ -449,21 +454,21 @@ def get_action(s):
     elif s==2:
         if p<0.1:
             return 3, False
-        elif p<0.3:
+        elif p<0.4:
             return 4, False
         else:
-            return 5, False
+            return 7, True
     elif s==3:
-        return 6, False
+        return 5, False
     elif s==4:
         if p>0.3:
-            return 5, False
+            return 6, True
         else:
-            return 8, True
+            return 7, True
     elif s==5:
+        return 8, False
+    elif s==8:
         return 9, True
-    elif s==6:
-        return 7, True
 
 def get_trajectory():
     b=False
@@ -509,7 +514,7 @@ def to_i(ss):
 
 
 logger = VisLogger(
-    path="./debugdata",
+    #path="./debugdata",
     s0_included=True,
     fn_state_to_text=to_t,
     fn_compute_features=to_f,
@@ -531,7 +536,7 @@ for i in range(10):
 
 print("logging done")
 
-r = [7]*25 + [9]*20 + [8]*5
+r = [7]*25 + [9]*20 + [6]*5
 t = [str(i) for i in r]
 m = {"loss2": np.random.uniform(0,1,(len(r),))}
 f_valid = [True]*len(r)
@@ -539,4 +544,4 @@ f = np.random.uniform(0,1,(8, len(r)))
 logger.create_and_append_testset(t, r, m, f, f_valid)
 
 print("Testset done")
-"""
+

@@ -73,25 +73,6 @@ def run_dashboard(data: str, text_to_img_fn: callable):
     conn.commit()
     conn.close()
 
-
-
-    # Load data
-    data = pd.read_csv('traindata1/train_data.csv')
-    data.insert(loc=10, column="istestset", value=False)
-    data_dps = None
-    data_dpt = None
-    data_test = pd.read_csv('testset.csv')
-    data_test["final_id"]+=len(data)
-    data_test["iteration"]=0
-    data_test.insert(loc=10, column="istestset", value=True)
-    testset_reward_bounds = (data_test["total_reward"].min(), data_test["total_reward"].max())
-
-
-    # add ranked reward for filtering for performance
-    last_rewards = data.groupby('final_id')['total_reward'].transform('last')
-    ranks = last_rewards.rank(method='dense', ascending=False).astype(int)
-    data.insert(9, 'reward_ranked', ranks)
-
     app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
 
     # Load extra layouts for cytoscape
@@ -99,7 +80,6 @@ def run_dashboard(data: str, text_to_img_fn: callable):
 
     app.layout = html.Div([
         dcc.Store(id="selected-objects", data=[]),
-        dcc.Store(id="data-dps", data=data_dps),
         dcc.Store(id="build-ids", data= ["#"]),
         dcc.Store(id="max-frequency", data= 0),
         dcc.Store(id="dag-overview-tid-list", data= []),

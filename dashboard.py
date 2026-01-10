@@ -12,11 +12,11 @@ from umap import UMAP
 from plot_utils import *
 from pathlib import Path
 
-def run_dashboard(data: str, image_fn: callable):
+def run_dashboard(data: str, text_to_img_fn: callable):
     """
     Runs the dashboard on http://127.0.0.1:8050/
     :param data: folder of the logged data
-    :param image_fn: function to convert the texts representing the states to base64 encoded svg images to identify states
+    :param text_to_img_fn: function to convert the texts representing the states to base64 encoded svg images to identify states
     :return: None
     """
 
@@ -29,20 +29,22 @@ def run_dashboard(data: str, image_fn: callable):
     if not data_path.exists() or (not data_path.is_file()):
         raise FileNotFoundError(f"Data does not exist: {data_path}")
     
-    if image_fn is None:
+    if text_to_img_fn is None:
         warnings.warn(
             "No text-to-image function provided. "
             "Identifying states will not be possible. "
-            "Provide image_fn to allow converting text representations of states to images."
+            "Provide text_to_img_fn to allow converting text representations of states to images."
         )
-        def dummy_images(states):
-            return [None]*states
-        image_fn = dummy_images
+        def image_fn(state):
+            return None
+    else:
+        def image_fn(state):
+            if state == "#":
+                return None
+            return f"data:image/svg+xml;base64,{text_to_img_fn(state)}"
 
 
-
-
-
+    plotter = Plotter(data_path, image_fn)
 
     # Load data
     data = pd.read_csv('traindata1/train_data.csv')
@@ -61,7 +63,7 @@ def run_dashboard(data: str, image_fn: callable):
     ranks = last_rewards.rank(method='dense', ascending=False).astype(int)
     data.insert(9, 'reward_ranked', ranks)
 
-    app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY], assets_folder="traindata1")
+    app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
 
     # Load extra layouts for cytoscape
     cyto.load_extra_layouts()
@@ -670,13 +672,13 @@ def run_dashboard(data: str, image_fn: callable):
                 # root selection clears selection
                 return [], None, []
 
-
             iteration0 = int(dag_node.get("iteration0"))
             iteration1 = int(dag_node.get("iteration1"))
 
+            # expand dag, build table
             if dag_node.get("node_type") == 'handler':
                 text = dag_node.get("id")[8:]
-                conn = sqlite3.connect("traindata1/traindata1_1.db")
+                conn = sqlite3.connect(data_path)
 
                 if dag_node.get("metric") in ["highest", "lowest", "variance"]:
                     col = "logprobs_" + dag_node.get("direction")
@@ -723,16 +725,24 @@ def run_dashboard(data: str, image_fn: callable):
                 placeholders = ",".join("?" for _ in targets)
                 query = f"""
                             SELECT DISTINCT
-                                id, image, node_type, reward
+                                id, node_type, reward
                             FROM nodes
                             WHERE id IN ({placeholders})
                         """
                 children_n = pd.read_sql_query(query, conn, params=targets)
                 conn.close()
                 children = pd.merge(children_n, children_e, on="id")
-                children["image"] = children["image"].apply(
-                    lambda p: f"![img]({p.replace('traindata1', 'assets')})"
-                )
+
+                def image_cell(id):
+                    svg_b64 = image_fn(id)
+                    if not svg_b64:
+                        return ""
+                    return (
+                        f'<img src="{svg_b64}" '
+                        f'style="height:80px;" />'
+                    )
+
+                children["image"] = children["id"].apply(image_cell)
                 children["node_type"] = children["node_type"].eq("final")
                 selected_row_ids = list(set.intersection(set(build_ids), set(list(children["id"]))))
                 selected_rows = [
@@ -740,9 +750,11 @@ def run_dashboard(data: str, image_fn: callable):
                     if row["id"] in selected_row_ids
                 ]
                 return no_update, children.to_dict("records"), selected_rows
+
+            # selected trajectories
             else:
                 text = dag_node.get("id")
-                conn = sqlite3.connect("traindata1/traindata1_1.db")
+                conn = sqlite3.connect(data_path)
                 query = f"""
                             SELECT DISTINCT
                                 trajectory_id
@@ -765,7 +777,7 @@ def run_dashboard(data: str, image_fn: callable):
             iterations = np.round(selected_tids["range"]["y"]).astype(int).tolist()
 
             # get trajectory ids that are also in iteration range and then all node ids for these trajectory_ids
-            conn = sqlite3.connect("traindata1/traindata1_1.db")
+            conn = sqlite3.connect(data_path)
             placeholders = ",".join("?" for _ in t_ids)
             query = f"""
             SELECT DISTINCT trajectory_id
@@ -888,7 +900,7 @@ def run_dashboard(data: str, image_fn: callable):
         add_handlers = True
         if selected_objects:
             # If final objects are selected via another vis, display the full dag of these
-            conn = sqlite3.connect("traindata1/traindata1_1.db")
+            conn = sqlite3.connect(data_path)
             placeholders = ",".join("?" for _ in selected_objects)
             query = f"""
                         SELECT DISTINCT
@@ -904,7 +916,7 @@ def run_dashboard(data: str, image_fn: callable):
         elif not build_ids:
             build_ids = ["#"]
 
-        result = update_DAG(
+        result = plotter.update_DAG(
             iteration,
             direction,
             metric,
@@ -975,7 +987,7 @@ def run_dashboard(data: str, image_fn: callable):
         Input("iteration", "value"),
     )
     def update_dag_overview(direction, metric, iteration):
-        fig, max_freq, ids, edge_list = update_DAG_overview(direction, metric, iteration)
+        fig, max_freq, ids, edge_list = plotter.update_DAG_overview(direction, metric, iteration)
         if max_freq:
             return fig, max_freq, ids, edge_list
         return fig, no_update, ids, edge_list
@@ -1091,24 +1103,23 @@ def run_dashboard(data: str, image_fn: callable):
 
         value = hoverData["points"][0]["z"]
         bbox = hoverData["points"][0]["bbox"]
-        #bbox["x0"] += 175
-        #bbox["x1"] += 175
         idx = hoverData["points"][0]["x"]
         source, target = edge_list[idx]
 
-        # get images
-        conn = sqlite3.connect("traindata1/traindata1_1.db")
-        query = f"SELECT image FROM nodes WHERE id=?"
-        source_img = pd.read_sql_query(query, conn, params=[source])["image"][0]
-        target_img = pd.read_sql_query(query, conn, params=[target])["image"][0]
+        # get data
+        conn = sqlite3.connect(data_path)
         query = "SELECT DISTINCT iteration, logprobs_forward, logprobs_backward FROM edges WHERE source = ? AND target = ?"
         edge_data = pd.read_sql_query(query, conn, params=[source, target])
         conn.close()
 
-        def make_img(img_url):
-            if img_url is None:
+        # make images
+        source_img = image_fn(source)
+        target_img = image_fn(target)
+
+        def make_img(svg_b64):
+            if svg_b64 is None:
                 return html.Div("root")
-            return html.Img(src=img_url.replace('traindata1', 'assets'), style={"height": "100px"})
+            return html.Img(src=svg_b64, style={"height": "100px"})
 
         children = html.Div(
             [
@@ -1141,7 +1152,7 @@ def run_dashboard(data: str, image_fn: callable):
                     },
                 ),
                 dcc.Graph(
-                    figure=edge_hover_fig(edge_data),
+                    figure=plotter.edge_hover_fig(edge_data),
                     config={"displayModeBar": False},
                     style={"marginTop": "10px"}
                 ),

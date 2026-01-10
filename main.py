@@ -49,16 +49,14 @@ def imagefn_from_smiles(smiles):
 
 #plotting function for debugdata
 import base64
-def to_i(ss):
-    out = []
-    for s in ss:
-        dots = [(i%3, i//3) for i in range(s)]
-        svg = '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60">' + \
-              ''.join(f'<circle cx="{10+x*20}" cy="{10+y*20}" r="5" fill="black"/>' for x,y in dots) + \
-              '</svg>'
-        out.append(base64.b64encode(svg.encode()).decode())
-    return out
+def to_i(s):
+    dots = [(i%3, i//3) for i in range(int(s))]
+    svg = '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="100">' + \
+          ''.join(f'<circle cx="{10+x*20}" cy="{10+y*20}" r="5" fill="black"/>' for x,y in dots) + \
+          '</svg>'
+    b64 = base64.b64encode(svg.encode()).decode()
+    return b64
 
 
 
-run_dashboard(data="debugdata", image_fn=to_i)
+run_dashboard(data="debugdata", text_to_img_fn=to_i)

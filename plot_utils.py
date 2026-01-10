@@ -424,227 +424,9 @@ def update_bump(df, n_top, selected_ids, testset_bounds=None):
     return fig
 
 
-def update_DAG_overview(direction, metric, iteration):
-    column = "logprobs_"+direction
-    top_n = 150
-
-    conn = sqlite3.connect("traindata1/traindata1_1.db")
-
-    # Build query based on metric
-    if metric == "highest":
-        query = f"""
-                WITH edge_max AS (
-                    SELECT source, target, MAX({column}) as max_val
-                    FROM edges
-                    WHERE iteration BETWEEN ? AND ?
-                    GROUP BY source, target
-                    ORDER BY max_val DESC
-                    LIMIT {top_n}
-                )
-                SELECT e.source, e.target, e.iteration, e.{column} as value, em.max_val as metric_val, e.trajectory_id
-                FROM edges e
-                INNER JOIN edge_max em ON e.source = em.source AND e.target = em.target
-                WHERE e.iteration BETWEEN ? AND ?
-                ORDER BY em.max_val DESC, e.source, e.target, e.iteration
-            """
-    elif metric == "lowest":
-        query = f"""
-                WITH edge_min AS (
-                    SELECT source, target, MIN({column}) as min_val
-                    FROM edges
-                    WHERE iteration BETWEEN ? AND ?
-                    GROUP BY source, target
-                    ORDER BY min_val ASC
-                    LIMIT {top_n}
-                )
-                SELECT e.source, e.target, e.iteration, e.{column} as value, em.min_val as metric_val, e.trajectory_id
-                FROM edges e
-                INNER JOIN edge_min em ON e.source = em.source AND e.target = em.target
-                WHERE e.iteration BETWEEN ? AND ?
-                ORDER BY em.min_val ASC, e.source, e.target, e.iteration
-            """
-    elif metric == "variance":
-        query = f"""
-                WITH edge_stats AS (
-                    SELECT 
-                        source, 
-                        target,
-                        AVG({column}) as mean_val,
-                        COUNT(*) as cnt
-                    FROM edges
-                    WHERE iteration BETWEEN ? AND ?
-                    GROUP BY source, target
-                    HAVING cnt > 1
-                ),
-                edge_variance AS (
-                    SELECT 
-                        es.source,
-                        es.target,
-                        es.mean_val,
-                        SUM((e.{column} - es.mean_val) * (e.{column} - es.mean_val)) / es.cnt as variance
-                    FROM edges e
-                    INNER JOIN edge_stats es ON e.source = es.source AND e.target = es.target
-                    WHERE e.iteration BETWEEN ? AND ?
-                    GROUP BY es.source, es.target, es.mean_val, es.cnt
-                    ORDER BY variance DESC
-                    LIMIT {top_n}
-                )
-                SELECT e.source, e.target, e.iteration, e.{column} as value, ev.mean_val, ev.variance as metric_val, e.trajectory_id
-                FROM edges e
-                INNER JOIN edge_variance ev ON e.source = ev.source AND e.target = ev.target
-                WHERE e.iteration BETWEEN ? AND ?
-                ORDER BY ev.variance DESC, e.source, e.target, e.iteration
-            """
-    elif metric == "frequency":
-        query = f"""
-                WITH edge_freq AS (
-                    SELECT source, target, COUNT(*) as freq
-                    FROM edges
-                    WHERE iteration BETWEEN ? AND ?
-                    GROUP BY source, target
-                    ORDER BY freq DESC
-                    LIMIT {top_n}
-                )
-                SELECT e.source, e.target, e.iteration, e.{column} as value, ef.freq as metric_val, e.trajectory_id
-                FROM edges e
-                INNER JOIN edge_freq ef ON e.source = ef.source AND e.target = ef.target
-                WHERE e.iteration BETWEEN ? AND ?
-                ORDER BY ef.freq DESC, e.source, e.target, e.iteration
-            """
-
-    params = iteration*3 if metric=="variance" else iteration*2
-    df = pd.read_sql_query(query, conn, params=params)
-    conn.close()
-
-
-    if df.empty:
-        return go.Figure().add_annotation(text="No data found", showarrow=False)
-
-    # Create edge identifier and preserve order
-    df['edge_id'] = df['source'].astype(str) + '-' + df['target'].astype(str)
-
-    # Get unique edges in order (already ordered by metric in SQL)
-    unique_edges = df['edge_id'].unique()
-    edge_to_idx = {edge: idx for idx, edge in enumerate(unique_edges)}
-    df['edge_idx'] = df['edge_id'].map(edge_to_idx)
-
-    # For variance metric, adjust values to be zero-based (value - mean)
-    # For frequency metric, use the frequency value itself for coloring
-    if metric == "variance":
-        edge_means = df.groupby('edge_id')['value'].transform('mean')
-        df['plot_value'] = df['value'] - edge_means
-    elif metric == "frequency":
-        df['plot_value'] = df['metric_val']  # Use frequency for coloring
-    else:
-        df['plot_value'] = df['value']
 
 
 
-    # create edge list and trajectory id list for hover and selection
-    trajectory_id_list = df.groupby('edge_idx')['trajectory_id'].agg(list).tolist()
-    edge_list = df[['source', "target", "edge_idx"]]
-    edge_list = edge_list.drop_duplicates().reset_index(drop=True)
-    edge_list = list(edge_list[['source', 'target']].itertuples(index=False, name=None))
-
-    # Create pivot table for heatmap
-    heatmap_data = df.pivot_table(
-        index='iteration',
-        columns='edge_idx',
-        values='plot_value',
-        aggfunc='first'
-    ).sort_index()
-
-    if metric == "variance":
-        color_scale = px.colors.diverging.BrBG
-        zmin, zmax, zmid = -3, 3, 0
-        colorbar_title = "Value - Mean"
-        title = f"Edge Heatmap - Highest Variance of {direction.capitalize()} Logprobabilities"
-    elif metric == "frequency":
-        color_scale = px.colors.sequential.Emrld
-        zmin = 0
-        zmax = df['metric_val'].max()
-        zmid = None
-        colorbar_title = "Frequency"
-        title = f"Edge Heatmap - Highest frequency"
-    else:  # highest or lowest
-        color_scale = px.colors.sequential.Emrld
-        zmin, zmax, zmid = -10, 0, None
-        colorbar_title = "Value"
-        title = f"Edge Heatmap - {metric.capitalize()} Value of {direction.capitalize()} Logprobabilities"
-
-    fig = go.Figure(data=go.Heatmap(
-        z=heatmap_data.values,
-        x=heatmap_data.columns,
-        y=heatmap_data.index,
-        colorscale=color_scale,
-        showscale=True,
-        zmin=zmin,
-        zmax=zmax,
-        zmid=zmid,
-        #customdata=customdata,
-        #hovertemplate = "<<%{customdata}>><extra></extra>",
-        colorbar=dict(title=dict(text=colorbar_title))
-    ))
-
-    fig.update_layout(
-        autosize=True,
-        template='plotly_dark',
-        margin=dict(l=40, r=40, t=40, b=40),
-        dragmode="select",
-        title=title,
-        xaxis=dict(
-            title=f"Edges (Top {top_n}, ordered by Metric)",
-            showticklabels=False,
-            showline=False,
-            zeroline=False,
-            showgrid=False,
-            showspikes=False,
-        ),
-        yaxis=dict(
-            title="Iteration",
-            showgrid=False,
-            showline=False,
-            zeroline=False,
-            ticks="outside",
-            showticklabels=True,
-            showspikes=False,
-        ),
-    )
-    fig.update_traces(hoverinfo="none", hovertemplate=None)
-
-    if metric == "frequency":
-        return fig, zmax, trajectory_id_list, edge_list
-    return fig, None, trajectory_id_list, edge_list
-
-def edge_hover_fig(edge_data):
-    fig = go.Figure()
-
-    fig.add_trace(go.Scatter(
-        x=edge_data["iteration"],
-        y=edge_data["logprobs_forward"],
-        mode="lines+markers",
-        name="forward"
-    ))
-
-    fig.add_trace(go.Scatter(
-        x=edge_data["iteration"],
-        y=edge_data["logprobs_backward"],
-        mode="lines+markers",
-        name="backward"
-    ))
-
-    fig.update_layout(
-        height=200,
-        width=250,
-        margin=dict(l=20, r=20, t=20, b=20),
-        showlegend=True,
-        legend=dict(x=0.3, y=1.1, orientation="h", xanchor="center", yanchor="bottom"),
-        xaxis_title="Iteration",
-        yaxis_title="Logprobs",
-        template="plotly_white"
-    )
-
-    return fig
 
 
 
@@ -816,7 +598,7 @@ class Plotter:
             nodes["n_children"] = nodes["n_children"].fillna(0)
 
             # create handlers
-            handler_nodes = nodes[nodes['node_type'] != "final"].copy().drop(["image", "reward"], axis=1)
+            handler_nodes = nodes[nodes['node_type'] != "final"].copy().drop(["reward"], axis=1)
             handler_nodes["node_type"] = "handler"
             handler_nodes["id"] = "handler_" + handler_nodes["id"]
             handler_nodes["label"] = "Select children: " + handler_nodes["n_children"].astype(int).astype(str)
@@ -972,3 +754,222 @@ class Plotter:
             'elements': elements,
             'stylesheet': stylesheet,
         }
+
+    def update_DAG_overview(self, direction, metric, iteration):
+        column = "logprobs_" + direction
+        top_n = 150
+
+        conn = sqlite3.connect(self.data)
+
+        # Build query based on metric
+        if metric == "highest":
+            query = f"""
+                    WITH edge_max AS (
+                        SELECT source, target, MAX({column}) as max_val
+                        FROM edges
+                        WHERE iteration BETWEEN ? AND ?
+                        GROUP BY source, target
+                        ORDER BY max_val DESC
+                        LIMIT {top_n}
+                    )
+                    SELECT e.source, e.target, e.iteration, e.{column} as value, em.max_val as metric_val, e.trajectory_id
+                    FROM edges e
+                    INNER JOIN edge_max em ON e.source = em.source AND e.target = em.target
+                    WHERE e.iteration BETWEEN ? AND ?
+                    ORDER BY em.max_val DESC, e.source, e.target, e.iteration
+                """
+        elif metric == "lowest":
+            query = f"""
+                    WITH edge_min AS (
+                        SELECT source, target, MIN({column}) as min_val
+                        FROM edges
+                        WHERE iteration BETWEEN ? AND ?
+                        GROUP BY source, target
+                        ORDER BY min_val ASC
+                        LIMIT {top_n}
+                    )
+                    SELECT e.source, e.target, e.iteration, e.{column} as value, em.min_val as metric_val, e.trajectory_id
+                    FROM edges e
+                    INNER JOIN edge_min em ON e.source = em.source AND e.target = em.target
+                    WHERE e.iteration BETWEEN ? AND ?
+                    ORDER BY em.min_val ASC, e.source, e.target, e.iteration
+                """
+        elif metric == "variance":
+            query = f"""
+                    WITH edge_stats AS (
+                        SELECT 
+                            source, 
+                            target,
+                            AVG({column}) as mean_val,
+                            COUNT(*) as cnt
+                        FROM edges
+                        WHERE iteration BETWEEN ? AND ?
+                        GROUP BY source, target
+                        HAVING cnt > 1
+                    ),
+                    edge_variance AS (
+                        SELECT 
+                            es.source,
+                            es.target,
+                            es.mean_val,
+                            SUM((e.{column} - es.mean_val) * (e.{column} - es.mean_val)) / es.cnt as variance
+                        FROM edges e
+                        INNER JOIN edge_stats es ON e.source = es.source AND e.target = es.target
+                        WHERE e.iteration BETWEEN ? AND ?
+                        GROUP BY es.source, es.target, es.mean_val, es.cnt
+                        ORDER BY variance DESC
+                        LIMIT {top_n}
+                    )
+                    SELECT e.source, e.target, e.iteration, e.{column} as value, ev.mean_val, ev.variance as metric_val, e.trajectory_id
+                    FROM edges e
+                    INNER JOIN edge_variance ev ON e.source = ev.source AND e.target = ev.target
+                    WHERE e.iteration BETWEEN ? AND ?
+                    ORDER BY ev.variance DESC, e.source, e.target, e.iteration
+                """
+        elif metric == "frequency":
+            query = f"""
+                    WITH edge_freq AS (
+                        SELECT source, target, COUNT(*) as freq
+                        FROM edges
+                        WHERE iteration BETWEEN ? AND ?
+                        GROUP BY source, target
+                        ORDER BY freq DESC
+                        LIMIT {top_n}
+                    )
+                    SELECT e.source, e.target, e.iteration, e.{column} as value, ef.freq as metric_val, e.trajectory_id
+                    FROM edges e
+                    INNER JOIN edge_freq ef ON e.source = ef.source AND e.target = ef.target
+                    WHERE e.iteration BETWEEN ? AND ?
+                    ORDER BY ef.freq DESC, e.source, e.target, e.iteration
+                """
+
+        params = iteration * 3 if metric == "variance" else iteration * 2
+        df = pd.read_sql_query(query, conn, params=params)
+        conn.close()
+
+        if df.empty:
+            return go.Figure().add_annotation(text="No data found", showarrow=False)
+
+        # Create edge identifier and preserve order
+        df['edge_id'] = df['source'].astype(str) + '-' + df['target'].astype(str)
+
+        # Get unique edges in order (already ordered by metric in SQL)
+        unique_edges = df['edge_id'].unique()
+        edge_to_idx = {edge: idx for idx, edge in enumerate(unique_edges)}
+        df['edge_idx'] = df['edge_id'].map(edge_to_idx)
+
+        # For variance metric, adjust values to be zero-based (value - mean)
+        # For frequency metric, use the frequency value itself for coloring
+        if metric == "variance":
+            edge_means = df.groupby('edge_id')['value'].transform('mean')
+            df['plot_value'] = df['value'] - edge_means
+        elif metric == "frequency":
+            df['plot_value'] = df['metric_val']  # Use frequency for coloring
+        else:
+            df['plot_value'] = df['value']
+
+        # create edge list and trajectory id list for hover and selection
+        trajectory_id_list = df.groupby('edge_idx')['trajectory_id'].agg(list).tolist()
+        edge_list = df[['source', "target", "edge_idx"]]
+        edge_list = edge_list.drop_duplicates().reset_index(drop=True)
+        edge_list = list(edge_list[['source', 'target']].itertuples(index=False, name=None))
+
+        # Create pivot table for heatmap
+        heatmap_data = df.pivot_table(
+            index='iteration',
+            columns='edge_idx',
+            values='plot_value',
+            aggfunc='first'
+        ).sort_index()
+
+        if metric == "variance":
+            color_scale = px.colors.diverging.BrBG
+            zmin, zmax, zmid = -3, 3, 0
+            colorbar_title = "Value - Mean"
+            title = f"Edge Heatmap - Highest Variance of {direction.capitalize()} Logprobabilities"
+        elif metric == "frequency":
+            color_scale = px.colors.sequential.Emrld
+            zmin = 0
+            zmax = df['metric_val'].max()
+            zmid = None
+            colorbar_title = "Frequency"
+            title = f"Edge Heatmap - Highest frequency"
+        else:  # highest or lowest
+            color_scale = px.colors.sequential.Emrld
+            zmin, zmax, zmid = -10, 0, None
+            colorbar_title = "Value"
+            title = f"Edge Heatmap - {metric.capitalize()} Value of {direction.capitalize()} Logprobabilities"
+
+        fig = go.Figure(data=go.Heatmap(
+            z=heatmap_data.values,
+            x=heatmap_data.columns,
+            y=heatmap_data.index,
+            colorscale=color_scale,
+            showscale=True,
+            zmin=zmin,
+            zmax=zmax,
+            zmid=zmid,
+            # customdata=customdata,
+            # hovertemplate = "<<%{customdata}>><extra></extra>",
+            colorbar=dict(title=dict(text=colorbar_title))
+        ))
+
+        fig.update_layout(
+            autosize=True,
+            template='plotly_dark',
+            margin=dict(l=40, r=40, t=40, b=40),
+            dragmode="select",
+            title=title,
+            xaxis=dict(
+                title=f"Edges (Top {top_n}, ordered by Metric)",
+                showticklabels=False,
+                showline=False,
+                zeroline=False,
+                showgrid=False,
+                showspikes=False,
+            ),
+            yaxis=dict(
+                title="Iteration",
+                showgrid=False,
+                showline=False,
+                zeroline=False,
+                ticks="outside",
+                showticklabels=True,
+                showspikes=False,
+            ),
+        )
+        fig.update_traces(hoverinfo="none", hovertemplate=None)
+
+        if metric == "frequency":
+            return fig, zmax, trajectory_id_list, edge_list
+        return fig, None, trajectory_id_list, edge_list
+
+    def edge_hover_fig(self, edge_data):
+        fig = go.Figure()
+
+        fig.add_trace(go.Scatter(
+            x=edge_data["iteration"],
+            y=edge_data["logprobs_forward"],
+            mode="lines+markers",
+            name="forward"
+        ))
+
+        fig.add_trace(go.Scatter(
+            x=edge_data["iteration"],
+            y=edge_data["logprobs_backward"],
+            mode="lines+markers",
+            name="backward"
+        ))
+
+        fig.update_layout(
+            height=200,
+            width=250,
+            margin=dict(l=20, r=20, t=20, b=20),
+            showlegend=True,
+            legend=dict(x=0.3, y=1.1, orientation="h", xanchor="center", yanchor="bottom"),
+            xaxis_title="Iteration",
+            yaxis_title="Logprobs",
+            template="plotly_white"
+        )
+
+        return fig

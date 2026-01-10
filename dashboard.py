@@ -98,7 +98,7 @@ def run_dashboard(data: str, text_to_img_fn: callable):
                 "flexDirection": "column",
                 #"gap": "12px"
             }),
-            dcc.Store(id="active-tab", data="dag-view"),
+            dcc.Store(id="active-tab", data="state-space"),
 
             html.Div(style={
                 "display": "flex",
@@ -331,12 +331,22 @@ def run_dashboard(data: str, text_to_img_fn: callable):
                         "flex": 1,
                         #"border": "1px solid #ddd",
                         "padding": "5px",
-                        "height": "49vh",
+                        "height": "35vh",
                         "boxSizing": "border-box",
                         "overflow": "hidden"
                     }),
 
                     # TOP RIGHT
+
+                ], style={
+                    "display": "flex",
+                    "flexDirection": "row",
+                    "width": "100%"
+                }),
+
+                # BOTTOM ROW
+                html.Div([
+                    # BOTTOM LEFT
                     html.Div([
                         html.Div(
                             dcc.Graph(id="state-space-plot", clear_on_unhover=True),
@@ -347,43 +357,13 @@ def run_dashboard(data: str, text_to_img_fn: callable):
                         "flex": 1,
                         #"border": "1px solid #ddd",
                         "padding": "5px",
-                        "height": "49vh",
-                        "boxSizing": "border-box",
-                        "overflow": "hidden"
-                    }),
-                ], style={
-                    "display": "flex",
-                    "flexDirection": "row",
-                    "width": "100%"
-                }),
-
-                # BOTTOM ROW
-                html.Div([
-                    # BOTTOM LEFT - EMPTY
-                    html.Div([], style={
-                        "flex": 1,
-                        #"border": "1px solid #ddd",
-                        "padding": "5px",
-                        "height": "49vh",
+                        "height": "65vh",
                         "boxSizing": "border-box",
                         "overflow": "hidden"
                     }),
 
-                    # BOTTOM RIGHT - TRAJECTORY PLOT
-                    html.Div([
-                        html.Div(
-                            dcc.Graph(id="trajectory-plot", clear_on_unhover=True),
-                            style={"height": "100%", "width": "100%"}
-                        ),
-                        dcc.Tooltip(id="image-tooltip2"),
-                    ], style={
-                        "flex": 1,
-                        #"border": "1px solid #ddd",
-                        "padding": "5px",
-                        "height": "49vh",
-                        "boxSizing": "border-box",
-                        "overflow": "hidden"
-                    }),
+                    # BOTTOM RIGHT
+
                 ], style={
                     "display": "flex",
                     "flexDirection": "row",
@@ -542,7 +522,7 @@ def run_dashboard(data: str, text_to_img_fn: callable):
     def switch_tabs(state_clicks, dag_clicks, current_tab):
         ctx = dash.callback_context
         if not ctx.triggered:
-            button_id = "tab-dag-view"
+            button_id = "tab-state-space"
         else:
             button_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
@@ -619,7 +599,6 @@ def run_dashboard(data: str, text_to_img_fn: callable):
         Output("dag-table", "selected_rows"),
         Input("clear-selection", "n_clicks"),
         Input("state-space-plot", "selectedData"),
-        Input("trajectory-plot", "selectedData"),
         Input("bumpchart", "selectedData"),
         Input("dag-graph", "tapNodeData"),
         Input("dag-overview", "selectedData"),
@@ -628,7 +607,7 @@ def run_dashboard(data: str, text_to_img_fn: callable):
         State("dag-overview-tid-list", "data"),
         prevent_initial_call=True
     )
-    def update_selected_objects(clear_clicks, ss_select, traj_select, bump_select, dag_node, selected_tids, current_ids, build_ids, tid_list):
+    def update_selected_objects(clear_clicks, ss_select, bump_select, dag_node, selected_tids, current_ids, build_ids, tid_list):
 
         ctx = dash.callback_context
         if not ctx.triggered:
@@ -646,14 +625,6 @@ def run_dashboard(data: str, text_to_img_fn: callable):
                 return no_update
 
             selected_ids = {pt["customdata"][0] for pt in ss_select["points"]}
-            return list(selected_ids), None, []
-
-        # ---------- Trajectory lasso ----------
-        elif "trajectory-plot.selectedData" in trigger:
-            if not traj_select or not traj_select.get("points"):
-                return no_update, None, []
-
-            selected_ids = {pt["customdata"][1] for pt in traj_select["points"]}
             return list(selected_ids), None, []
 
         # ---------- Bump chart lasso ----------
@@ -869,15 +840,12 @@ def run_dashboard(data: str, text_to_img_fn: callable):
     # State Space Callback
     @app.callback(
         Output("state-space-plot", "figure"),
-        Output("trajectory-plot", "figure"),
         Input("selected-objects", "data"),
-        Input("data-dps", "data"),
-        Input("data-dpt", "data")
+        Input("data-dps", "data")
     )
-    def update_projection_plots(selected_ids, data_s, data_t):
+    def update_projection_plots(selected_ids, data_s):
         return(
-            update_state_space(pd.DataFrame(data_s), selected_ids),
-            update_state_space_t(pd.DataFrame(data_t), selected_ids)
+            update_state_space(pd.DataFrame(data_s), selected_ids)
         )
 
 
@@ -1018,35 +986,6 @@ def run_dashboard(data: str, text_to_img_fn: callable):
                 ),
                 html.Div(f"Iteration: {iteration}"),
                 html.Div(f"Reward: {reward:.3f}"),
-            ])
-        ]
-
-        return True, bbox, children
-
-    #hover state space trajectories
-    @app.callback(
-        Output("image-tooltip2", "show"),
-        Output("image-tooltip2", "bbox"),
-        Output("image-tooltip2", "children"),
-        Input("trajectory-plot", "hoverData"),
-    )
-    def display_image_tooltip2(hoverData):
-        if hoverData is None:
-            return False, None, None
-
-        # Extract bounding box for positioning
-        bbox = hoverData["points"][0]["bbox"]
-
-        # Extract base64 image saved in customdata
-        image_b64 = hoverData["points"][0]["customdata"][0]
-
-        # Build HTML content
-        children = [
-            html.Div([
-                html.Img(
-                    src=f"data:image/svg+xml;base64,{image_b64}",
-                    style={"width": "150px", "height": "150px"}
-                ),
             ])
         ]
 

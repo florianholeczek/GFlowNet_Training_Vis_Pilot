@@ -775,13 +775,22 @@ class Plotter:
         :return: Plotly figure
         """
 
+        df = df.drop_duplicates(subset=["iteration", "text", "metric"])
+        df = df.rename(columns={"rank": "oldrank"})
+        df['rank'] = df.groupby('iteration')['oldrank'] \
+            .rank(method='dense', ascending=True).astype(int)
+
+        pd.set_option('display.max_rows', 500)
+        pd.set_option('display.max_columns', 500)
+        pd.set_option('display.width', 1000)
+        print(df)
         # Create Scatter plot
         fig = go.Figure(
             go.Scatter(
                 x=df['iteration'],
                 y=df['rank'],
                 mode='markers',
-                marker=dict(color=df['iteration'], colorscale='Emrld'),
+                marker=dict(color=df['iteration'], colorscale='Emrld', size=10),
                 line=dict(width=1),
                 customdata=df[['final_id', 'rank', 'metric', 'text']].values,
                 showlegend=False

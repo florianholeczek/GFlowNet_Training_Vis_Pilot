@@ -9,99 +9,6 @@ import plotly.express as px
 
 
 
-def prepare_state_space(data_objects, metadata_to=8):
-    """
-    Prepares the data for downprojection
-    :param data_objects: data_objects
-    :param metadata_to: column to seperate metadata from features
-    :return: df metadata, df features
-    """
-    metadata = data_objects.iloc[:, :metadata_to]
-    features = data_objects.iloc[:, metadata_to:]
-    return metadata.reset_index(drop=True), features.reset_index(drop=True)
-
-
-def update_state_space(df, selected_ids=[], metric="total_reward"):
-    """
-    Updates the state space for final objects
-    :param df: dataframe with required columns text, x, y, metric, istetset, iteration
-    :param selected_ids: list of selected texts
-    :return: updated plot
-    """
-
-    # Normalize metric, scale to range 6-30px, set size=4 for missing values (no metric in testset)
-    m_min = df[metric].min()
-    m_max = df[metric].max()
-    df["metric_norm"] = 6 + (df[metric] - m_min) / (m_max - m_min) * (30-6)
-    df ["metric_norm"] = df["metric_norm"].fillna(4)
-
-    # Separate test set and normal points
-    df_test = df[df['istestset']]
-    df_normal = df[~df['istestset']]
-
-    # Compute opacity
-    def compute_opacity(df_sub):
-        return [
-            0.9 if (not selected_ids or s in selected_ids) else 0.1
-            for s in df_sub['text']
-        ]
-
-    fig = go.Figure()
-
-    # Normal points with continuous color scale
-    fig.add_trace(go.Scatter(
-        x=df_normal['x'],
-        y=df_normal['y'],
-        mode='markers',
-        marker=dict(
-            size=df_normal["metric_norm"],
-            color=df_normal['iteration'],
-            colorscale='emrld',
-            line=dict(color='black', width=1),
-            showscale=True,
-            colorbar=dict(
-                title="Iteration",
-                thickness=15,
-                len=0.7
-            ),
-            opacity=compute_opacity(df_normal),
-        ),
-
-        customdata=df_normal[['iteration', metric, 'text']].values,
-        hoverinfo='none',
-        name="Samples"
-    ))
-
-    # Test set points in red
-    if not df_test.empty:
-        fig.add_trace(go.Scatter(
-            x=df_test['x'],
-            y=df_test['y'],
-            mode='markers',
-            marker=dict(
-                size=df_test["metric_norm"],
-                color=px.colors.diverging.curl[9],
-                line=dict(color='black', width=1),
-                opacity=compute_opacity(df_test),
-            ),
-
-            customdata=df_test[['iteration', metric, 'text']].values,
-            hoverinfo='none',
-            name='Test Set',
-        ))
-
-    fig.update_layout(
-        autosize=True,
-        title=f"Final Objects downprojected<br><sup>Size shows {metric} for the latest iteration the object occured",
-        template='plotly_dark',
-        legend=dict(
-            itemsizing='constant',  # ensures marker size is not scaled
-        ),
-        margin=dict(l=40, r=40, t=40, b=40)
-    )
-
-    return fig
-
 
 def update_bump(df, n_top, selected_ids, testset_bounds=None):
     """
@@ -827,6 +734,87 @@ class Plotter:
             xaxis_title="Iteration",
             yaxis_title="Logprobs",
             template="plotly_white"
+        )
+
+        return fig
+
+    def update_state_space(self, df, selected_ids=[], metric="total_reward"):
+        """
+        Updates the state space for final objects
+        :param df: dataframe with required columns text, x, y, metric, istetset, iteration
+        :param selected_ids: list of selected texts
+        :return: updated plot
+        """
+
+        # Normalize metric, scale to range 6-30px, set size=4 for missing values (no metric in testset)
+        m_min = df[metric].min()
+        m_max = df[metric].max()
+        df["metric_norm"] = 6 + (df[metric] - m_min) / (m_max - m_min) * (30 - 6)
+        df["metric_norm"] = df["metric_norm"].fillna(4)
+
+        # Separate test set and normal points
+        df_test = df[df['istestset']]
+        df_normal = df[~df['istestset']]
+
+        # Compute opacity
+        def compute_opacity(df_sub):
+            return [
+                0.9 if (not selected_ids or s in selected_ids) else 0.1
+                for s in df_sub['text']
+            ]
+
+        fig = go.Figure()
+
+        # Normal points with continuous color scale
+        fig.add_trace(go.Scatter(
+            x=df_normal['x'],
+            y=df_normal['y'],
+            mode='markers',
+            marker=dict(
+                size=df_normal["metric_norm"],
+                color=df_normal['iteration'],
+                colorscale='emrld',
+                line=dict(color='black', width=1),
+                showscale=True,
+                colorbar=dict(
+                    title="Iteration",
+                    thickness=15,
+                    len=0.7
+                ),
+                opacity=compute_opacity(df_normal),
+            ),
+
+            customdata=df_normal[['iteration', metric, 'text']].values,
+            hoverinfo='none',
+            name="Samples"
+        ))
+
+        # Test set points in red
+        if not df_test.empty:
+            fig.add_trace(go.Scatter(
+                x=df_test['x'],
+                y=df_test['y'],
+                mode='markers',
+                marker=dict(
+                    size=df_test["metric_norm"],
+                    color=px.colors.diverging.curl[9],
+                    line=dict(color='black', width=1),
+                    opacity=compute_opacity(df_test),
+                ),
+
+                customdata=df_test[['iteration', metric, 'text']].values,
+                hoverinfo='none',
+                name='Test Set',
+            ))
+
+        fig.update_layout(
+            autosize=True,
+            title=f"Final Objects downprojected<br><sup>Size shows {metric} for the latest iteration the object occured",
+            template='plotly_dark',
+            legend=dict(
+                itemsizing='constant',  # ensures marker size is not scaled
+            ),
+            margin=dict(l=40, r=40, t=40, b=40)
         )
 
         return fig

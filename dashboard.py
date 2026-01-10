@@ -107,7 +107,7 @@ def run_dashboard(data: str, text_to_img_fn: callable):
             html.H4("View"),
             html.Div([
                 html.Button(
-                    "State Space",
+                    "Final Objects",
                     id="tab-state-space",
                     n_clicks=0,
                 ),
@@ -201,7 +201,7 @@ def run_dashboard(data: str, text_to_img_fn: callable):
 
                     # -------- Projection method --------
                     html.Div([
-                        html.Div("Method", style={"textAlign": "center"}),
+                        html.Div("Dimensionality reduction", style={"textAlign": "center"}),
                         dcc.Dropdown(
                             id="projection-method",
                             options=[
@@ -575,7 +575,7 @@ def run_dashboard(data: str, text_to_img_fn: callable):
                 inactive_style | bottom_style,
                 {"display": "block"},
                 {"display": "none"},
-                "Projection"
+                "Final Objects"
             )
         else:
             return (
@@ -947,7 +947,7 @@ def run_dashboard(data: str, text_to_img_fn: callable):
         df = df.drop(columns=["id"])
         conn.close()
 
-        return update_state_space(df, selected_ids, metric)
+        return plotter.update_state_space(df, selected_ids, metric)
 
 
 

@@ -614,7 +614,7 @@ class Plotter:
                     opacity=compute_opacity(df_test),
                 ),
 
-                customdata=df_test[['iteration', metric, 'text']].values,
+                customdata=df_test[['id', 'iteration', metric, 'text']].values,
                 hoverinfo='none',
                 name='Test Set',
             ))
@@ -763,30 +763,36 @@ class Plotter:
 
         return fig
 
-    def update_bump_iter(self, df, n_top, selected_ids, order):
+    def update_bump_iter(self, df, selected_ids):
         """
         Optimized bump chart update for cumulative top-ranked objects
         where rewards are fixed but rank evolves as new objects appear.
 
         :param df: prepared dataframe (should NOT include testset rows)
-        :param n_top: number of top objects to display
         :param selected_ids: list of final_ids to highlight
-        :param order: ASC or DSC for highest/lowest rank
         :return: Plotly figure
         """
-
         df = df.drop_duplicates(subset=["iteration", "text", "metric"])
         df = df.rename(columns={"rank": "oldrank"})
         df['rank'] = df.groupby('iteration')['oldrank'] \
             .rank(method='dense', ascending=True).astype(int)
 
-        # Create Scatter plot
+        if selected_ids:
+            df["opacity"] = df["final_id"].isin(selected_ids)*0.9 +0.1
+        else:
+            df["opacity"] = 1
+
         fig = go.Figure(
             go.Scatter(
                 x=df['iteration'],
                 y=df['rank'],
                 mode='markers',
-                marker=dict(color=df['iteration'], colorscale='Emrld', size=10),
+                marker=dict(
+                    color=df['iteration'],
+                    colorscale='Emrld',
+                    size=10,
+                    opacity= df["opacity"]
+                ),
                 line=dict(width=1),
                 customdata=df[['final_id', 'rank', 'metric', 'text']].values,
                 showlegend=False

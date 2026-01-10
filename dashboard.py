@@ -811,7 +811,7 @@ def run_dashboard(data: str, text_to_img_fn: callable):
         df = pd.read_sql_query(query, conn, params=iteration)
 
         if "iter" in rank_metric:
-            return plotter.update_bump_iter(df, n_top, selected_ids, order)
+            return plotter.update_bump_iter(df, selected_ids)
         return plotter.update_bump_all(df, n_top, selected_ids, order)
 
 

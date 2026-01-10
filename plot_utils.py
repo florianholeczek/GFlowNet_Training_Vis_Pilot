@@ -7,6 +7,8 @@ import plotly.graph_objects as go
 import plotly.express as px
 
 
+
+
 def update_state_space_t(df, selected_ids=[]):
     """
     Create a trajectory visualization in state space with dimensionality reduction.
@@ -150,336 +152,6 @@ def update_state_space_t(df, selected_ids=[]):
     )
 
     return fig
-
-def update_DAG(
-        iteration,
-        direction="forward",
-        metric="highest",
-        max_freq = 0,
-        add_handlers = True,
-        build_ids=[]
-):
-    """
-    Update DAG visualization based on flow attribute and truncation percentage.
-
-    Parameters:
-    -----------
-    iteration : list with rang of iterations
-    flow_attr : str, Logprobs attribute to use for coloring
-    build_ids: list of str, ids of objects of the graph
-    Returns: dict : Cytoscape elements and stylesheet
-    """
-
-    conn = sqlite3.connect("traindata1/traindata1_1.db")
-    placeholders = ",".join("?" for _ in build_ids)
-    column = "logprobs_" + direction
-    base_where = f"""
-        source IN ({placeholders})
-        AND target IN ({placeholders})
-        AND iteration BETWEEN ? AND ?
-    """
-    params = build_ids + build_ids + [iteration[0], iteration[1]]
-
-    if metric in ["highest", "lowest"]:
-        query = f"""
-            WITH edge_ids AS (
-                SELECT
-                    source,
-                    target,
-                    GROUP_CONCAT(id, '-') AS id
-                FROM edges
-                WHERE {base_where}
-                GROUP BY source, target
-            )
-            SELECT
-                ei.id,
-                e.source,
-                e.target,
-                {"MAX" if metric == "highest" else "MIN"}(e.{column}) AS metric
-            FROM edges e
-            JOIN edge_ids ei
-              ON ei.source = e.source
-             AND ei.target = e.target
-            WHERE
-                e.source IN ({placeholders})
-                AND e.target IN ({placeholders})
-                AND e.iteration BETWEEN ? AND ?
-            GROUP BY e.source, e.target
-        """
-        params *= 2
-
-    elif metric == "variance":
-        query = f"""
-        WITH edge_groups AS (
-            SELECT 
-                source,
-                target,
-                MAX(iteration) AS max_iteration,
-                AVG({column}) AS mean_metric
-            FROM edges
-            WHERE source IN ({placeholders})
-              AND target IN ({placeholders})
-              AND iteration BETWEEN ? AND ?
-            GROUP BY source, target
-        ),
-        edge_ids AS (
-            SELECT 
-                source,
-                target,
-                GROUP_CONCAT(id, '-') AS id
-            FROM edges
-            WHERE source IN ({placeholders})
-              AND target IN ({placeholders})
-              AND iteration BETWEEN ? AND ?
-            GROUP BY source, target
-        )
-        SELECT 
-            ei.id,
-            e.source,
-            e.target,
-            eg.max_iteration AS iteration,
-            e.{column} - eg.mean_metric AS metric
-        FROM edge_groups eg
-        JOIN edges e 
-          ON e.source = eg.source
-         AND e.target = eg.target
-         AND e.iteration = eg.max_iteration
-        JOIN edge_ids ei 
-          ON ei.source = eg.source
-         AND ei.target = eg.target
-        WHERE e.source IN ({placeholders})
-          AND e.target IN ({placeholders})
-          AND e.iteration BETWEEN ? AND ?
-        """
-
-        params *= 3
-
-    else:
-        query = f"""
-            WITH edge_ids AS (
-                SELECT
-                    source,
-                    target,
-                    GROUP_CONCAT(id, '-') AS id
-                FROM edges
-                WHERE {base_where}
-                GROUP BY source, target
-            )
-            SELECT
-                ei.id,
-                e.source,
-                e.target,
-                COUNT(*) AS metric
-            FROM edges e
-            JOIN edge_ids ei
-              ON ei.source = e.source
-             AND ei.target = e.target
-            WHERE
-                e.source IN ({placeholders})
-                AND e.target IN ({placeholders})
-                AND e.iteration BETWEEN ? AND ?
-            GROUP BY e.source, e.target
-        """
-        params *= 2
-
-    edges = pd.read_sql_query(query, conn, params=params)
-
-    query = f"""
-        SELECT *
-        FROM nodes
-        WHERE id IN ({placeholders})
-        """
-    nodes = pd.read_sql_query(query, conn, params=build_ids)
-
-    # create images as base64
-    def encode_image(path):
-        if not path:
-            return None
-        with open(path, "rb") as f:
-            b64 = base64.b64encode(f.read()).decode()
-        return f"data:image/png;base64,{b64}"
-
-    nodes['image'] = nodes['image'].apply(encode_image)
-
-    if add_handlers:
-        # get number of children
-        query = f"""
-                        SELECT
-                            source,
-                            COUNT(DISTINCT target) AS n_children
-                        FROM edges
-                        WHERE source IN ({placeholders})
-                          AND target NOT IN ({placeholders})
-                        GROUP BY source
-                    """
-        counts = pd.read_sql_query(query, conn, params=build_ids + build_ids)
-        nodes = nodes.merge(
-            counts,
-            left_on='id',
-            right_on='source',
-            how='left'
-        )
-        nodes["n_children"] = nodes["n_children"].fillna(0)
-
-        #create handlers
-        handler_nodes = nodes[nodes['node_type']!="final"].copy().drop(["image", "reward"], axis=1)
-        handler_nodes["node_type"]="handler"
-        handler_nodes["id"]="handler_" + handler_nodes["id"]
-        handler_nodes["label"] = "Select children: " + handler_nodes["n_children"].astype(int).astype(str)
-        handler_nodes["metric"] = metric
-        handler_nodes["direction"] = direction
-        handler_edges = handler_nodes["id"].copy().to_frame().rename(columns={"id": "target"})
-        handler_edges["source"] = handler_edges["target"].str.removeprefix("handler_")
-
-        nodes = pd.concat([nodes, handler_nodes], ignore_index=True)
-        edges = pd.concat([edges, handler_edges], ignore_index=True)
-
-
-    nodes["iteration0"]= iteration[0]
-    nodes["iteration1"]= iteration[1]
-    if direction == "backward":
-        edges.rename(columns={"source": "target", "target": "source"}, inplace=True)
-
-
-    # convert to cytoscape structure
-    nodes = [{"data": row} for row in nodes.to_dict(orient="records")]
-    edges = [{"data": row} for row in edges.to_dict(orient="records")]
-
-    conn.close()
-
-    # Compute color scale
-    if metric in ['highest', 'lowest']:
-        vmin, vmax = -10, 0
-        colorscale = px.colors.sequential.Emrld
-    elif metric == "variance":
-        vmin, vmax = -3, 3
-        colorscale = px.colors.diverging.BrBG
-    elif metric == "frequency":
-        vmin, vmax = 0, max_freq
-        colorscale = px.colors.sequential.Emrld
-    else:
-        vmin, vmax = -1, 1  # fallback
-        colorscale = px.colors.sequential.Viridis
-
-    # Create color mapping
-    def get_color(value, vmin, vmax, colorscale):
-        if np.isnan(value):
-            return "#8e8e8e"
-        if value < vmin:
-            return colorscale[0]  # lowest color
-        if value > vmax:
-            return colorscale[-1]  # highest color
-        if vmax == vmin:
-            norm = 0.5
-        else:
-            norm = (value - vmin) / (vmax - vmin)
-        idx = int(norm * (len(colorscale) - 1))
-        return colorscale[idx]
-
-    # Build stylesheet
-    elements = nodes + edges
-
-    stylesheet = [
-        # Default node style
-        {
-            'selector': 'node',
-            'style': {
-                'background-color': '#fff',
-                'background-image': 'data(image)',
-                'background-fit': 'contain',
-                'background-clip': 'none',
-                'shape': 'round-rectangle',
-                'width': '50px',
-                'height': '40px',
-                'border-width': '1px',
-                'border-color': '#000000'
-            }
-        },
-        # START node (keep text label)
-        {
-            'selector': 'node[node_type = "start"]',
-            'style': {
-                'background-color': '#BAEB9D',
-                'background-image': 'none',  # No image for start node
-                'label': f'data(id)',
-                'text-valign': 'center',
-                'text-halign': 'center',
-                'font-size': '12px',
-                'shape': 'diamond',
-                'width': '40px',
-                'height': '40px',
-                'border-color': '#000000',
-                'border-width': '2px',
-                'font-weight': 'bold',
-                'text-wrap': 'wrap',
-                'text-max-width': '55px'
-            }
-        },
-        # Final node
-        {
-            'selector': 'node[node_type = "final"]',
-            'style': {
-                'background-color': '#fff',
-                'background-image': 'data(image)',
-                'background-fit': 'contain',
-                'background-clip': 'none',
-                'shape': 'round-rectangle',
-                'width': '60px',
-                'height': '45px',
-                'border-width': '3px',
-                'border-color': '#000000'
-            }
-        },
-        # Handler node
-        {
-            'selector': 'node[node_type = "handler"]',
-            'style': {
-                'background-color': '#fff',
-                'background-image': 'none',
-                'label': 'data(label)',
-                'text-valign': 'center',
-                'text-halign': 'center',
-                'font-size': '10px',
-                'shape': 'round-rectangle',
-                'width': '90px',
-                'height': '20px',
-                'border-width': '2px',
-                'border-color': '#000000',
-                #'font-weight': 'bold',
-                'text-wrap': 'wrap',
-                'text-max-width': '90px'
-            }
-        },
-        # Default edge style
-        {
-            'selector': 'edge',
-            'style': {
-                'width': 3,
-                'target-arrow-shape': 'triangle',
-                'curve-style': 'bezier',
-                'arrow-scale': 1.5
-            }
-        }
-    ]
-
-    # Add color styles for each edge
-    for edge in edges:
-        edge_id = edge['data']['id']
-        edge_val = edge['data'].get("metric", 0)
-        color = get_color(edge_val, vmin, vmax, colorscale)
-
-        stylesheet.append({
-            'selector': f'edge[id = "{edge_id}"]',
-            'style': {
-                'line-color': color,
-                'target-arrow-color': color
-            }
-        })
-
-    return {
-        'elements': elements,
-        'stylesheet': stylesheet,
-    }
 
 
 def prepare_state_space(data_objects, metadata_to=8):
@@ -977,48 +649,326 @@ def edge_hover_fig(edge_data):
 
 
 
+class Plotter:
 
-# plotting function for molecules.
-# keep here for now, when reworking data loading and starting the app pass it when running the app
-# make plot utils class and define image_fn on init
-from rdkit import Chem
-from rdkit.Chem import Draw
-import base64
+    def __init__(self, data, image_fn):
+        self.data = data
+        self.image_fn = image_fn
 
+    def update_DAG(
+            self,
+            iteration,
+            direction="forward",
+            metric="highest",
+            max_freq=0,
+            add_handlers=True,
+            build_ids=[]
+    ):
+        """
+        Updates the DAG based on the given metric and direction.
+        :param iteration: iteration range
+        :param direction: forward/backward
+        :param metric: lowest, highest, variance, frequency
+        :param max_freq: Highest frequency in the data
+        :param add_handlers: add handlers if in expanding mode, dont add in selection mode
+        :param build_ids: states to build the dag from
+        :return: dict with elements and stylesheets
+        """
 
-def imagefn_from_smiles(smiles):
-    if smiles == "#" or smiles is None:
-        return None
+        conn = sqlite3.connect(self.data)
+        placeholders = ",".join("?" for _ in build_ids)
+        column = "logprobs_" + direction
+        base_where = f"""
+            source IN ({placeholders})
+            AND target IN ({placeholders})
+            AND iteration BETWEEN ? AND ?
+        """
+        params = build_ids + build_ids + [iteration[0], iteration[1]]
 
-    def smiles_to_mol(smiles):
-        try:
-            mol = Chem.MolFromSmiles(smiles)
-            if mol is not None:
-                return mol
-        except Exception:
-            pass
-        try:
-            mol = Chem.MolFromSmiles(smiles, sanitize=False)
-            if mol is not None:
-                return mol
-        except Exception:
-            pass
-        try:
-            mol = Chem.MolFromSmarts(smiles)
-            if mol is not None:
-                return mol
-        except Exception:
-            pass
+        if metric in ["highest", "lowest"]:
+            query = f"""
+                WITH edge_ids AS (
+                    SELECT
+                        source,
+                        target,
+                        GROUP_CONCAT(id, '-') AS id
+                    FROM edges
+                    WHERE {base_where}
+                    GROUP BY source, target
+                )
+                SELECT
+                    ei.id,
+                    e.source,
+                    e.target,
+                    {"MAX" if metric == "highest" else "MIN"}(e.{column}) AS metric
+                FROM edges e
+                JOIN edge_ids ei
+                  ON ei.source = e.source
+                 AND ei.target = e.target
+                WHERE
+                    e.source IN ({placeholders})
+                    AND e.target IN ({placeholders})
+                    AND e.iteration BETWEEN ? AND ?
+                GROUP BY e.source, e.target
+            """
+            params *= 2
+        elif metric == "variance":
+            query = f"""
+            WITH edge_groups AS (
+                SELECT 
+                    source,
+                    target,
+                    MAX(iteration) AS max_iteration,
+                    AVG({column}) AS mean_metric
+                FROM edges
+                WHERE source IN ({placeholders})
+                  AND target IN ({placeholders})
+                  AND iteration BETWEEN ? AND ?
+                GROUP BY source, target
+            ),
+            edge_ids AS (
+                SELECT 
+                    source,
+                    target,
+                    GROUP_CONCAT(id, '-') AS id
+                FROM edges
+                WHERE source IN ({placeholders})
+                  AND target IN ({placeholders})
+                  AND iteration BETWEEN ? AND ?
+                GROUP BY source, target
+            )
+            SELECT 
+                ei.id,
+                e.source,
+                e.target,
+                eg.max_iteration AS iteration,
+                e.{column} - eg.mean_metric AS metric
+            FROM edge_groups eg
+            JOIN edges e 
+              ON e.source = eg.source
+             AND e.target = eg.target
+             AND e.iteration = eg.max_iteration
+            JOIN edge_ids ei 
+              ON ei.source = eg.source
+             AND ei.target = eg.target
+            WHERE e.source IN ({placeholders})
+              AND e.target IN ({placeholders})
+              AND e.iteration BETWEEN ? AND ?
+            """
+            params *= 3
+        else:
+            query = f"""
+                WITH edge_ids AS (
+                    SELECT
+                        source,
+                        target,
+                        GROUP_CONCAT(id, '-') AS id
+                    FROM edges
+                    WHERE {base_where}
+                    GROUP BY source, target
+                )
+                SELECT
+                    ei.id,
+                    e.source,
+                    e.target,
+                    COUNT(*) AS metric
+                FROM edges e
+                JOIN edge_ids ei
+                  ON ei.source = e.source
+                 AND ei.target = e.target
+                WHERE
+                    e.source IN ({placeholders})
+                    AND e.target IN ({placeholders})
+                    AND e.iteration BETWEEN ? AND ?
+                GROUP BY e.source, e.target
+            """
+            params *= 2
 
-        if mol is None:
-           return None
-    mol = smiles_to_mol(smiles)
-    svg = Draw.MolsToGridImage(
-        [mol],
-        molsPerRow=1,
-        subImgSize=(200, 200),
-        useSVG=True
-    )
-    b64 = base64.b64encode(svg.encode("latin-1")).decode("ascii")
+        edges = pd.read_sql_query(query, conn, params=params)
 
-    return f"data:image/svg+xml;base64,{b64}"
+        query = f"""
+            SELECT *
+            FROM nodes
+            WHERE id IN ({placeholders})
+            """
+        nodes = pd.read_sql_query(query, conn, params=build_ids)
+
+        nodes['image'] = nodes['id'].apply(self.image_fn)
+
+        if add_handlers:
+            # get number of children
+            query = f"""
+                            SELECT
+                                source,
+                                COUNT(DISTINCT target) AS n_children
+                            FROM edges
+                            WHERE source IN ({placeholders})
+                              AND target NOT IN ({placeholders})
+                            GROUP BY source
+                        """
+            counts = pd.read_sql_query(query, conn, params=build_ids + build_ids)
+            nodes = nodes.merge(
+                counts,
+                left_on='id',
+                right_on='source',
+                how='left'
+            )
+            nodes["n_children"] = nodes["n_children"].fillna(0)
+
+            # create handlers
+            handler_nodes = nodes[nodes['node_type'] != "final"].copy().drop(["image", "reward"], axis=1)
+            handler_nodes["node_type"] = "handler"
+            handler_nodes["id"] = "handler_" + handler_nodes["id"]
+            handler_nodes["label"] = "Select children: " + handler_nodes["n_children"].astype(int).astype(str)
+            handler_nodes["metric"] = metric
+            handler_nodes["direction"] = direction
+            handler_edges = handler_nodes["id"].copy().to_frame().rename(columns={"id": "target"})
+            handler_edges["source"] = handler_edges["target"].str.removeprefix("handler_")
+
+            nodes = pd.concat([nodes, handler_nodes], ignore_index=True)
+            edges = pd.concat([edges, handler_edges], ignore_index=True)
+
+        nodes["iteration0"] = iteration[0]
+        nodes["iteration1"] = iteration[1]
+        if direction == "backward":
+            edges.rename(columns={"source": "target", "target": "source"}, inplace=True)
+
+        # convert to cytoscape structure
+        nodes = [{"data": row} for row in nodes.to_dict(orient="records")]
+        edges = [{"data": row} for row in edges.to_dict(orient="records")]
+
+        conn.close()
+
+        # Compute color scale
+        if metric in ['highest', 'lowest']:
+            vmin, vmax = -10, 0
+            colorscale = px.colors.sequential.Emrld
+        elif metric == "variance":
+            vmin, vmax = -3, 3
+            colorscale = px.colors.diverging.BrBG
+        elif metric == "frequency":
+            vmin, vmax = 0, max_freq
+            colorscale = px.colors.sequential.Emrld
+        else:
+            vmin, vmax = -1, 1  # fallback
+            colorscale = px.colors.sequential.Viridis
+
+        # Create color mapping
+        def get_color(value, vmin, vmax, colorscale):
+            if np.isnan(value):
+                return "#8e8e8e"
+            if value < vmin:
+                return colorscale[0]  # lowest color
+            if value > vmax:
+                return colorscale[-1]  # highest color
+            if vmax == vmin:
+                norm = 0.5
+            else:
+                norm = (value - vmin) / (vmax - vmin)
+            idx = int(norm * (len(colorscale) - 1))
+            return colorscale[idx]
+
+        # Build stylesheet
+        elements = nodes + edges
+
+        stylesheet = [
+            # Default node style
+            {
+                'selector': 'node',
+                'style': {
+                    'background-color': '#fff',
+                    'background-image': 'data(image)',
+                    'background-fit': 'contain',
+                    'background-clip': 'none',
+                    'shape': 'round-rectangle',
+                    'width': '50px',
+                    'height': '40px',
+                    'border-width': '1px',
+                    'border-color': '#000000'
+                }
+            },
+            # START node (keep text label)
+            {
+                'selector': 'node[node_type = "start"]',
+                'style': {
+                    'background-color': '#BAEB9D',
+                    'background-image': 'none',  # No image for start node
+                    'label': f'data(id)',
+                    'text-valign': 'center',
+                    'text-halign': 'center',
+                    'font-size': '12px',
+                    'shape': 'diamond',
+                    'width': '40px',
+                    'height': '40px',
+                    'border-color': '#000000',
+                    'border-width': '2px',
+                    'font-weight': 'bold',
+                    'text-wrap': 'wrap',
+                    'text-max-width': '55px'
+                }
+            },
+            # Final node
+            {
+                'selector': 'node[node_type = "final"]',
+                'style': {
+                    'background-color': '#fff',
+                    'background-image': 'data(image)',
+                    'background-fit': 'contain',
+                    'background-clip': 'none',
+                    'shape': 'round-rectangle',
+                    'width': '60px',
+                    'height': '45px',
+                    'border-width': '3px',
+                    'border-color': '#000000'
+                }
+            },
+            # Handler node
+            {
+                'selector': 'node[node_type = "handler"]',
+                'style': {
+                    'background-color': '#fff',
+                    'background-image': 'none',
+                    'label': 'data(label)',
+                    'text-valign': 'center',
+                    'text-halign': 'center',
+                    'font-size': '10px',
+                    'shape': 'round-rectangle',
+                    'width': '90px',
+                    'height': '20px',
+                    'border-width': '2px',
+                    'border-color': '#000000',
+                    # 'font-weight': 'bold',
+                    'text-wrap': 'wrap',
+                    'text-max-width': '90px'
+                }
+            },
+            # Default edge style
+            {
+                'selector': 'edge',
+                'style': {
+                    'width': 3,
+                    'target-arrow-shape': 'triangle',
+                    'curve-style': 'bezier',
+                    'arrow-scale': 1.5
+                }
+            }
+        ]
+
+        # Add color styles for each edge
+        for edge in edges:
+            edge_id = edge['data']['id']
+            edge_val = edge['data'].get("metric", 0)
+            color = get_color(edge_val, vmin, vmax, colorscale)
+
+            stylesheet.append({
+                'selector': f'edge[id = "{edge_id}"]',
+                'style': {
+                    'line-color': color,
+                    'target-arrow-color': color
+                }
+            })
+
+        return {
+            'elements': elements,
+            'stylesheet': stylesheet,
+        }

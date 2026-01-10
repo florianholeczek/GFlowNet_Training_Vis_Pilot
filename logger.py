@@ -442,6 +442,7 @@ Minimal working example: States are int<9
 
 
 
+"""
 def get_action(s):
     p=np.random.rand()
     if s==0:
@@ -544,4 +545,5 @@ f = np.random.uniform(0,1,(8, len(r)))
 logger.create_and_append_testset(t, r, m, f, f_valid)
 
 print("Testset done")
+"""
 

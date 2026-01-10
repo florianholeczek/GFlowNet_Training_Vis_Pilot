@@ -29,15 +29,12 @@ def update_state_space(df, selected_ids=[], metric="total_reward"):
     :return: updated plot
     """
 
-    print(metric)
-    print(df)
-    df[metric]*=100
-
-    #normalize metric, scale to range 6-30px, set size=4 for missing values (no metric in testset)
+    # Normalize metric, scale to range 6-30px, set size=4 for missing values (no metric in testset)
     m_min = df[metric].min()
     m_max = df[metric].max()
     df["metric_norm"] = 6 + (df[metric] - m_min) / (m_max - m_min) * (30-6)
-    df.fillna(4, inplace=True)
+    df ["metric_norm"] = df["metric_norm"].fillna(4)
+
     # Separate test set and normal points
     df_test = df[df['istestset']]
     df_normal = df[~df['istestset']]
@@ -50,7 +47,6 @@ def update_state_space(df, selected_ids=[], metric="total_reward"):
         ]
 
     fig = go.Figure()
-    #sizeref = df["total_reward"].max()*2/(8**2)
 
     # Normal points with continuous color scale
     fig.add_trace(go.Scatter(
@@ -59,7 +55,6 @@ def update_state_space(df, selected_ids=[], metric="total_reward"):
         mode='markers',
         marker=dict(
             size=df_normal["metric_norm"],
-            #sizeref=sizeref,
             color=df_normal['iteration'],
             colorscale='emrld',
             line=dict(color='black', width=1),
@@ -85,7 +80,6 @@ def update_state_space(df, selected_ids=[], metric="total_reward"):
             mode='markers',
             marker=dict(
                 size=df_test["metric_norm"],
-                #sizeref=sizeref,
                 color=px.colors.diverging.curl[9],
                 line=dict(color='black', width=1),
                 opacity=compute_opacity(df_test),

@@ -341,7 +341,7 @@ def run_dashboard(data: str, text_to_img_fn: callable):
                             dcc.Graph(id="bumpchart", clear_on_unhover=True),
                             style={"height": "100%", "width": "100%"}
                         ),
-                        dcc.Tooltip(id="image-tooltip3", direction="left"),
+                        dcc.Tooltip(id="image-tooltip3", direction="bottom"),
                     ], style={
                         "flex": 1,
                         #"border": "1px solid #ddd",
@@ -367,7 +367,7 @@ def run_dashboard(data: str, text_to_img_fn: callable):
                             dcc.Graph(id="state-space-plot", clear_on_unhover=True),
                             style={"height": "100%", "width": "100%"}
                         ),
-                        dcc.Tooltip(id="image-tooltip1"),
+                        dcc.Tooltip(id="image-tooltip1", direction="top"),
                     ], style={
                         "flex": 1,
                         #"border": "1px solid #ddd",
@@ -937,9 +937,9 @@ def run_dashboard(data: str, text_to_img_fn: callable):
                     WHERE features_valid = 1
                 """
             df_metadata_t = pd.read_sql_query(query, conn)
-            if not metric_exists:
-                df_metadata_t[metric]=None
-            df_metadata_t["iteration"] = None
+            #if not metric_exists:
+            #    df_metadata_t[metric]=None
+            #df_metadata_t["iteration"] = None
             df_metadata = pd.concat([df_metadata, df_metadata_t], ignore_index=True)
 
         df = df_metadata.merge(df_dp, on="id", how="inner")
@@ -1068,8 +1068,9 @@ def run_dashboard(data: str, text_to_img_fn: callable):
         Output("image-tooltip1", "bbox"),
         Output("image-tooltip1", "children"),
         Input("state-space-plot", "hoverData"),
+        State("fo-metric", "value")
     )
-    def display_image_tooltip1(hoverData):
+    def display_image_tooltip1(hoverData, metric):
         if hoverData is None:
             return False, None, None
 
@@ -1077,17 +1078,18 @@ def run_dashboard(data: str, text_to_img_fn: callable):
         bbox = hoverData["points"][0]["bbox"]
 
         # Extract base64 image saved in customdata
-        _, iteration, reward, image_b64 = hoverData["points"][0]["customdata"]
+        iteration, metric_data, text = hoverData["points"][0]["customdata"]
+        image_b64 = image_fn(text)
 
         # Build HTML content
         children = [
             html.Div([
                 html.Img(
-                    src=f"data:image/svg+xml;base64,{image_b64}",
+                    src=image_b64,
                     style={"width": "150px", "height": "150px"}
                 ),
-                html.Div(f"Iteration: {iteration}"),
-                html.Div(f"Reward: {reward:.3f}"),
+                html.Div(f"Iteration: {iteration}", style={"color": "black"}),
+                html.Div(f"{metric}: {metric_data:.3f}", style={"color": "black"}),
             ])
         ]
 

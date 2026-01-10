@@ -780,10 +780,6 @@ class Plotter:
         df['rank'] = df.groupby('iteration')['oldrank'] \
             .rank(method='dense', ascending=True).astype(int)
 
-        pd.set_option('display.max_rows', 500)
-        pd.set_option('display.max_columns', 500)
-        pd.set_option('display.width', 1000)
-        print(df)
         # Create Scatter plot
         fig = go.Figure(
             go.Scatter(

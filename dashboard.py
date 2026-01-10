@@ -1106,14 +1106,10 @@ def run_dashboard(data: str, text_to_img_fn: callable):
         if hoverData is None:
             return False, None, None
 
-        # Extract bounding box for positioning
         bbox = hoverData["points"][0]["bbox"]
-
-        # Extract base64 image saved in customdata
         iteration, metric_data, text = hoverData["points"][0]["customdata"]
         image_b64 = image_fn(text)
 
-        # Build HTML content
         children = [
             html.Div([
                 html.Img(
@@ -1134,8 +1130,9 @@ def run_dashboard(data: str, text_to_img_fn: callable):
         Output("image-tooltip3", "bbox"),
         Output("image-tooltip3", "children"),
         Input("bumpchart", "hoverData"),
+        State("fo-metric", "value")
     )
-    def display_image_tooltip3(hoverData):
+    def display_image_tooltip3(hoverData, fo_metric):
         if hoverData is None:
             return False, None, None
 
@@ -1145,21 +1142,18 @@ def run_dashboard(data: str, text_to_img_fn: callable):
         if "customdata" not in point or point["customdata"] is None:
             return False, None, None
 
-        # Extract bounding box for positioning
         bbox = point["bbox"]
+        _, rank, metric, text = point["customdata"]
+        image_b64 = image_fn(text)
 
-        # Extract base64 image saved in customdata
-        _, value, image_b64, reward = point["customdata"]
-
-        # Build HTML content
         children = [
             html.Div([
                 html.Img(
-                    src=f"data:image/svg+xml;base64,{image_b64}",
+                    src=image_b64,
                     style={"width": "150px", "height": "150px"}
                 ),
-                html.Div(f"Rank: {value}"),
-                html.Div(f"Reward: {reward:.4f}"),
+                html.Div(f"Rank: {rank}", style={"color": "black"}),
+                html.Div(f"{fo_metric}: {metric:.4f}", style={"color": "black"}),
             ])
         ]
 

@@ -810,9 +810,10 @@ def run_dashboard(data: str, text_to_img_fn: callable):
             """
         df = pd.read_sql_query(query, conn, params=iteration)
 
+        order = "highest" if "highest" in rank_metric else "lowest"
         if "iter" in rank_metric:
-            return plotter.update_bump_iter(df, selected_ids)
-        return plotter.update_bump_all(df, n_top, selected_ids, order)
+            return plotter.update_bump_iter(df, selected_ids, fo_metric, order)
+        return plotter.update_bump_all(df, n_top, selected_ids, fo_metric, order)
 
 
     # State Space Callback

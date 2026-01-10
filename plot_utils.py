@@ -621,7 +621,7 @@ class Plotter:
 
         fig.update_layout(
             autosize=True,
-            title=f"Final Objects downprojected<br><sup>Size shows {metric} for the latest iteration the object occured",
+            title=f"State Space of Final Objects<br><sup>Size shows {metric} for the latest iteration the object occured",
             template='plotly_dark',
             legend=dict(
                 itemsizing='constant',  # ensures marker size is not scaled
@@ -631,7 +631,7 @@ class Plotter:
 
         return fig
 
-    def update_bump_all(self, df, n_top, selected_ids, order):
+    def update_bump_all(self, df, n_top, selected_ids, fo_metric, order):
         """
         Optimized bump chart update for cumulative top-ranked objects
         where rewards are fixed but rank evolves as new objects appear.
@@ -745,10 +745,10 @@ class Plotter:
         fig.update_layout(
             autosize=True,
             title=(
-                "Replay Buffer Ranked<br><sup>"
-                "Sampled Objects ranked by the total reward. "
-                "For each Iteration the highest reward objects so far are shown. "
-                "Markers show if an object was sampled in this iteration. "
+                f"Sampled Objects ranked by {fo_metric}, {order} object has highest rank<br><sup>"
+                "For each Iteration the highest ranking objects so far are shown, " 
+                "objects from previous iterations persist as long as their rank is high enough. "
+                "Markers show if an object was actually sampled in this iteration."
                 "</sup>"
             ),
             showlegend=True,
@@ -763,7 +763,7 @@ class Plotter:
 
         return fig
 
-    def update_bump_iter(self, df, selected_ids):
+    def update_bump_iter(self, df, selected_ids, fo_metric, order):
         """
         Optimized bump chart update for cumulative top-ranked objects
         where rewards are fixed but rank evolves as new objects appear.
@@ -804,10 +804,8 @@ class Plotter:
         fig.update_layout(
             autosize=True,
             title=(
-                "Replay Buffer Ranked<br><sup>"
-                "Sampled Objects ranked by the total reward. "
-                "For each Iteration the highest reward objects so far are shown. "
-                "Markers show if an object was sampled in this iteration. "
+                f"Sampled Objects ranked by {fo_metric}, {order} object has highest rank<br><sup>"
+                "For each Iteration the highest ranking objects of this iteration are shown."
                 "</sup>"
             ),
             showlegend=True,

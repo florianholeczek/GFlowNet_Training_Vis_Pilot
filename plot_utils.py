@@ -7,194 +7,6 @@ import plotly.graph_objects as go
 import plotly.express as px
 
 
-
-
-
-def update_bump(df, n_top, selected_ids, testset_bounds=None):
-    """
-    Optimized bump chart update for cumulative top-ranked objects
-    where rewards are fixed but rank evolves as new objects appear.
-
-    :param df: prepared dataframe (should NOT include testset rows)
-    :param n_top: number of top objects to display
-    :param selected_ids: list of final_ids to highlight
-    :param testset_bounds: optional tuple (min_reward, max_reward) for shading
-    :return: Plotly figure
-    """
-
-    df_local = df.copy()
-
-    # Remove any testset rows if they exist (safety check)
-    if "istestset" in df_local.columns:
-        df_local = df_local[~df_local["istestset"]].copy()
-
-    df_local["iteration"] = pd.Categorical(
-        df_local["iteration"],
-        categories=sorted(df["iteration"].unique()),
-        ordered=True
-    )
-
-    iterations = df_local["iteration"].cat.categories
-    records = []
-
-    # Track objects seen so far and their fixed rewards
-    seen_objects = {}
-
-    for it in iterations:
-        # Add objects from this iteration
-        current_iter_data = df_local[df_local["iteration"] == it]
-        for _, row in current_iter_data.iterrows():
-            seen_objects[row["text"]] = row["total_reward"]
-
-        # Compute ranks for all seen objects
-        # Use text as tiebreaker to ensure stable ordering for equal rewards
-        tmp_rank = (
-            pd.DataFrame({"text": list(seen_objects.keys()), "total_reward": list(seen_objects.values())})
-            .sort_values(["total_reward", "text"], ascending=[False, True])
-            .head(n_top)
-        )
-        tmp_rank["rank"] = range(1, len(tmp_rank) + 1)
-        tmp_rank["iteration"] = it
-
-        records.append(tmp_rank[["iteration", "text", "rank", "total_reward"]])
-
-    tmp = pd.concat(records, ignore_index=True)
-    tmp = tmp.rename(columns={"rank": "value"})
-
-    # Attach images and IDs
-    tmp = tmp.merge(
-        df_local[['final_id', 'text', 'image']].drop_duplicates(subset='text'),
-        on='text',
-        how='left'
-    )
-
-    # Precompute marker sizes: circle if object was sampled in that iteration
-    tmp["sampled"] = tmp.apply(
-        lambda r: 8 if ((df_local["text"] == r["text"]) & (df_local["iteration"] == r["iteration"])).any() else 0,
-        axis=1)
-
-    # Sort objects by first appearance rank for consistent line ordering
-    first_ranks = tmp.groupby("text")["value"].min().sort_values().index
-
-    fig = go.Figure()
-
-    # Add shading for test set bounds if provided
-    if testset_bounds is not None:
-        min_reward, max_reward = testset_bounds
-
-        # For each iteration, find the rank bounds
-        shade_data = []
-        for it in iterations:
-            iter_data = tmp[tmp["iteration"] == it].sort_values("value")
-
-            # worst rank (highest number) that still has reward >= max_reward
-            at_or_above_max = iter_data[iter_data["total_reward"] >= max_reward]
-            rank_above = at_or_above_max["value"].max()-0.5 if not at_or_above_max.empty else 0.5
-
-            # best rank (lowest number) that still has reward <= min_reward
-            at_or_below_min = iter_data[iter_data["total_reward"] <= min_reward]
-            rank_below = at_or_below_min["value"].min()+0.5 if not at_or_below_min.empty else n_top + 0.5
-
-            shade_data.append({
-                "iteration": it,
-                "rank_above": rank_above,
-                "rank_below": rank_below
-            })
-
-        shade_df = pd.DataFrame(shade_data)
-
-        # Add shaded area between the bound ranks
-        fig.add_trace(
-            go.Scatter(
-                x=shade_df["iteration"].tolist() + shade_df["iteration"].tolist()[::-1],
-                y=shade_df["rank_above"].tolist() + shade_df["rank_below"].tolist()[::-1],
-                fill='toself',
-                fillcolor=px.colors.diverging.curl[9],
-                opacity=0.5,
-                line=dict(width=0),
-                showlegend=True,
-                hoverinfo='none',
-                name='Range of testset rewards'  # Internal name to help identify this trace
-            )
-        )
-
-    first_iter = (
-        tmp.groupby("text")["iteration"]
-        .min()
-    )
-    # Map iteration categories to numeric indices
-    iter_to_idx = {it: i for i, it in enumerate(iterations)}
-    first_iter_idx = first_iter.map(iter_to_idx)
-    emrld = px.colors.sequential.Emrld
-    n_colors = len(emrld)
-    # Normalize first-iteration index → color
-    obj_color = {
-        text: emrld[int(idx / max(1, len(iterations) - 1) * (n_colors - 1))]
-        for text, idx in first_iter_idx.items()
-    }
-
-    for obj in first_ranks:
-        obj_df = tmp[tmp["text"] == obj].sort_values("iteration")
-
-        selected_mask = obj_df["final_id"].isin(selected_ids)
-        if not selected_ids:
-            selected_mask[:] = True
-        unselected_mask = ~selected_mask
-
-        for mask, opacity in [(selected_mask, 1), (unselected_mask, 0.1)]:
-            sub_df = obj_df[mask]
-            if sub_df.empty:
-                continue
-
-            fig.add_trace(
-                go.Scatter(
-                    x=sub_df["iteration"],
-                    y=sub_df["value"],
-                    mode="lines+markers",
-                    marker=dict(
-                        symbol="circle",
-                        size=sub_df["sampled"],
-                        color=obj_color[obj],
-                    ),
-                    line=dict(width=2),
-                    opacity=opacity,
-                    #name="1",#obj if opacity == 1 else f"{obj} (faded)",
-                    customdata=sub_df[['final_id', 'value', 'image', 'total_reward']].values,
-                    showlegend=False
-                )
-            )
-
-    fig.update_traces(hoverinfo="none", hovertemplate=None)
-
-    fig.update_layout(
-        autosize=True,
-        title=(
-            "Replay Buffer Ranked<br><sup>"
-            "Sampled Objects ranked by the total reward. "
-            "For each Iteration the highest reward objects so far are shown. "
-            "Markers show if an object was sampled in this iteration. "
-            "</sup>"
-        ),
-        showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="left", x=0),
-        xaxis_title="Iteration",
-        yaxis_title="Rank",
-        template='plotly_dark',
-        margin=dict(l=40, r=40, t=40, b=40)
-    )
-
-    fig.update_yaxes(autorange="reversed")
-
-    return fig
-
-
-
-
-
-
-
-
-
 class Plotter:
 
     def __init__(self, data, image_fn):
@@ -816,5 +628,185 @@ class Plotter:
             ),
             margin=dict(l=40, r=40, t=40, b=40)
         )
+
+        return fig
+
+    def update_bump_all(self, df, n_top, selected_ids, order):
+        """
+        Optimized bump chart update for cumulative top-ranked objects
+        where rewards are fixed but rank evolves as new objects appear.
+
+        :param df: prepared dataframe (should NOT include testset rows)
+        :param n_top: number of top objects to display
+        :param selected_ids: list of final_ids to highlight
+        :param order: ASC or DSC for highest/lowest rank
+        :return: Plotly figure
+        """
+
+        df["iteration"] = pd.Categorical(
+            df["iteration"],
+            categories=sorted(df["iteration"].unique()),
+            ordered=True
+        )
+
+        iterations = df["iteration"].cat.categories
+        records = []
+
+        # Track objects seen so far and their fixed rewards
+        seen_objects = {}
+
+        for it in iterations:
+            # Add objects from this iteration
+            current_iter_data = df[df["iteration"] == it]
+            for _, row in current_iter_data.iterrows():
+                seen_objects[row["text"]] = row["metric"]
+
+            # Compute ranks for all seen objects
+            # Use text as tiebreaker to ensure stable ordering for equal rewards
+            asc = [False, True] if order == "DESC" else [True, True]
+            tmp_rank = (
+                pd.DataFrame({"text": list(seen_objects.keys()), "metric": list(seen_objects.values())})
+                .sort_values(["metric", "text"], ascending=asc)
+                .head(n_top)
+            )
+            tmp_rank["rank"] = range(1, len(tmp_rank) + 1)
+            tmp_rank["iteration"] = it
+
+            records.append(tmp_rank[["iteration", "text", "rank", "metric"]])
+
+        tmp = pd.concat(records, ignore_index=True)
+        tmp = tmp.rename(columns={"rank": "value"})
+
+        # Attach IDs
+        tmp = tmp.merge(
+            df[['final_id', 'text']].drop_duplicates(subset='text'),
+            on='text',
+            how='left'
+        )
+
+        # Precompute marker sizes: circle if object was sampled in that iteration
+        tmp["sampled"] = tmp.apply(
+            lambda r: 8 if ((df["text"] == r["text"]) & (df["iteration"] == r["iteration"])).any() else 0,
+            axis=1)
+
+        # Sort objects by first appearance rank for consistent line ordering
+        first_ranks = tmp.groupby("text")["value"].min().sort_values().index
+
+        fig = go.Figure()
+
+        first_iter = (
+            tmp.groupby("text")["iteration"]
+            .min()
+        )
+        # Map iteration categories to numeric indices
+        iter_to_idx = {it: i for i, it in enumerate(iterations)}
+        first_iter_idx = first_iter.map(iter_to_idx)
+        emrld = px.colors.sequential.Emrld
+        n_colors = len(emrld)
+        # Normalize first-iteration index → color
+        obj_color = {
+            text: emrld[int(idx / max(1, len(iterations) - 1) * (n_colors - 1))]
+            for text, idx in first_iter_idx.items()
+        }
+
+        for obj in first_ranks:
+            obj_df = tmp[tmp["text"] == obj].sort_values("iteration")
+
+            selected_mask = obj_df["final_id"].isin(selected_ids)
+            if not selected_ids:
+                selected_mask[:] = True
+            unselected_mask = ~selected_mask
+
+            for mask, opacity in [(selected_mask, 1), (unselected_mask, 0.1)]:
+                sub_df = obj_df[mask]
+                if sub_df.empty:
+                    continue
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=sub_df["iteration"],
+                        y=sub_df["value"],
+                        mode="lines+markers",
+                        marker=dict(
+                            symbol="circle",
+                            size=sub_df["sampled"],
+                            color=obj_color[obj],
+                        ),
+                        line=dict(width=1),
+                        opacity=opacity,
+                        # name="1",#obj if opacity == 1 else f"{obj} (faded)",
+                        customdata=sub_df[['final_id', 'value', 'metric', 'text']].values,
+                        showlegend=False
+                    )
+                )
+
+        fig.update_traces(hoverinfo="none", hovertemplate=None)
+
+        fig.update_layout(
+            autosize=True,
+            title=(
+                "Replay Buffer Ranked<br><sup>"
+                "Sampled Objects ranked by the total reward. "
+                "For each Iteration the highest reward objects so far are shown. "
+                "Markers show if an object was sampled in this iteration. "
+                "</sup>"
+            ),
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="left", x=0),
+            xaxis_title="Iteration",
+            yaxis_title="Rank",
+            template='plotly_dark',
+            margin=dict(l=40, r=40, t=40, b=40)
+        )
+
+        fig.update_yaxes(autorange="reversed")
+
+        return fig
+
+    def update_bump_iter(self, df, n_top, selected_ids, order):
+        """
+        Optimized bump chart update for cumulative top-ranked objects
+        where rewards are fixed but rank evolves as new objects appear.
+
+        :param df: prepared dataframe (should NOT include testset rows)
+        :param n_top: number of top objects to display
+        :param selected_ids: list of final_ids to highlight
+        :param order: ASC or DSC for highest/lowest rank
+        :return: Plotly figure
+        """
+
+        # Create Scatter plot
+        fig = go.Figure(
+            go.Scatter(
+                x=df['iteration'],
+                y=df['rank'],
+                mode='markers',
+                marker=dict(color=df['iteration'], colorscale='Emrld'),
+                line=dict(width=1),
+                customdata=df[['final_id', 'rank', 'metric', 'text']].values,
+                showlegend=False
+            )
+        )
+
+        fig.update_traces(hoverinfo="none", hovertemplate=None)
+
+        fig.update_layout(
+            autosize=True,
+            title=(
+                "Replay Buffer Ranked<br><sup>"
+                "Sampled Objects ranked by the total reward. "
+                "For each Iteration the highest reward objects so far are shown. "
+                "Markers show if an object was sampled in this iteration. "
+                "</sup>"
+            ),
+            showlegend=True,
+            legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="left", x=0),
+            xaxis_title="Iteration",
+            yaxis_title="Rank",
+            template='plotly_dark',
+            margin=dict(l=40, r=40, t=40, b=40)
+        )
+
+        fig.update_yaxes(autorange="reversed")
 
         return fig

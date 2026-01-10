@@ -199,6 +199,22 @@ def run_dashboard(data: str, text_to_img_fn: callable):
                         "gap": "6px"
                     }),
 
+                    # -------- Ranking Metric --------
+                    html.Div([
+                        html.Div("Ranking Metric", style={"textAlign": "center"}),
+                        dcc.Dropdown(
+                            id="ranking-metric",
+                            options=["highest over all", "highest per iter", "lowest over all", "lowest per iter"],
+                            value="highest over all",
+                            clearable=False,
+                            style={"color": "black"}
+                        )
+                    ], style={
+                        "display": "flex",
+                        "flexDirection": "column",
+                        "gap": "6px"
+                    }),
+
                     # -------- Projection method --------
                     html.Div([
                         html.Div("Dimensionality reduction", style={"textAlign": "center"}),
@@ -784,18 +800,34 @@ def run_dashboard(data: str, text_to_img_fn: callable):
         Output("bumpchart", "figure"),
         Input("iteration", "value"),
         Input("selected-objects", "data"),
-        Input("use-testset", "value"),
+        Input("fo-metric", "value"),
+        Input("ranking-metric", "value"),
     )
-    def bump_callback(iteration, selected_ids, use_testset):
-        tmp = data[data["final_object"] == True]
-        tmp = tmp.iloc[:, :10]
-        tmp = tmp[tmp["iteration"] <= iteration[1]]
-        tmp = tmp[tmp["iteration"] >= iteration[0]]
-        tmp["istestset"]=False
-        if use_testset:
-            return update_bump(tmp, 30, selected_ids, testset_reward_bounds)
+    def bump_callback(iteration, selected_ids, fo_metric, rank_metric):
+        n_top = 30
+        order = "DESC" if "highest" in rank_metric else "ASC"
+        conn = sqlite3.connect(data_path)
+        query = f"""
+                SELECT iteration, text, metric, final_id, rank
+                FROM (
+                    SELECT
+                        iteration,
+                        text,
+                        {fo_metric} as metric,
+                        final_id,
+                        ROW_NUMBER() OVER (PARTITION BY iteration ORDER BY {fo_metric} {order}) AS rank
+                    FROM trajectories
+                    WHERE iteration BETWEEN ? AND ?
+                    AND final_object = 1
+                ) sub
+                WHERE rank <= {n_top}
+                ORDER BY iteration, rank;
+            """
+        df = pd.read_sql_query(query, conn, params=iteration)
 
-        return update_bump(tmp, 30, selected_ids, None)
+        if "iter" in rank_metric:
+            return plotter.update_bump_iter(df, n_top, selected_ids, order)
+        return plotter.update_bump_all(df, n_top, selected_ids, order)
 
 
     # State Space Callback

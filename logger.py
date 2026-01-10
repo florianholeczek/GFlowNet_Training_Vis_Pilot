@@ -488,16 +488,16 @@ if __name__ == "__main__":
         trajectories=[]
         rewards=[]
         losses=[]
-        losses2=[]
+        c_metric=[]
         for count in range(n):
             t=get_trajectory()
             batch_ids +=[count]*len(t)
             trajectories += t
             rewards.append(t[-1])
             losses.append(np.random.rand())
-            losses2.append(np.random.rand())
+            c_metric.append(np.random.rand())
 
-        return np.array(batch_ids),np.array(trajectories),np.array(rewards),np.array(losses),losses2
+        return np.array(batch_ids),np.array(trajectories),np.array(rewards),np.array(losses),c_metric
 
     def to_t(ss):
         return [str(int(s)) for s in ss]
@@ -524,7 +524,7 @@ if __name__ == "__main__":
         fn_state_to_text=to_t,
         fn_compute_features=to_f,
         fn_state_to_image=to_i,
-        metrics=["loss2"],
+        metrics=["custom_metric"],
         features=["f1", "f2", "f3"],
     )
 
@@ -543,7 +543,7 @@ if __name__ == "__main__":
 
     r = [7]*25 + [9]*20 + [6]*5
     t = [str(i) for i in r]
-    m = {"loss2": np.random.uniform(0,1,(len(r),))}
+    m = {"custom_metric": np.random.uniform(0,1,(len(r),))}
     f_valid = [True]*(len(r)-1) + [False]
     f = np.random.uniform(0,1,(8, len(r)))
     logger.create_and_append_testset(t, r, m, f, f_valid)

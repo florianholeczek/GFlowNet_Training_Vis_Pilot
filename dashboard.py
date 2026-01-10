@@ -822,14 +822,26 @@ def run_dashboard(data: str, text_to_img_fn: callable):
         # compute Downprojections and write to db
         else:
 
-            # Get logged data
+            # Get logged data (unique texts, metric: latest iteration)
             query = f"""
-                    SELECT final_id, {", ".join(feature_cols)}
+                SELECT final_id, {", ".join(feature_cols)}
+                FROM (
+                    SELECT
+                        final_id,
+                        text,
+                        {", ".join(feature_cols)},
+                        iteration,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY text
+                            ORDER BY iteration DESC
+                        ) AS rn
                     FROM trajectories
                     WHERE final_object = 1
-                    AND iteration BETWEEN ? AND ?
-                    AND features_valid = 1
-                """
+                      AND iteration BETWEEN ? AND ?
+                      AND features_valid = 1
+                )
+                WHERE rn = 1
+            """
             logged = pd.read_sql_query(query, conn, params=iteration)
             query = f"""
                     SELECT COUNT(*) AS count
@@ -896,11 +908,23 @@ def run_dashboard(data: str, text_to_img_fn: callable):
 
         # get metadata
         query = f"""
-                SELECT final_id AS id, text, {metric}, iteration
-                From trajectories
-                WHERE final_object = 1
-                    AND iteration BETWEEN ? AND ?
-                    AND features_valid = 1
+                SELECT id, text, {metric}, iteration
+                FROM (
+                    SELECT
+                        final_id AS id,
+                        text,
+                        {metric},
+                        iteration,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY final_id
+                            ORDER BY iteration DESC
+                        ) AS rn
+                    FROM trajectories
+                    WHERE final_object = 1
+                      AND iteration BETWEEN ? AND ?
+                      AND features_valid = 1
+                )
+                WHERE rn = 1
                 """
         df_metadata = pd.read_sql_query(query, conn, params=iteration)
 

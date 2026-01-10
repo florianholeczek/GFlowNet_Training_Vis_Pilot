@@ -33,11 +33,11 @@ def update_state_space(df, selected_ids=[], metric="total_reward"):
     print(df)
     df[metric]*=100
 
-    #normalize metric, scale to range 6-30px, set size=3 for missing values (no metric in testset)
+    #normalize metric, scale to range 6-30px, set size=4 for missing values (no metric in testset)
     m_min = df[metric].min()
     m_max = df[metric].max()
     df["metric_norm"] = 6 + (df[metric] - m_min) / (m_max - m_min) * (30-6)
-    df.fillna(3, inplace=True)
+    df.fillna(4, inplace=True)
     # Separate test set and normal points
     df_test = df[df['istestset']]
     df_normal = df[~df['istestset']]
@@ -98,7 +98,7 @@ def update_state_space(df, selected_ids=[], metric="total_reward"):
 
     fig.update_layout(
         autosize=True,
-        title=f"Final Objects downprojected<br><sup>Size shows total reward",
+        title=f"Final Objects downprojected<br><sup>Size shows {metric} for the latest iteration the object occured",
         template='plotly_dark',
         legend=dict(
             itemsizing='constant',  # ensures marker size is not scaled

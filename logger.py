@@ -346,7 +346,6 @@ class VisLogger:
             index=False
         )
 
-
         # indexing
         if not table_exists:
             cur.execute("CREATE INDEX idx_points_finalid ON trajectories(final_id)")
@@ -415,9 +414,17 @@ class VisLogger:
         df["features_valid"] = features_valid
         for i,f in enumerate(features):
             df[f"f_{i}"] = f
+        df.insert(0, "id", -df.index-1)
 
         # create db or append to it
         conn = sqlite3.connect(self.db)
+        cur = conn.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='testset'")
+        table_exists = cur.fetchone() is not None
+        if table_exists:
+            query = "SELECT COALESCE(MIN(id), 0) AS min FROM testset"
+            offset = pd.read_sql_query(query, conn)["min"][0]
+            df["id"] = df["id"] - offset
         df.to_sql(
             "testset",
             conn,
@@ -426,124 +433,121 @@ class VisLogger:
         )
 
         # create indices the first time
-        cur = conn.cursor()
-        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='trajectories'")
-        if cur.fetchone() is None:
+
+        if table_exists:
             cur.execute("CREATE INDEX idx_points_text ON testset(text)")
             cur.execute("CREATE INDEX idx_points_reward ON testset(total_reward)")
         conn.close()
 
 
 
-"""
-create debug data
-Minimal working example: States are int<9
-"""
 
-
-
-"""
-def get_action(s):
-    p=np.random.rand()
-    if s==0:
-        if p>0.5:
-            return 1, False
-        else:
-            return 2, False
-    elif s==1:
-        return 3, False
-    elif s==2:
-        if p<0.1:
+if __name__ == "__main__":
+    """
+    create debug data
+    Minimal working example: States are int<9
+    """
+    def get_action(s):
+        p=np.random.rand()
+        if s==0:
+            if p>0.5:
+                return 1, False
+            else:
+                return 2, False
+        elif s==1:
             return 3, False
-        elif p<0.4:
-            return 4, False
-        else:
-            return 7, True
-    elif s==3:
-        return 5, False
-    elif s==4:
-        if p>0.3:
-            return 6, True
-        else:
-            return 7, True
-    elif s==5:
-        return 8, False
-    elif s==8:
-        return 9, True
+        elif s==2:
+            if p<0.1:
+                return 3, False
+            elif p<0.4:
+                return 4, False
+            else:
+                return 7, True
+        elif s==3:
+            return 5, False
+        elif s==4:
+            if p>0.3:
+                return 6, True
+            else:
+                return 7, True
+        elif s==5:
+            return 8, False
+        elif s==8:
+            return 9, True
 
-def get_trajectory():
-    b=False
-    t=[0]
-    while not b:
-        s, b = get_action(t[-1])
-        t.append(s)
-    return t
+    def get_trajectory():
+        b=False
+        t=[0]
+        while not b:
+            s, b = get_action(t[-1])
+            t.append(s)
+        return t
 
-def get_trajectories(n):
-    batch_ids=[]
-    trajectories=[]
-    rewards=[]
-    losses=[]
-    losses2=[]
-    for count in range(n):
-        t=get_trajectory()
-        batch_ids +=[count]*len(t)
-        trajectories += t
-        rewards.append(t[-1])
-        losses.append(np.random.rand())
-        losses2.append(np.random.rand())
+    def get_trajectories(n):
+        batch_ids=[]
+        trajectories=[]
+        rewards=[]
+        losses=[]
+        losses2=[]
+        for count in range(n):
+            t=get_trajectory()
+            batch_ids +=[count]*len(t)
+            trajectories += t
+            rewards.append(t[-1])
+            losses.append(np.random.rand())
+            losses2.append(np.random.rand())
 
-    return np.array(batch_ids),np.array(trajectories),np.array(rewards),np.array(losses),losses2
+        return np.array(batch_ids),np.array(trajectories),np.array(rewards),np.array(losses),losses2
 
-def to_t(ss):
-    return [str(int(s)) for s in ss]
+    def to_t(ss):
+        return [str(int(s)) for s in ss]
 
-def to_f(ss):
-    return np.random.uniform(1, 2, (len(ss),5)), np.array([True]*len(ss))
+    def to_f(ss):
+        return np.random.uniform(1, 2, (len(ss),5)), np.array([True]*len(ss))
 
-import base64
+    import base64
 
-def to_i(ss):
-    out = []
-    for s in ss:
-        dots = [(i%3, i//3) for i in range(s)]
-        svg = '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60">' + \
-              ''.join(f'<circle cx="{10+x*20}" cy="{10+y*20}" r="5" fill="black"/>' for x,y in dots) + \
-              '</svg>'
-        out.append(base64.b64encode(svg.encode()).decode())
-    return out
+    def to_i(ss):
+        out = []
+        for s in ss:
+            dots = [(i%3, i//3) for i in range(s)]
+            svg = '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60">' + \
+                  ''.join(f'<circle cx="{10+x*20}" cy="{10+y*20}" r="5" fill="black"/>' for x,y in dots) + \
+                  '</svg>'
+            out.append(base64.b64encode(svg.encode()).decode())
+        return out
 
 
-logger = VisLogger(
-    path="./debugdata",
-    s0_included=True,
-    fn_state_to_text=to_t,
-    fn_compute_features=to_f,
-    fn_state_to_image=to_i,
-    metrics=["loss2"],
-    features=["f1", "f2", "f3"],
-)
+    logger = VisLogger(
+        path="./debugdata",
+        s0_included=True,
+        fn_state_to_text=to_t,
+        fn_compute_features=to_f,
+        fn_state_to_image=to_i,
+        metrics=["loss2"],
+        features=["f1", "f2", "f3"],
+    )
 
-for i in range(10):
-    b, t, r, l, l2 = get_trajectories(10)
-    d_length = len(b)
-    lpf = np.random.uniform(-10, 0, (d_length,))
-    lpb = np.random.uniform(-10, 0, (d_length,))
-    features = np.random.uniform(0, 1, (d_length, 3))
-    f_valid = np.array([True] * d_length)
+    for i in range(10):
+        b, t, r, l, l2 = get_trajectories(10)
+        d_length = len(b)
+        lpf = np.random.uniform(-10, 0, (d_length,))
+        lpb = np.random.uniform(-10, 0, (d_length,))
+        features = np.random.uniform(0, 1, (d_length, 3))
+        f_valid = np.array([True] * d_length)
 
-    logger.log(b, t, r, l, i, lpf, lpb, metrics= [l2], features_valid_provided= f_valid, features= features)
-    logger.write_to_db()
+        logger.log(b, t, r, l, i, lpf, lpb, metrics= [l2], features_valid_provided= f_valid, features= features)
+        logger.write_to_db()
 
-print("logging done")
+    print("logging done")
 
-r = [7]*25 + [9]*20 + [6]*5
-t = [str(i) for i in r]
-m = {"loss2": np.random.uniform(0,1,(len(r),))}
-f_valid = [True]*len(r)
-f = np.random.uniform(0,1,(8, len(r)))
-logger.create_and_append_testset(t, r, m, f, f_valid)
+    r = [7]*25 + [9]*20 + [6]*5
+    t = [str(i) for i in r]
+    m = {"loss2": np.random.uniform(0,1,(len(r),))}
+    f_valid = [True]*(len(r)-1) + [False]
+    f = np.random.uniform(0,1,(8, len(r)))
+    logger.create_and_append_testset(t, r, m, f, f_valid)
 
-print("Testset done")
-"""
+    print("Testset done")
+
 

@@ -2,6 +2,7 @@ import sqlite3
 import warnings
 
 import dash
+import pandas as pd
 from dash import dcc, html, Input, Output, State, no_update, dash_table, ctx
 import dash_bootstrap_components as dbc
 from dash.dash_table.Format import Format, Scheme
@@ -46,6 +47,29 @@ def run_dashboard(data: str, text_to_img_fn: callable):
 
     plotter = Plotter(data_path, image_fn)
 
+    # get provided metrics and feature columns
+    conn = sqlite3.connect(data_path)
+    data_cols = pd.read_sql_query("SELECT name FROM pragma_table_info('trajectories');", conn)["name"].tolist()
+    final_object_metrics = data_cols[data_cols.index("total_reward"): data_cols.index("logprobs_forward")]
+    feature_cols = data_cols[data_cols.index("features_valid")+1:]
+
+    # create empty testset if it is missing and get column names
+    cur = conn.cursor()
+    cur.execute(f"""
+            CREATE TABLE IF NOT EXISTS testset (
+                id TEXT PRIMARY KEY,
+                total_reward REAL,
+                features_valid REAL
+            )
+        """)
+    testset_cols = pd.read_sql_query("SELECT name FROM pragma_table_info('testset');", conn)["name"].tolist()
+    feature_cols_testset = testset_cols[testset_cols.index("features_valid")+1:]
+    testset_metrics = testset_cols[testset_cols.index("total_reward"): testset_cols.index("features_valid")]
+    conn.commit()
+    conn.close()
+
+
+
     # Load data
     data = pd.read_csv('traindata1/train_data.csv')
     data.insert(loc=10, column="istestset", value=False)
@@ -71,7 +95,6 @@ def run_dashboard(data: str, text_to_img_fn: callable):
     app.layout = html.Div([
         dcc.Store(id="selected-objects", data=[]),
         dcc.Store(id="data-dps", data=data_dps),
-        dcc.Store(id="data-dpt", data=data_dpt),
         dcc.Store(id="build-ids", data= ["#"]),
         dcc.Store(id="max-frequency", data= 0),
         dcc.Store(id="dag-overview-tid-list", data= []),
@@ -135,36 +158,6 @@ def run_dashboard(data: str, text_to_img_fn: callable):
                     "gap": "6px"
                 }),
 
-                # -------- Use Testset --------
-                dcc.Checklist(["Use Testset"], [], id="use-testset", style={
-                    "display": "flex",
-                    "flexDirection": "column",
-                    "gap": "6px"
-                }),
-
-                # -------- Limit Trajectories --------
-                html.Div([
-                    html.Div("Limit trajectories", style={"textAlign": "center"}),
-                    html.Div(
-                        "Keep only the top N trajectories for trajectory-visualizations. "
-                        "(temporary for faster loading)",
-                        style={"textAlign": "center", "font-size": "10px"}
-                    ),
-                    dcc.Slider(
-                        id="limit-trajectories",
-                        min=1,
-                        max=100,
-                        step=1,
-                        value=5,
-                        marks={0: '0', 100: '100'},
-                        tooltip={"placement": "bottom", "always_visible": False}
-                    )
-                ], style={
-                    "display": "flex",
-                    "flexDirection": "column",
-                    "gap": "6px"
-                }),
-
             ], style={
                 "display": "flex",
                 "flexDirection": "column",
@@ -180,10 +173,32 @@ def run_dashboard(data: str, text_to_img_fn: callable):
 
             html.H4("Projection", id="sidebar-tab-header"),
             # --------------- Projection Controls ---------------
-
-
             html.Div([
                 html.Div([
+
+                    # -------- Use Testset --------
+                    dcc.Checklist([" Use Testset"], [], id="use-testset", style={
+                        "display": "flex",
+                        "flexDirection": "column",
+                        "gap": "6px"
+                    }),
+
+                    # -------- Final Object Metric --------
+                    html.Div([
+                        html.Div("Object Metric", style={"textAlign": "center"}),
+                        dcc.Dropdown(
+                            id="fo-metric",
+                            options=final_object_metrics,
+                            value="total_reward",
+                            clearable=False,
+                            style={"color": "black"}
+                        )
+                    ], style={
+                        "display": "flex",
+                        "flexDirection": "column",
+                        "gap": "6px"
+                    }),
+
                     # -------- Projection method --------
                     html.Div([
                         html.Div("Method", style={"textAlign": "center"}),
@@ -764,60 +779,6 @@ def run_dashboard(data: str, text_to_img_fn: callable):
 
         return no_update
 
-
-    # Compute downprojections
-    @app.callback(
-        Output("data-dps", "data"),
-        Output("data-dpt", "data"),
-        Input("projection-method", "value"),
-        Input("projection-param", "value"),
-        Input("limit-trajectories", "value"),
-        Input(  "iteration", "value"),
-        Input(  "use-testset", "value")
-    )
-    def compute_downprojections(method, param_value, trajectories, iteration, use_testset):
-        cols_to = 12
-        objs = data[data["iteration"] <= iteration[1]]
-        objs = objs[objs["iteration"] >= iteration[0]]
-        if use_testset:
-            objs = pd.concat((objs, data_test))
-        objs = objs[objs["features_valid"] == True]
-
-        #states
-        data_s = objs[(objs["final_object"] == True) | (objs["istestset"]==True)].copy()
-        metadata_s = data_s.iloc[:, :cols_to].reset_index(drop=True)
-        features_s = data_s.iloc[:, cols_to:].reset_index(drop=True)
-
-        #trajectories
-        top_ranks = sorted(objs['reward_ranked'].dropna().unique())[:trajectories]
-        data_t = objs[objs["reward_ranked"].isin(top_ranks) | (objs["istestset"] == True)]
-        metadata_t = data_t.iloc[:, :cols_to].reset_index(drop=True)
-        features_t = data_t.iloc[:, cols_to:].reset_index(drop=True)
-
-        # Downprojection
-        if method == "tsne":
-            proj_s = manifold.TSNE(
-                perplexity=min(param_value, len(features_s)-1),
-                init='pca',
-                learning_rate='auto'
-            ).fit_transform(features_s)
-            proj_t = manifold.TSNE(
-                perplexity=min(param_value, len(features_t)-1),
-                init='pca',
-                learning_rate='auto'
-            ).fit_transform(features_t)
-        elif method == "umap":
-            reducer_s = UMAP(n_neighbors=min(param_value, len(features_s)-1))
-            reducer_t = UMAP(n_neighbors=min(param_value, len(features_t)-1))
-            proj_s = reducer_s.fit_transform(features_s)
-            proj_t = reducer_t.fit_transform(features_t)
-        else:
-            raise NotImplementedError("Method not implemented")
-
-        data_s = pd.concat([metadata_s, pd.DataFrame(proj_s, columns=['X', 'Y'])], axis=1)
-        data_t = pd.concat([metadata_t, pd.DataFrame(proj_t, columns=['X', 'Y'])], axis=1)
-        return data_s.to_dict("records"), data_t.to_dict("records")
-
     # Bump Callback
     @app.callback(
         Output("bumpchart", "figure"),
@@ -841,12 +802,129 @@ def run_dashboard(data: str, text_to_img_fn: callable):
     @app.callback(
         Output("state-space-plot", "figure"),
         Input("selected-objects", "data"),
-        Input("data-dps", "data")
+        Input("projection-method", "value"),
+        Input("projection-param", "value"),
+        Input("iteration", "value"),
+        Input("use-testset", "value"),
+        Input("fo-metric", "value")
     )
-    def update_projection_plots(selected_ids, data_s):
-        return(
-            update_state_space(pd.DataFrame(data_s), selected_ids)
-        )
+    def update_projection_plots(selected_ids, method, param_value, iteration, use_testset, metric):
+        ctx = dash.callback_context
+        if not ctx.triggered:
+            return no_update
+        trigger = ctx.triggered[0]["prop_id"]
+        conn = sqlite3.connect(data_path)
+
+        # fetch from db
+        if trigger == "selected-objects"or trigger == "fo-metric":
+            df_dp = pd.read_sql_query("SELECT id, x, y FROM current_dp", conn)
+
+        # compute Downprojections and write to db
+        else:
+
+            # Get logged data
+            query = f"""
+                    SELECT final_id, {", ".join(feature_cols)}
+                    FROM trajectories
+                    WHERE final_object = 1
+                    AND iteration BETWEEN ? AND ?
+                    AND features_valid = 1
+                """
+            logged = pd.read_sql_query(query, conn, params=iteration)
+            query = f"""
+                    SELECT COUNT(*) AS count
+                    FROM trajectories
+                    WHERE final_object = 1
+                    AND iteration BETWEEN ? AND ?
+                    AND features_valid = 0
+                """
+            non_valid = pd.read_sql_query(query, conn, params=iteration)["count"][0]
+            if non_valid:
+                print(f"{non_valid} objects of the logged data have not been downprojected due to invalid features.")
+
+            final_ids = logged["final_id"].to_numpy()
+            features = logged.drop(columns=["final_id"]).to_numpy()
+
+            # Get testset data
+            if use_testset:
+                query = f"""
+                        SELECT id, {", ".join(feature_cols_testset)}
+                        FROM testset
+                        WHERE features_valid = 1
+                    """
+                testset = pd.read_sql_query(query, conn)
+                non_valid_t = pd.read_sql_query("SELECT COUNT(*) AS count FROM testset WHERE features_valid = 0", conn)["count"][0]
+                if non_valid_t:
+                    print(f"{non_valid_t} objects of the testset have not been downprojected due to invalid features.")
+
+                # concat
+                final_ids_t = testset["id"].to_numpy()
+                features_t = testset.drop(columns=["id"]).to_numpy()
+                assert features.shape[1] == features_t.shape[1], \
+                    f"""
+                    Testset and Logged data have a different amout of features.\n
+                    Testset: {feature_cols_testset}
+                    Logged: {feature_cols}
+                    """
+                features = np.concatenate((features, features_t), axis=0)
+                final_ids = np.concatenate((final_ids, final_ids_t), axis=0)
+
+            # Downprojection
+            if method == "tsne":
+                proj_s = manifold.TSNE(
+                    perplexity=min(param_value, features.shape[0] - 1),
+                    init="pca",
+                    learning_rate="auto"
+                ).fit_transform(features)
+
+            elif method == "umap":
+                reducer_s = UMAP(
+                    n_neighbors=min(param_value, features.shape[0] - 1)
+                )
+                proj_s = reducer_s.fit_transform(features)
+
+            else:
+                raise NotImplementedError("Method not implemented")
+
+            df_dp = pd.DataFrame({"id": final_ids, "x": proj_s[:, 0], "y": proj_s[:, 1]})
+            df_dp.to_sql(
+                "current_dp",
+                conn,
+                if_exists="replace",
+                index=False
+            )
+
+        # get metadata
+        query = f"""
+                SELECT final_id AS id, text, {metric}, iteration
+                From trajectories
+                WHERE final_object = 1
+                    AND iteration BETWEEN ? AND ?
+                    AND features_valid = 1
+                """
+        df_metadata = pd.read_sql_query(query, conn, params=iteration)
+
+        if use_testset:
+
+            metric_exists = metric in testset_metrics
+            query = f"""
+                    SELECT id, text{f", {metric}" if metric_exists else ""}
+                    FROM testset
+                    WHERE features_valid = 1
+                """
+            df_metadata_t = pd.read_sql_query(query, conn)
+            if not metric_exists:
+                df_metadata_t[metric]=None
+            df_metadata_t["iteration"] = None
+            df_metadata = pd.concat([df_metadata, df_metadata_t], ignore_index=True)
+
+        df = df_metadata.merge(df_dp, on="id", how="inner")
+        df["istestset"] = df["id"] < 0
+        df = df.drop(columns=["id"])
+        conn.close()
+
+        return update_state_space(df, selected_ids, metric)
+
 
 
     # DAG Callback

@@ -21,16 +21,24 @@ def prepare_state_space(data_objects, metadata_to=8):
     return metadata.reset_index(drop=True), features.reset_index(drop=True)
 
 
-def update_state_space(df, selected_ids=[]):
+def update_state_space(df, selected_ids=[], metric="total_reward"):
     """
     Updates the state space for final objects
-    :param df: dataframe with required columns
-    :param selected_ids: list of selected final_ids
+    :param df: dataframe with required columns text, x, y, metric, istetset, iteration
+    :param selected_ids: list of selected texts
     :return: updated plot
     """
 
+    print(metric)
+    print(df)
+    df[metric]*=100
+
+    #normalize metric, scale to range 6-30px, set size=3 for missing values (no metric in testset)
+    m_min = df[metric].min()
+    m_max = df[metric].max()
+    df["metric_norm"] = 6 + (df[metric] - m_min) / (m_max - m_min) * (30-6)
+    df.fillna(3, inplace=True)
     # Separate test set and normal points
-    df["total_reward"]=np.sqrt(df["total_reward"])
     df_test = df[df['istestset']]
     df_normal = df[~df['istestset']]
 
@@ -38,20 +46,20 @@ def update_state_space(df, selected_ids=[]):
     def compute_opacity(df_sub):
         return [
             0.9 if (not selected_ids or s in selected_ids) else 0.1
-            for s in df_sub['final_id']
+            for s in df_sub['text']
         ]
 
     fig = go.Figure()
-    sizeref = df["total_reward"].max()*2/(8**2)
+    #sizeref = df["total_reward"].max()*2/(8**2)
 
     # Normal points with continuous color scale
     fig.add_trace(go.Scatter(
-        x=df_normal['X'],
-        y=df_normal['Y'],
+        x=df_normal['x'],
+        y=df_normal['y'],
         mode='markers',
         marker=dict(
-            size=df_normal['total_reward'],
-            sizeref=sizeref,
+            size=df_normal["metric_norm"],
+            #sizeref=sizeref,
             color=df_normal['iteration'],
             colorscale='emrld',
             line=dict(color='black', width=1),
@@ -64,7 +72,7 @@ def update_state_space(df, selected_ids=[]):
             opacity=compute_opacity(df_normal),
         ),
 
-        customdata=df_normal[['final_id', 'iteration', 'total_reward', 'image']].values,
+        customdata=df_normal[['iteration', metric, 'text']].values,
         hoverinfo='none',
         name="Samples"
     ))
@@ -72,18 +80,18 @@ def update_state_space(df, selected_ids=[]):
     # Test set points in red
     if not df_test.empty:
         fig.add_trace(go.Scatter(
-            x=df_test['X'],
-            y=df_test['Y'],
+            x=df_test['x'],
+            y=df_test['y'],
             mode='markers',
             marker=dict(
-                size=df_test['total_reward'],
-                sizeref=sizeref,
+                size=df_test["metric_norm"],
+                #sizeref=sizeref,
                 color=px.colors.diverging.curl[9],
                 line=dict(color='black', width=1),
                 opacity=compute_opacity(df_test),
             ),
 
-            customdata=df_test[['final_id', 'iteration', 'total_reward', 'image']].values,
+            customdata=df_test[['iteration', metric, 'text']].values,
             hoverinfo='none',
             name='Test Set',
         ))

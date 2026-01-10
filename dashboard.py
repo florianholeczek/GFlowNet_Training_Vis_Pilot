@@ -65,6 +65,11 @@ def run_dashboard(data: str, text_to_img_fn: callable):
     testset_cols = pd.read_sql_query("SELECT name FROM pragma_table_info('testset');", conn)["name"].tolist()
     feature_cols_testset = testset_cols[testset_cols.index("features_valid")+1:]
     testset_metrics = testset_cols[testset_cols.index("total_reward"): testset_cols.index("features_valid")]
+
+    # get iteration range
+    query = "SELECT MIN(iteration) AS min, MAX(iteration) AS max FROM trajectories"
+    iteration_range = data_cols = pd.read_sql_query(query, conn)
+
     conn.commit()
     conn.close()
 
@@ -146,10 +151,10 @@ def run_dashboard(data: str, text_to_img_fn: callable):
                     html.Div("Iterations", style={"textAlign": "center"}),
                     dcc.RangeSlider(
                         id="iteration",
-                        min=0,
-                        max=data["iteration"].max(),
-                        step=25,
-                        value=[0, data["iteration"].max()],
+                        min=iteration_range["min"][0],
+                        max=iteration_range["max"][0],
+                        step=int((iteration_range["max"][0]-iteration_range["min"][0])/25 +1),
+                        value=[iteration_range["min"][0], iteration_range["max"][0]],
                         tooltip={"placement": "bottom", "always_visible": False}
                     ),
                 ], style={

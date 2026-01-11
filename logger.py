@@ -11,10 +11,13 @@ from graphdbs_from_db import create_graph_dbs
 """
 Use the provided logger to log n on-policy samples every m iterations.
 The logger saves the data in a SQLite database to be queried by the dashboard.
+Note that for running the dashboard you will also need a text-to-image function 
+to calculate the image representation of a state.
 
 Functions:
     log() stores all given data in a df.
     write_to_db() writes the logged data to the database after logging is done.
+    create_and_append_testset() allows you to write batches of data to the testset in the expected format
     
 Scalability: 
     The complete trajectories get saved, so the resulting rowcount is n * (total iterations / m) * average trajectory length.
@@ -28,7 +31,6 @@ class VisLogger:
             path: str | None = None,
             s0_included: bool = True,
             fn_state_to_text: Callable | None = None,
-            fn_state_to_image: Callable | None = None,
             fn_compute_features: Callable | None = None,
             metrics: list[str] | None = None,
             features: list[str] | None = None
@@ -44,9 +46,6 @@ class VisLogger:
             Neccessary, used to distinguish states.
             Consecutive states with the same text will be merged (logprobs will be added).
             s0 will be specified as '#' in the visualizations, make sure no state has the same identifier.
-        :param fn_state_to_image: Optional.
-            Function to convert a batch of states to a list of images.
-            The images are expected to be small pngs (<=200x200).
         :param fn_compute_features: Optional.
             Function to compute features from the states.
             Should take the states in the same format as given (torch Tensor, np array or list)
@@ -81,7 +80,6 @@ class VisLogger:
         self.features = features
         self. s0_included = s0_included
         self.fn_state_to_text = fn_state_to_text
-        self.fn_state_to_image = fn_state_to_image
         self.fn_compute_features = fn_compute_features
         self.cols = [
             'final_id',
@@ -116,12 +114,6 @@ class VisLogger:
 
         # Checks and Warnings
         assert self.fn_state_to_text is not None, "No fn_state_to_text provided. This is neccessary to distinguish states."
-        if not self.fn_state_to_image:
-            warnings.warn("""
-            States will not be distinguishable by image. 
-            Most visualizations will not allow for identifying a state. 
-            Provide a state_to_image function when defining the logger to prevent that.
-            """)
 
     def log(
             self,
@@ -523,7 +515,6 @@ if __name__ == "__main__":
         s0_included=True,
         fn_state_to_text=to_t,
         fn_compute_features=to_f,
-        fn_state_to_image=to_i,
         metrics=["custom_metric"],
         features=["f1", "f2", "f3"],
     )

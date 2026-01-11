@@ -301,8 +301,11 @@ class VisLogger:
             data = pd.concat([data, features_df], axis=1)
 
         # combine features_valid
-        data["features_valid_provided"] = data["features_valid_provided"] & data["features_valid_computed"]
-        data.rename(columns={"features_valid_provided": "features_valid"}, inplace=True)
+        if self.features is None:
+            data["features_valid_provided"] = True
+        if "features_valid_computed" not in data.columns:
+            data["features_valid_computed"] = True
+        data["features_valid"] = data["features_valid_provided"] & data["features_valid_computed"]
         column_list = [
             "final_id",
             "text",
@@ -319,7 +322,6 @@ class VisLogger:
             *(feature_cols if feature_cols is not None else []),
         ]
         data = data[column_list]
-        #data.drop(columns=["features_valid_computed", "states"], inplace=True)
 
         # create db if not existing, shift final ids and save to db
         conn = sqlite3.connect(self.db)

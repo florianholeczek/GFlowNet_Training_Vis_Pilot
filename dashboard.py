@@ -68,7 +68,15 @@ def run_dashboard(data: str, text_to_img_fn: callable):
 
     # get iteration range
     query = "SELECT MIN(iteration) AS min, MAX(iteration) AS max FROM trajectories"
-    iteration_range = data_cols = pd.read_sql_query(query, conn)
+    iteration_range = pd.read_sql_query(query, conn)
+    iteration_step = iteration_range["max"][0] - iteration_range["min"][0]
+    iteration_marks = [0, 0.25, 0.5, 0.75, 1]
+    iteration_marks = [i*iteration_step for i in iteration_marks]
+    iteration_marks = [i+iteration_range["min"][0]for i in iteration_marks]
+    iteration_marks = [int(i) for i in iteration_marks]
+    iteration_marks_dict = dict()
+    for i in iteration_marks:
+        iteration_marks_dict[i] = str(i)
 
     conn.commit()
     conn.close()
@@ -133,8 +141,9 @@ def run_dashboard(data: str, text_to_img_fn: callable):
                         id="iteration",
                         min=iteration_range["min"][0],
                         max=iteration_range["max"][0],
-                        step=int((iteration_range["max"][0]-iteration_range["min"][0])/25 +1),
+                        step=1,
                         value=[iteration_range["min"][0], iteration_range["max"][0]],
+                        marks=iteration_marks_dict,
                         tooltip={"placement": "bottom", "always_visible": False}
                     ),
                 ], style={
@@ -832,7 +841,6 @@ def run_dashboard(data: str, text_to_img_fn: callable):
             return no_update
         trigger = ctx.triggered[0]["prop_id"]
         conn = sqlite3.connect(data_path)
-        print(trigger)
 
         # fetch from db
         if trigger == "selected-objects.data"or trigger == "fo-metric.value":

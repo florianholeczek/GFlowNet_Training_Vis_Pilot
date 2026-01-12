@@ -557,9 +557,6 @@ class Plotter:
         :param selected_ids: list of selected texts
         :return: updated plot
         """
-        print("updating state space")
-        print(selected_ids)
-        print(len(df))
         # Normalize metric, scale to range 6-30px, set size=4 for missing values (no metric in testset)
         m_min = df[metric].min()
         m_max = df[metric].max()

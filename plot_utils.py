@@ -557,23 +557,24 @@ class Plotter:
         :param selected_ids: list of selected texts
         :return: updated plot
         """
-
+        print("updating state space")
+        print(selected_ids)
+        print(len(df))
         # Normalize metric, scale to range 6-30px, set size=4 for missing values (no metric in testset)
         m_min = df[metric].min()
         m_max = df[metric].max()
         df["metric_norm"] = 6 + (df[metric] - m_min) / (m_max - m_min) * (30 - 6)
         df["metric_norm"] = df["metric_norm"].fillna(4)
 
+        if selected_ids:
+            df["opacity"] = df["id"].isin(selected_ids)*0.9 +0.1
+        else:
+            df["opacity"] = 1
+
+
         # Separate test set and normal points
         df_test = df[df['istestset']]
         df_normal = df[~df['istestset']]
-
-        # Compute opacity
-        def compute_opacity(df_sub):
-            return [
-                0.9 if (not selected_ids or s in selected_ids) else 0.1
-                for s in df_sub['text']
-            ]
 
         fig = go.Figure()
 
@@ -593,10 +594,10 @@ class Plotter:
                     thickness=15,
                     len=0.7
                 ),
-                opacity=compute_opacity(df_normal),
+                opacity=df_normal['opacity'],
             ),
 
-            customdata=df_normal[['iteration', metric, 'text']].values,
+            customdata=df_normal[['id', 'iteration', metric, 'text']].values,
             hoverinfo='none',
             name="Samples"
         ))
@@ -611,7 +612,7 @@ class Plotter:
                     size=df_test["metric_norm"],
                     color=px.colors.diverging.curl[9],
                     line=dict(color='black', width=1),
-                    opacity=compute_opacity(df_test),
+                    opacity=df_test['opacity'],
                 ),
 
                 customdata=df_test[['id', 'iteration', metric, 'text']].values,

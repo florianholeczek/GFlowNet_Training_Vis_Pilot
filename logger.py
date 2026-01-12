@@ -154,7 +154,7 @@ class VisLogger:
             s0      | 0                     | logprob(s1->s0)=0
             s1      | logprob(s0->s1)       | logprob(s2->s1)
             s2      | logprob(s1->s2)       | logprob(s3->s2)
-            st      | logprob(s(t-1)->st)   | logprob(st->s(t-1))
+            st      | logprob(s(t-1)->st)   | logprob(s(t+1)->st) = 0, not applicable
         :param metrics: Optional. Additionally logged metrics of final objects based on the initialized metrics.
             Total reward and loss are logged seperately.
             A torch Tensor or np array of shape (len(metrics), batchsize,) or
@@ -406,8 +406,11 @@ class VisLogger:
             for k,v in metrics.items():
                 df[k] = v
         df["features_valid"] = features_valid
-        for i,f in enumerate(features):
-            df[f"f_{i}"] = f
+        new_cols = {
+            f"f_{i}": f
+            for i, f in enumerate(features)
+        }
+        df = pd.concat([df, pd.DataFrame(new_cols, index=df.index)], axis=1)
         df.insert(0, "id", -df.index-1)
 
         # create db or append to it
@@ -428,7 +431,7 @@ class VisLogger:
 
         # create indices the first time
 
-        if table_exists:
+        if not table_exists:
             cur.execute("CREATE INDEX idx_points_text ON testset(text)")
             cur.execute("CREATE INDEX idx_points_reward ON testset(total_reward)")
         conn.close()

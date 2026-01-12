@@ -832,9 +832,10 @@ def run_dashboard(data: str, text_to_img_fn: callable):
             return no_update
         trigger = ctx.triggered[0]["prop_id"]
         conn = sqlite3.connect(data_path)
+        print(trigger)
 
         # fetch from db
-        if trigger == "selected-objects"or trigger == "fo-metric":
+        if trigger == "selected-objects.data"or trigger == "fo-metric.value":
             df_dp = pd.read_sql_query("SELECT id, x, y FROM current_dp", conn)
 
         # compute Downprojections and write to db
@@ -962,7 +963,6 @@ def run_dashboard(data: str, text_to_img_fn: callable):
 
         df = df_metadata.merge(df_dp, on="id", how="inner")
         df["istestset"] = df["id"] < 0
-        df = df.drop(columns=["id"])
         conn.close()
 
         return plotter.update_state_space(df, selected_ids, metric)
@@ -1093,7 +1093,7 @@ def run_dashboard(data: str, text_to_img_fn: callable):
             return False, None, None
 
         bbox = hoverData["points"][0]["bbox"]
-        iteration, metric_data, text = hoverData["points"][0]["customdata"]
+        _, iteration, metric_data, text = hoverData["points"][0]["customdata"]
         image_b64 = image_fn(text)
 
         children = [

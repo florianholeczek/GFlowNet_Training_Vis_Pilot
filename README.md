@@ -101,7 +101,7 @@ python3 python/main.py
 The logger.py allows logging during training in the format expected by the dashboard. 
 Find the documentation directly in the file.
 
-# Running the dashboard on your own logged data
+## Running the dashboard on your own logged data
 
 Log your training with the logger and add the testset if neccessary.
 You will need an text to image function that converts your logged text representations of the state to images to identify a state. Run the db like this:

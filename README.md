@@ -8,14 +8,16 @@ The dataset used for testing is created using the SEHTask, which rewards molecul
 ## Dashboard
 The dashboard contains all visualizations with the possibility to crossfilter and displaying the image representation of the state on hover.
 
-### Replay buffer
-<img width="2528" height="1388" alt="Replay Buffer" src="https://github.com/user-attachments/assets/5d7e60e2-14af-4d1f-b8ed-4720e748d351" />
-Shows the top n items based on reward for each iteration. This alows seeing when changes happen in the most interesting objects as well as a quick overview of the highest ranking objects.
-Switching between reward and loss and highest/lowest will be added to allow answering the following questions:
+### Sampled Objects Overview
+<img width="2550" height="968" alt="grafik" src="https://github.com/user-attachments/assets/86bd4e01-6266-4f91-ae1e-adf5e74ad7ff" />
+
+Shows the top n items based on reward, loss or other provided metrics for each iteration. This allows seeing when changes happen in the most interesting objects as well as a quick overview of the highest ranking objects.
+Views are either persistent (highest/lowest ranking cumulative over iterations) or highest/lowest per iteration.
+This allows the following questions:
 
 - What are the highest ranking objects sampled?
 
-- Does the range of the rewards match the testset reward range?
+- When did the model discover high reward areas? The plot allows to distinguish between phases in traning where much / little change happened
 
 - What objects have the highest loss? These show where the model struggles and what parts of the state space are newly discovered
 
@@ -27,15 +29,11 @@ Switching between reward and loss and highest/lowest will be added to allow answ
 Shows the final objects downprojected in two dimensions (In this case based on the fingerprints of the molecules). Adding the data of the testset is possible here.
 This helps answer the questions:
 
-- What parts of the state space covered by the testset are discovered by the model?
+- What parts of the state space covered by the testset are discovered by the model? Did the model learn a sufficient part of the state space?
 
 - What parts of the state space are discovered at which point in training?
 
-### Trajectory explorer
-<img width="2642" height="1450" alt="Trajectories" src="https://github.com/user-attachments/assets/8f8acba3-1e38-47db-99e2-e3bba7732c0a" />
-Shows all states of all trajectories downprojected. Each line is one trajectory.
-Might get removed, as downprojecting all states is very costly and grows exponentially with number of trajectories and trajectory length and no insights have been found yet.
-Focus on the state space of the final objects might be better.
+- In what areas does the model struggle to sample proportonally (areas with highest loss)
 
 ### DAG
 <img width="3590" height="2420" alt="grafik" src="https://github.com/user-attachments/assets/4251f277-0ff1-413b-ba71-5194687d4bd8" />
@@ -48,7 +46,7 @@ This shows the Directed Acyclic Graph of the sampled objects. To reduce the size
 
 3. The DAG starts empty and can be expanded by selecting the objects from the table on the right
 
-4. Alternatively final objects can be selected in other visualizations and their trajectories will be expanded (until deselection)
+4. Alternatively final objects can be selected in other visualizations and their trajectories will be expanded (until deselection) Selecting a node in the DAG expands its trajectories as well.
 
 The overview on top shows the edges of the DAG with different metrics: highest/lowest logprobabilities, variance in logprobabilities or frequency. The edge coloring in the DAG fits the choosen metric.
 This helps answering the following questions:
@@ -63,8 +61,8 @@ This helps answering the following questions:
 
 
 
-## How to run the dashboard
-You will need [git lfs](https://git-lfs.com/) for the dataset and the images of the molecules.
+## How to run the dashboard with the seh data
+You will need [git lfs](https://git-lfs.com/) for the dataset. Alternatively just download the zip of the seh_small folder
 
 
 Clone the repo and set up a venv using the requirements_db.txt file.
@@ -90,23 +88,28 @@ source venv/bin/activate
 pip install -r requirements_db.txt
 ```
 
-The repo contains only the first 1000 of 2500 images, so some objects might appear empty.
-To solve this unpack the image.zip in the traindata1 folder into the folder images.
-Image generation will be moved from files to on the fly generation.
-
-
 Start the dashboard with:
 
 ```shell
 # windows
-python python\dashboard.py
+python python\main.py
 # linux
-python3 python/dashboard.py
+python3 python/main.py
 ```
 
 ## Logger
 The logger.py allows logging during training in the format expected by the dashboard. 
-It is currently outdated as I want to switch from logging the top reward objects during training to sampling n-objects on-policy after m iterations. 
+Find the documentation directly in the file.
+
+# Running the dashboard on your own logged data
+
+Log your training with the logger and add the testset if neccessary.
+You will need an text to image function that converts your logged text representations of the state to images to identify a state. Run the db like this:
+
+```python
+from dashboard import run_dashboard
+run_dashboard(data="FolderOfYourLoggedData", text_to_img_fn=your_text_to_img_fn)
+```
 
 
 ## Notebook

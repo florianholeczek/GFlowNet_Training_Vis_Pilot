@@ -421,7 +421,7 @@ class VisLogger:
         if table_exists:
             query = "SELECT COALESCE(MIN(id), 0) AS min FROM testset"
             offset = pd.read_sql_query(query, conn)["min"][0]
-            df["id"] = df["id"] - offset
+            df["id"] = df["id"] + offset
         df.to_sql(
             "testset",
             conn,
@@ -432,8 +432,8 @@ class VisLogger:
         # create indices the first time
 
         if not table_exists:
-            cur.execute("CREATE INDEX idx_points_text ON testset(text)")
-            cur.execute("CREATE INDEX idx_points_reward ON testset(total_reward)")
+            cur.execute("CREATE INDEX idx_testset_text ON testset(text)")
+            cur.execute("CREATE INDEX idx_testset_reward ON testset(total_reward)")
         conn.close()
 
 
@@ -516,7 +516,7 @@ if __name__ == "__main__":
 
 
     logger = VisLogger(
-        path="./debugdata",
+        #path="./debugdata",
         s0_included=True,
         fn_state_to_text=to_t,
         fn_compute_features=to_f,
@@ -542,6 +542,8 @@ if __name__ == "__main__":
     m = {"custom_metric": np.random.uniform(0,1,(len(r),))}
     f_valid = [True]*(len(r)-1) + [False]
     f = np.random.uniform(0,1,(8, len(r)))
+    logger.create_and_append_testset(t, r, m, f, f_valid)
+    logger.create_and_append_testset(t, r, m, f, f_valid)
     logger.create_and_append_testset(t, r, m, f, f_valid)
 
     print("Testset done")

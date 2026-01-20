@@ -194,6 +194,22 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
                         "gap": "6px"
                     }),
 
+                    # -------- State Space Style --------
+                    html.Div([
+                        html.Div("State Space Style", style={"textAlign": "center"}),
+                        dcc.Dropdown(
+                            id="state-space-style",
+                            options=["Hex Ratio", "Hex Obj. Metric", "Scatter"],
+                            value="Scatter",
+                            clearable=False,
+                            style={"color": "black"}
+                        )
+                    ], style={
+                        "display": "flex",
+                        "flexDirection": "column",
+                        "gap": "6px"
+                    }),
+
                     # -------- Ranking Metric --------
                     html.Div([
                         html.Div("Ranking Metric", style={"textAlign": "center"}),
@@ -848,7 +864,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
         # fetch from db
         if trigger == "selected-objects.data"or trigger == "fo-metric.value":
             conn = sqlite3.connect(data_path)
-            df = pd.read_sql_query(f"SELECT id, x, y, text, iteration, istestset, {', '.join(final_object_metrics)} FROM current_dp", conn)
+            df = pd.read_sql_query(f"SELECT id, x, y, hex_q, hex_r, text, iteration, istestset, {', '.join(final_object_metrics)} FROM current_dp", conn)
             conn.close()
 
         # compute Downprojections and write to db

@@ -15,6 +15,46 @@ class Plotter:
         self.data = data
         self.image_fn = image_fn
 
+    def calculate_hexbins(self, df, size=3.0):
+        """
+        Assign pointy-top hex axial coordinates (q, r) to points in df.
+        :param df: df with columns x and y
+        :param size: center to corner hex radius
+        :return: q, r: hex coordinates as np array
+        """
+
+        x = df["x"].to_numpy()
+        y = df["y"].to_numpy()
+
+        # Axial coordinates (fractional)
+        q = (np.sqrt(3) / 3 * x - 1 / 3 * y) / size
+        r = (2 / 3 * y) / size
+
+        # Convert to cube coordinates
+        cx = q
+        cz = r
+        cy = -cx - cz
+
+        # Round cube coordinates
+        rx = np.round(cx)
+        ry = np.round(cy)
+        rz = np.round(cz)
+
+        # Fix rounding errors
+        dx = np.abs(rx - cx)
+        dy = np.abs(ry - cy)
+        dz = np.abs(rz - cz)
+
+        mask_x = (dx > dy) & (dx > dz)
+        mask_y = (~mask_x) & (dy > dz)
+        mask_z = ~(mask_x | mask_y)
+
+        rx[mask_x] = -ry[mask_x] - rz[mask_x]
+        ry[mask_y] = -rx[mask_y] - rz[mask_y]
+        rz[mask_z] = -rx[mask_z] - ry[mask_z]
+
+        # Axial coordinates are (q, r) = (x, z)
+        return rx.astype(np.int64), rz.astype(np.int64)
 
     def create_dp_table (
             self,
@@ -117,6 +157,7 @@ class Plotter:
         df_dp["istestset"] = df_dp["id"] < 0
 
         # calc hexbins
+        df_dp["hex_q"], df_dp["hex_r"] = self.calculate_hexbins(df_dp)
 
         # write
         df_dp.to_sql(

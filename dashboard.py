@@ -784,6 +784,7 @@ def run_dashboard(data: str, text_to_img_fn: callable):
             params = t_ids + [iterations[0], iterations[1]]
             selected_ids = pd.read_sql_query(query, conn, params=params)
             selected_ids = list(set(selected_ids["trajectory_id"].to_list())) + ["#"]
+            conn.close()
             return selected_ids, None, []
 
 
@@ -818,6 +819,7 @@ def run_dashboard(data: str, text_to_img_fn: callable):
                 ORDER BY iteration, rank;
             """
         df = pd.read_sql_query(query, conn, params=iteration)
+        conn.close()
 
         order = "highest" if "highest" in rank_metric else "lowest"
         if "iter" in rank_metric:
@@ -840,138 +842,26 @@ def run_dashboard(data: str, text_to_img_fn: callable):
         if not ctx.triggered:
             return no_update
         trigger = ctx.triggered[0]["prop_id"]
-        conn = sqlite3.connect(data_path)
 
         # fetch from db
         if trigger == "selected-objects.data"or trigger == "fo-metric.value":
-            df_dp = pd.read_sql_query("SELECT id, x, y FROM current_dp", conn)
+            conn = sqlite3.connect(data_path)
+            df = pd.read_sql_query("SELECT id, x, y, text, iteration, total_reward, loss, istestset FROM current_dp", conn)
+            conn.close()
 
         # compute Downprojections and write to db
         else:
-
-            # Get logged data (unique texts, metric: latest iteration)
-            query = f"""
-                SELECT final_id, {", ".join(feature_cols)}
-                FROM (
-                    SELECT
-                        final_id,
-                        text,
-                        {", ".join(feature_cols)},
-                        iteration,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY text
-                            ORDER BY iteration DESC
-                        ) AS rn
-                    FROM trajectories
-                    WHERE final_object = 1
-                      AND iteration BETWEEN ? AND ?
-                      AND features_valid = 1
-                )
-                WHERE rn = 1
-            """
-            logged = pd.read_sql_query(query, conn, params=iteration)
-            query = f"""
-                    SELECT COUNT(*) AS count
-                    FROM trajectories
-                    WHERE final_object = 1
-                    AND iteration BETWEEN ? AND ?
-                    AND features_valid = 0
-                """
-            non_valid = pd.read_sql_query(query, conn, params=iteration)["count"][0]
-            if non_valid:
-                print(f"{non_valid} objects of the logged data have not been downprojected due to invalid features.")
-
-            final_ids = logged["final_id"].to_numpy()
-            features = logged.drop(columns=["final_id"]).to_numpy()
-
-            # Get testset data
-            if use_testset:
-                query = f"""
-                        SELECT id, {", ".join(feature_cols_testset)}
-                        FROM testset
-                        WHERE features_valid = 1
-                    """
-                testset = pd.read_sql_query(query, conn)
-                non_valid_t = pd.read_sql_query("SELECT COUNT(*) AS count FROM testset WHERE features_valid = 0", conn)["count"][0]
-                if non_valid_t:
-                    print(f"{non_valid_t} objects of the testset have not been downprojected due to invalid features.")
-
-                # concat
-                final_ids_t = testset["id"].to_numpy()
-                features_t = testset.drop(columns=["id"]).to_numpy()
-                assert features.shape[1] == features_t.shape[1], \
-                    f"""
-                    Testset and Logged data have a different amout of features.\n
-                    Testset: {feature_cols_testset}
-                    Logged: {feature_cols}
-                    """
-                features = np.concatenate((features, features_t), axis=0)
-                final_ids = np.concatenate((final_ids, final_ids_t), axis=0)
-
-            # Downprojection
-            if method == "tsne":
-                proj_s = manifold.TSNE(
-                    perplexity=min(param_value, features.shape[0] - 1),
-                    init="pca",
-                    learning_rate="auto"
-                ).fit_transform(features)
-
-            elif method == "umap":
-                reducer_s = UMAP(
-                    n_neighbors=min(param_value, features.shape[0] - 1)
-                )
-                proj_s = reducer_s.fit_transform(features)
-
-            else:
-                raise NotImplementedError("Method not implemented")
-
-            df_dp = pd.DataFrame({"id": final_ids, "x": proj_s[:, 0], "y": proj_s[:, 1]})
-            df_dp.to_sql(
-                "current_dp",
-                conn,
-                if_exists="replace",
-                index=False
+            df = plotter.create_dp_table(
+                data_path,
+                feature_cols,
+                iteration,
+                use_testset,
+                feature_cols_testset,
+                method,
+                param_value
             )
 
-        # get metadata
-        query = f"""
-                SELECT id, text, {metric}, iteration
-                FROM (
-                    SELECT
-                        final_id AS id,
-                        text,
-                        {metric},
-                        iteration,
-                        ROW_NUMBER() OVER (
-                            PARTITION BY final_id
-                            ORDER BY iteration DESC
-                        ) AS rn
-                    FROM trajectories
-                    WHERE final_object = 1
-                      AND iteration BETWEEN ? AND ?
-                      AND features_valid = 1
-                )
-                WHERE rn = 1
-                """
-        df_metadata = pd.read_sql_query(query, conn, params=iteration)
-
-        if use_testset:
-
-            metric_exists = metric in testset_metrics
-            query = f"""
-                    SELECT id, text{f", {metric}" if metric_exists else ""}
-                    FROM testset
-                    WHERE features_valid = 1
-                """
-            df_metadata_t = pd.read_sql_query(query, conn)
-            #if not metric_exists:
-            #    df_metadata_t[metric]=None
-            #df_metadata_t["iteration"] = None
-            df_metadata = pd.concat([df_metadata, df_metadata_t], ignore_index=True)
-
-        df = df_metadata.merge(df_dp, on="id", how="inner")
-        df["istestset"] = df["id"] < 0
-        conn.close()
+        print(df["istestset"])
 
         return plotter.update_state_space(df, selected_ids, metric)
 

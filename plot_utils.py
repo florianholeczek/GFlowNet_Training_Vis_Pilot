@@ -5,6 +5,8 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
+from sklearn import manifold
+from umap import UMAP
 
 
 class Plotter:
@@ -12,6 +14,115 @@ class Plotter:
     def __init__(self, data, image_fn):
         self.data = data
         self.image_fn = image_fn
+
+
+    def create_dp_table (
+            self,
+            data_path,
+            feature_cols,
+            iteration,
+            use_testset,
+            feature_cols_testset=None,
+            method = "tsne",
+            param_value=15
+    ):
+        conn = sqlite3.connect(data_path)
+
+        # Get logged data (unique texts, metric: latest iteration)
+        query = f"""
+                    SELECT final_id AS id, text, {", ".join(feature_cols)}, iteration, total_reward, loss
+                    FROM (
+                        SELECT
+                            final_id,
+                            text,
+                            {", ".join(feature_cols)},
+                            iteration,
+                            total_reward,
+                            loss,
+                            ROW_NUMBER() OVER (
+                                PARTITION BY text
+                                ORDER BY iteration DESC
+                            ) AS rn
+                        FROM trajectories
+                        WHERE final_object = 1
+                          AND iteration BETWEEN ? AND ?
+                          AND features_valid = 1
+                    )
+                    WHERE rn = 1
+                """
+        logged = pd.read_sql_query(query, conn, params=iteration)
+        query = f"""
+                        SELECT COUNT(*) AS count
+                        FROM trajectories
+                        WHERE final_object = 1
+                        AND iteration BETWEEN ? AND ?
+                        AND features_valid = 0
+                    """
+        non_valid = pd.read_sql_query(query, conn, params=iteration)["count"][0]
+        if non_valid:
+            print(f"{non_valid} objects of the logged data have not been downprojected due to invalid features.")
+
+        features = logged[feature_cols].to_numpy()
+        df_dp = logged.drop(columns=feature_cols)
+
+        # Get testset data
+        if use_testset:
+            query = f"""
+                            SELECT id, total_reward, text, {", ".join(feature_cols_testset)}
+                            FROM testset
+                            WHERE features_valid = 1
+                        """
+            testset = pd.read_sql_query(query, conn)
+            non_valid_t = \
+            pd.read_sql_query("SELECT COUNT(*) AS count FROM testset WHERE features_valid = 0", conn)["count"][0]
+            if non_valid_t:
+                print(f"{non_valid_t} objects of the testset have not been downprojected due to invalid features.")
+
+            # concat features
+            features_t = testset[feature_cols_testset].to_numpy()
+            testset = testset.drop(columns=feature_cols_testset)
+            assert features.shape[1] == features_t.shape[1], \
+                f"""
+                        Testset and Logged data have a different amout of features.\n
+                        Testset: {feature_cols_testset}
+                        Logged: {feature_cols}
+                        """
+            features = np.concatenate((features, features_t), axis=0)
+            df_dp = pd.concat([df_dp, testset], axis=0, ignore_index=True)
+
+        # Downprojection
+        if method == "tsne":
+            proj_s = manifold.TSNE(
+                perplexity=min(param_value, features.shape[0] - 1),
+                init="pca",
+                learning_rate="auto"
+            ).fit_transform(features)
+
+        elif method == "umap":
+            reducer_s = UMAP(
+                n_neighbors=min(param_value, features.shape[0] - 1)
+            )
+            proj_s = reducer_s.fit_transform(features)
+
+        else:
+            raise NotImplementedError("Method not implemented")
+
+        df_dp["x"] = proj_s[:, 0]
+        df_dp["y"] = proj_s[:, 1]
+        df_dp["istestset"] = df_dp["id"] < 0
+
+        # calc hexbins
+
+        # write
+        df_dp.to_sql(
+            "current_dp",
+            conn,
+            if_exists="replace",
+            index=False
+        )
+        conn.close()
+
+        return df_dp
 
     def update_DAG(
             self,
@@ -570,8 +681,8 @@ class Plotter:
 
 
         # Separate test set and normal points
-        df_test = df[df['istestset']]
-        df_normal = df[~df['istestset']]
+        df_test = df[df['istestset']==1]
+        df_normal = df[df['istestset']==0]
 
         fig = go.Figure()
 

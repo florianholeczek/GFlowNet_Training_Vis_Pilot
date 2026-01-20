@@ -219,10 +219,16 @@ class VisLogger:
         return x.astype(dtype, copy=False)
 
 
-    def write_to_db(self):
+    def write_to_db(self, compute_graph=True):
         """
         Writes the data of the current block to the database.
         Should be called every m iterations.
+        :param compute_graph: bool, whether to compute the graph when writing to the db.
+            When true, the graph dbs neccessary to view the DAG gets computed.
+            As this takes some time and computation power, this makes only sense when you want to view the Graph during running training.
+            When false you will need to call compute_graph() after training is done.
+            If you write the samples to the db in batches, write all batches first with compute_graph = False and call
+            compute_graph() afterwards.
         :return: None
         """
 
@@ -349,7 +355,8 @@ class VisLogger:
             cur.execute("CREATE INDEX idx_points_loss ON trajectories(loss)")
 
         # compute graphs and save nodes and edges db
-        create_graph_dbs(conn)
+        if compute_graph:
+            create_graph_dbs(conn)
         conn.close()
 
         # reset current
@@ -363,6 +370,11 @@ class VisLogger:
         }
         self.current.update({name: None for name in self.metrics or []})
         self.current.update({name: None for name in self.features or []})
+
+    def compute_graph(self):
+        conn = sqlite3.connect(self.db)
+        create_graph_dbs(conn)
+        conn.close()
 
     def create_and_append_testset(
             self,

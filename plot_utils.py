@@ -24,21 +24,26 @@ class Plotter:
             use_testset,
             feature_cols_testset=None,
             method = "tsne",
-            param_value=15
+            param_value=15,
+            metric_lists=([], []),
     ):
         conn = sqlite3.connect(data_path)
 
         # Get logged data (unique texts, metric: latest iteration)
         query = f"""
-                    SELECT final_id AS id, text, {", ".join(feature_cols)}, iteration, total_reward, loss
+                    SELECT 
+                        final_id AS id, 
+                        text, 
+                        {", ".join(feature_cols)}, 
+                        {", ".join(metric_lists[0])}, 
+                        iteration
                     FROM (
                         SELECT
                             final_id,
                             text,
                             {", ".join(feature_cols)},
+                            {", ".join(metric_lists[0])},
                             iteration,
-                            total_reward,
-                            loss,
                             ROW_NUMBER() OVER (
                                 PARTITION BY text
                                 ORDER BY iteration DESC
@@ -68,7 +73,7 @@ class Plotter:
         # Get testset data
         if use_testset:
             query = f"""
-                            SELECT id, total_reward, text, {", ".join(feature_cols_testset)}
+                            SELECT id, text, {", ".join(feature_cols_testset)}, {", ".join(metric_lists[1])}
                             FROM testset
                             WHERE features_valid = 1
                         """

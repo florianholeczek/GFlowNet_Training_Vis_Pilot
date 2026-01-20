@@ -13,11 +13,12 @@ from umap import UMAP
 from plot_utils import *
 from pathlib import Path
 
-def run_dashboard(data: str, text_to_img_fn: callable):
+def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False):
     """
     Runs the dashboard on http://127.0.0.1:8050/
     :param data: folder of the logged data
     :param text_to_img_fn: function to convert the texts representing the states to base64 encoded svg images to identify states
+    :param debug_mode: whether to display in debug mode for error handling
     :return: None
     """
 
@@ -842,11 +843,12 @@ def run_dashboard(data: str, text_to_img_fn: callable):
         if not ctx.triggered:
             return no_update
         trigger = ctx.triggered[0]["prop_id"]
+        metric_lists = (final_object_metrics, testset_metrics)
 
         # fetch from db
         if trigger == "selected-objects.data"or trigger == "fo-metric.value":
             conn = sqlite3.connect(data_path)
-            df = pd.read_sql_query("SELECT id, x, y, text, iteration, total_reward, loss, istestset FROM current_dp", conn)
+            df = pd.read_sql_query(f"SELECT id, x, y, text, iteration, istestset, {', '.join(final_object_metrics)} FROM current_dp", conn)
             conn.close()
 
         # compute Downprojections and write to db
@@ -858,10 +860,10 @@ def run_dashboard(data: str, text_to_img_fn: callable):
                 use_testset,
                 feature_cols_testset,
                 method,
-                param_value
+                param_value,
+                metric_lists
             )
 
-        print(df["istestset"])
 
         return plotter.update_state_space(df, selected_ids, metric)
 
@@ -1123,4 +1125,4 @@ def run_dashboard(data: str, text_to_img_fn: callable):
 
 
     # Run the dashboard
-    app.run(debug=True)
+    app.run(debug=debug_mode)

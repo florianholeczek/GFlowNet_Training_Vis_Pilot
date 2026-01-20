@@ -58,5 +58,5 @@ def imagefn_debugdata(s):
 
 
 
-run_dashboard(data="seh_small", text_to_img_fn=imagefn_seh)
-#run_dashboard(data="debugdata", text_to_img_fn=imagefn_debugdata)
+run_dashboard(data="seh_small", text_to_img_fn=imagefn_seh, debug_mode=True)
+#run_dashboard(data="debugdata", text_to_img_fn=imagefn_debugdata, debug_mode=True)

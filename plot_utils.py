@@ -16,7 +16,7 @@ class Plotter:
         self.image_fn = image_fn
 
     @staticmethod
-    def update_hex(df, size=8.0):
+    def update_hex(df, ss_style, metric, usetestset, size=8.0):
         """
         Update the state space plot for hex style
         :param df: df with grouped data for hex (hex_r, hex_q, metric)
@@ -24,7 +24,29 @@ class Plotter:
         :return: figure
         """
         fig = go.Figure()
-        colorscale = px.colors.sequential.Emrld
+
+        # colorscales and titles
+        colorscale = px.colors.sequential.speed
+        title = "State Space - "
+        metric_min = df["metric"].min()
+        metric_max = df["metric"].max()
+        print(metric_max, metric_min)
+        if ss_style == "Hex Ratio":
+            if usetestset:
+                colorscale = px.colors.diverging.Geyser # diverging
+                metric_max = 1
+                metric_min = -1
+                legend_title = "Score"
+                title += "Normalized Difference Score of Testset Objects to Samples"
+                title += "<br><sup>1: Only Testset Objects; -1: Only Samples. Normalized for Sample and Testset Size </sup>"
+            else:
+                legend_title = "N Samples"
+                title += "Number of Sampled Objects"
+        elif ss_style == "Hex Obj. Metric":
+            legend_title = f"Mean {metric}"
+            title += f"Mean {metric} of the Sampled Objects"
+        else:
+            raise NotImplementedError("Unknown ss_style")
 
         def hex_corners(x, y, s):
             angles = np.deg2rad(np.arange(0, 360, 60) - 30)  # pointy-top
@@ -39,8 +61,6 @@ class Plotter:
             idx = int(norm * (len(colorscale) - 1))
             return colorscale[idx]
 
-        metric_min = df["metric"].min()
-        metric_max = df["metric"].max()
         for _, row in df.iterrows():
             cx = size * np.sqrt(3) * (row["hex_q"] + row["hex_r"] / 2)
             cy = size * 1.5 * row["hex_r"]
@@ -80,7 +100,7 @@ class Plotter:
                     cmax=metric_max,
                     showscale=True,
                     colorbar=dict(
-                        title="Metric Title",
+                        title=legend_title,
                     ),
                 ),
                 hoverinfo="none",
@@ -103,7 +123,7 @@ class Plotter:
             margin=dict(l=40, r=40, t=40, b=40),
             autosize=True,
             template='plotly_dark',
-            title=f"State Space",
+            title=title,
         )
 
         return fig
@@ -127,8 +147,8 @@ class Plotter:
             df = pd.read_sql_query(query, conn)
             if df["n_test"].sum() == 0: #no testset used, return frequency
                 df["metric"] = df["n_samples"]
-            else: # ratio
-                df["metric"] = (df["n_test"]/df["n_test"].sum()) / (df["n_samples"]/df["n_samples"].sum())
+            else: # Normalized Difference Score
+                df["metric"] = (df["n_samples"] - df["n_test"]) / (df["n_samples"] + df["n_test"])
         elif method == "Hex Obj. Metric":
             query = f"""
                 SELECT

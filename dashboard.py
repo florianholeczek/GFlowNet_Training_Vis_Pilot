@@ -891,7 +891,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
                 conn.close()
 
         if "Hex" in ss_style:
-            return plotter.update_hex(df)
+            return plotter.update_hex(df, ss_style, metric, use_testset)
         return plotter.update_state_space(df, selected_ids, metric)
 
 

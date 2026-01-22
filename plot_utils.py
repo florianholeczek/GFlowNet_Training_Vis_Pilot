@@ -14,9 +14,12 @@ class Plotter:
     def __init__(self, data, image_fn):
         self.data = data
         self.image_fn = image_fn
+        #colorscales
+        self.cs_main = px.colors.sequential.speed
+        self.cs_diverging_testset = px.colors.diverging.Geyser
+        self.cs_diverging_direction = px.colors.diverging.Temps
 
-    @staticmethod
-    def update_hex(df, ss_style, metric, usetestset, size=8.0):
+    def update_hex(self, df, ss_style, metric, usetestset, size=8.0):
         """
         Update the state space plot for hex style
         :param df: df with grouped data for hex (hex_r, hex_q, metric)
@@ -26,14 +29,14 @@ class Plotter:
         fig = go.Figure()
 
         # colorscales and titles
-        colorscale = px.colors.sequential.speed
+        colorscale = self.cs_main
         title = "State Space - "
         metric_min = df["metric"].min()
         metric_max = df["metric"].max()
         print(metric_max, metric_min)
         if ss_style == "Hex Ratio":
             if usetestset:
-                colorscale = px.colors.diverging.Geyser # diverging
+                colorscale = self.cs_diverging_testset
                 metric_max = 1
                 metric_min = -1
                 legend_title = "Score"
@@ -510,13 +513,13 @@ class Plotter:
         # Compute color scale
         if metric in ['highest', 'lowest']:
             vmin, vmax = -10, 0
-            colorscale = px.colors.sequential.Emrld
+            colorscale = self.cs_main
         elif metric == "variance":
             vmin, vmax = -3, 3
-            colorscale = px.colors.diverging.BrBG
+            colorscale = self.cs_diverging_direction
         elif metric == "frequency":
             vmin, vmax = 0, max_freq
-            colorscale = px.colors.sequential.Emrld
+            colorscale = self.cs_main
         else:
             vmin, vmax = -1, 1  # fallback
             colorscale = px.colors.sequential.Viridis
@@ -769,19 +772,19 @@ class Plotter:
         ).sort_index()
 
         if metric == "variance":
-            color_scale = px.colors.diverging.BrBG
+            color_scale = self.cs_diverging_direction
             zmin, zmax, zmid = -3, 3, 0
             colorbar_title = "Value - Mean"
             title = f"Edge Heatmap - Highest Variance of {direction.capitalize()} Logprobabilities"
         elif metric == "frequency":
-            color_scale = px.colors.sequential.Emrld
+            color_scale = self.cs_main
             zmin = 0
             zmax = df['metric_val'].max()
             zmid = None
             colorbar_title = "Frequency"
             title = f"Edge Heatmap - Highest frequency"
         else:  # highest or lowest
-            color_scale = px.colors.sequential.Emrld
+            color_scale = self.cs_main
             zmin, zmax, zmid = -10, 0, None
             colorbar_title = "Value"
             title = f"Edge Heatmap - {metric.capitalize()} Value of {direction.capitalize()} Logprobabilities"
@@ -865,6 +868,7 @@ class Plotter:
         Updates the state space for final objects
         :param df: dataframe with required columns text, x, y, metric, istetset, iteration
         :param selected_ids: list of selected texts
+        :param metric: metric for coloring
         :return: updated plot
         """
         # Normalize metric, scale to range 6-30px, set size=4 for missing values (no metric in testset)
@@ -893,7 +897,7 @@ class Plotter:
             marker=dict(
                 size=df_normal["metric_norm"],
                 color=df_normal['iteration'],
-                colorscale='emrld',
+                colorscale=self.cs_main,
                 line=dict(color='black', width=1),
                 showscale=True,
                 colorbar=dict(
@@ -917,7 +921,7 @@ class Plotter:
                 mode='markers',
                 marker=dict(
                     size=df_test["metric_norm"],
-                    color=px.colors.diverging.curl[9],
+                    color=self.cs_diverging_testset[-1],
                     line=dict(color='black', width=1),
                     opacity=df_test['opacity'],
                 ),
@@ -1009,11 +1013,10 @@ class Plotter:
         # Map iteration categories to numeric indices
         iter_to_idx = {it: i for i, it in enumerate(iterations)}
         first_iter_idx = first_iter.map(iter_to_idx)
-        emrld = px.colors.sequential.Emrld
-        n_colors = len(emrld)
+        n_colors = len(self.cs_main)
         # Normalize first-iteration index → color
         obj_color = {
-            text: emrld[int(idx / max(1, len(iterations) - 1) * (n_colors - 1))]
+            text: self.cs_main[int(idx / max(1, len(iterations) - 1) * (n_colors - 1))]
             for text, idx in first_iter_idx.items()
         }
 

@@ -1102,6 +1102,8 @@ class Plotter:
                 marker=dict(
                     color=df['iteration'],
                     colorscale='Emrld',
+                    symbol="square",
+                    line=dict(width=1, color="black"),
                     size=10,
                     opacity= df["opacity"]
                 ),

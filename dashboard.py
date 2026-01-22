@@ -368,7 +368,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
                             dcc.Graph(id="bumpchart", clear_on_unhover=True),
                             style={"height": "100%", "width": "100%"}
                         ),
-                        dcc.Tooltip(id="image-tooltip3", direction="bottom"),
+                        dcc.Tooltip(id="image-tooltip3", direction="left"),
                     ], style={
                         "flex": 1,
                         #"border": "1px solid #ddd",

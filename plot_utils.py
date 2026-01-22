@@ -16,7 +16,7 @@ class Plotter:
         self.image_fn = image_fn
         #colorscales
         self.cs_main = px.colors.sequential.speed
-        self.cs_diverging_testset = px.colors.diverging.Geyser
+        self.cs_diverging_testset = px.colors.diverging.Geyser_r
         self.cs_diverging_direction = px.colors.diverging.Temps
 
     def update_hex(self, df, ss_style, metric, usetestset, size=8.0):
@@ -41,7 +41,7 @@ class Plotter:
                 metric_min = -1
                 legend_title = "Score"
                 title += "Normalized Difference Score of Testset Objects to Samples"
-                title += "<br><sup>1: Only Testset Objects; -1: Only Samples. Normalized for Sample and Testset Size </sup>"
+                title += "<br><sup>1: Only Testset Objects; -1: Only Samples. Normalized for Sample and Testset Size.</sup>"
             else:
                 legend_title = "N Samples"
                 title += "Number of Sampled Objects"
@@ -222,6 +222,7 @@ class Plotter:
             method = "tsne",
             param_value=15,
             metric_lists=([], []),
+            hexbin_size=8.0
     ):
         conn = sqlite3.connect(data_path)
 
@@ -313,7 +314,7 @@ class Plotter:
         df_dp["istestset"] = df_dp["id"] < 0
 
         # calc hexbins
-        df_dp["hex_q"], df_dp["hex_r"] = self.calculate_hexbins(df_dp)
+        df_dp["hex_q"], df_dp["hex_r"] = self.calculate_hexbins(df_dp, size = hexbin_size)
 
         # write
         df_dp.to_sql(

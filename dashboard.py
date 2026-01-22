@@ -861,6 +861,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
             return no_update
         trigger = ctx.triggered[0]["prop_id"]
         metric_lists = (final_object_metrics, testset_metrics)
+        hexbin_size = 8.0
 
 
 
@@ -872,9 +873,8 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
             else:
                 df = pd.read_sql_query(f"SELECT id, x, y, hex_q, hex_r, text, iteration, istestset, {', '.join(final_object_metrics)} FROM current_dp", conn)
             conn.close()
-        # compute Downprojections and write to db
         else:
-            #downproject anyways
+            #downproject and write to db
             df = plotter.create_dp_table(
                 data_path,
                 feature_cols,
@@ -883,7 +883,8 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
                 feature_cols_testset,
                 method,
                 param_value,
-                metric_lists
+                metric_lists,
+                hexbin_size
             )
             if "Hex" in ss_style:
                 conn = sqlite3.connect(data_path)
@@ -891,7 +892,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
                 conn.close()
 
         if "Hex" in ss_style:
-            return plotter.update_hex(df, ss_style, metric, use_testset)
+            return plotter.update_hex(df, ss_style, metric, use_testset, hexbin_size)
         return plotter.update_state_space(df, selected_ids, metric)
 
 

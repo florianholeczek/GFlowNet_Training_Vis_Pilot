@@ -15,7 +15,118 @@ class Plotter:
         self.data = data
         self.image_fn = image_fn
 
-    def calculate_hexbins(self, df, size=3.0):
+    @staticmethod
+    def update_hex(df, size=8.0):
+        """
+        Update the state space plot for hex style
+        :param df: df with grouped data for hex (hex_r, hex_q, metric)
+        :param size: size of bins
+        :return: figure
+        """
+        fig = go.Figure()
+        colorscale = px.colors.sequential.Emrld
+
+        def hex_corners(x, y, s):
+            angles = np.deg2rad(np.arange(0, 360, 60) - 30)  # pointy-top
+            return (
+                x + s * np.cos(angles),
+                y + s * np.sin(angles),
+            )
+        def map_color(v, vmin, vmax, colorscale):
+            if v is None:
+                return "black"
+            norm = (v - vmin) / (vmax - vmin) if vmax > vmin else 0
+            idx = int(norm * (len(colorscale) - 1))
+            return colorscale[idx]
+
+        metric_min = df["metric"].min()
+        metric_max = df["metric"].max()
+        for _, row in df.iterrows():
+            cx = size * np.sqrt(3) * (row["hex_q"] + row["hex_r"] / 2)
+            cy = size * 1.5 * row["hex_r"]
+            xs, ys = hex_corners(cx, cy, size)
+            print(row['metric'])
+
+            fig.add_trace(
+                go.Scatter(
+                    x=np.append(xs, xs[0]),
+                    y=np.append(ys, ys[0]),
+                    mode="lines",
+                    fill="toself",
+                    line=dict(width=0.5, color="rgba(0,0,0,0.3)"),
+                    fillcolor=map_color(row["metric"], metric_min, metric_max, colorscale),
+                    hoverinfo="text",
+                    text=(
+                        f"q: {row['hex_q']}<br>"
+                        f"r: {row['hex_r']}<br>"
+                        f"metric: {row['metric']}"
+                    ),
+
+                    showlegend=False,
+                )
+            )
+
+        fig.update_layout(
+            xaxis=dict(
+                showgrid=False,
+                zeroline=False,
+                showticklabels=False,
+                scaleanchor="y",
+            ),
+            yaxis=dict(
+                showgrid=False,
+                zeroline=False,
+                showticklabels=False,
+            ),
+            margin=dict(l=40, r=40, t=40, b=40),
+            autosize=True,
+            template='plotly_dark',
+            title=f"State Space",
+        )
+
+        return fig
+
+    def get_hexbin_data(self, conn, method, metric):
+        """
+        Get the data for the hex plots
+        """
+        if method == "Hex Ratio":
+            query = f"""
+                SELECT
+                    hex_r,
+                    hex_q,
+                    SUM(CASE WHEN istestset = 1 THEN 1 ELSE 0 END) AS n_test,
+                    SUM(CASE WHEN istestset = 0 THEN 1 ELSE 0 END) AS n_samples
+                FROM current_dp
+                GROUP BY
+                    hex_r,
+                    hex_q;
+                """
+            df = pd.read_sql_query(query, conn)
+            if df["n_test"].sum() == 0: #no testset used, return frequency
+                df["metric"] = df["n_samples"]
+            else: # ratio
+                df["metric"] = (df["n_test"]/df["n_test"].sum()) / (df["n_samples"]/df["n_samples"].sum())
+        elif method == "Hex Obj. Metric":
+            query = f"""
+                SELECT
+                    hex_r,
+                    hex_q,
+                    AVG({metric}) AS metric
+                FROM current_dp
+                WHERE istestset = 0
+                GROUP BY
+                    hex_r,
+                    hex_q;
+            """
+            df = pd.read_sql_query(query, conn)
+        else:
+            raise NotImplementedError("Hexbin Data Method Not Implemented")
+        return df
+
+
+    @staticmethod
+    def calculate_hexbins(df, size=8.0):
         """
         Assign pointy-top hex axial coordinates (q, r) to points in df.
         :param df: df with columns x and y

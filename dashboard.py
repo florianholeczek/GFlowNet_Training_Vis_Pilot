@@ -852,23 +852,30 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
         Input("projection-param", "value"),
         Input("iteration", "value"),
         Input("use-testset", "value"),
-        Input("fo-metric", "value")
+        Input("fo-metric", "value"),
+        Input("state-space-style", "value")
     )
-    def update_projection_plots(selected_ids, method, param_value, iteration, use_testset, metric):
+    def update_projection_plots(selected_ids, method, param_value, iteration, use_testset, metric, ss_style):
         ctx = dash.callback_context
         if not ctx.triggered:
             return no_update
         trigger = ctx.triggered[0]["prop_id"]
         metric_lists = (final_object_metrics, testset_metrics)
 
-        # fetch from db
-        if trigger == "selected-objects.data"or trigger == "fo-metric.value":
-            conn = sqlite3.connect(data_path)
-            df = pd.read_sql_query(f"SELECT id, x, y, hex_q, hex_r, text, iteration, istestset, {', '.join(final_object_metrics)} FROM current_dp", conn)
-            conn.close()
 
+
+        # fetch from db
+        if trigger == "selected-objects.data" or trigger == "fo-metric.value" or trigger == "state-space-style.value":
+            conn = sqlite3.connect(data_path)
+            if "Hex" in ss_style:
+                df = plotter.get_hexbin_data(conn, ss_style, metric)
+                print(df)
+            else:
+                df = pd.read_sql_query(f"SELECT id, x, y, hex_q, hex_r, text, iteration, istestset, {', '.join(final_object_metrics)} FROM current_dp", conn)
+            conn.close()
         # compute Downprojections and write to db
         else:
+            #downproject anyways
             df = plotter.create_dp_table(
                 data_path,
                 feature_cols,
@@ -879,8 +886,14 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
                 param_value,
                 metric_lists
             )
+            if "Hex" in ss_style:
+                conn = sqlite3.connect(data_path)
+                df = plotter.get_hexbin_data(conn, ss_style, metric)
+                conn.close()
+                print(df)
 
-
+        if "Hex" in ss_style:
+            return plotter.update_hex(df)
         return plotter.update_state_space(df, selected_ids, metric)
 
 

@@ -869,7 +869,6 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
             conn = sqlite3.connect(data_path)
             if "Hex" in ss_style:
                 df = plotter.get_hexbin_data(conn, ss_style, metric)
-                print(df)
             else:
                 df = pd.read_sql_query(f"SELECT id, x, y, hex_q, hex_r, text, iteration, istestset, {', '.join(final_object_metrics)} FROM current_dp", conn)
             conn.close()
@@ -890,7 +889,6 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
                 conn = sqlite3.connect(data_path)
                 df = plotter.get_hexbin_data(conn, ss_style, metric)
                 conn.close()
-                print(df)
 
         if "Hex" in ss_style:
             return plotter.update_hex(df)
@@ -1015,28 +1013,35 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
         Output("image-tooltip1", "bbox"),
         Output("image-tooltip1", "children"),
         Input("state-space-plot", "hoverData"),
-        State("fo-metric", "value")
+        State("fo-metric", "value"),
+        State("state-space-style", "value")
     )
-    def display_image_tooltip1(hoverData, metric):
+    def display_image_tooltip1(hoverData, metric, ss_style):
         if hoverData is None:
             return False, None, None
 
         bbox = hoverData["points"][0]["bbox"]
-        _, iteration, metric_data, text = hoverData["points"][0]["customdata"]
-        image_b64 = image_fn(text)
 
-        children = [
-            html.Div([
-                html.Img(
-                    src=image_b64,
-                    style={"width": "150px", "height": "150px"}
-                ),
-                html.Div(f"Iteration: {iteration}", style={"color": "black"}),
-                html.Div(f"{metric}: {metric_data:.3f}", style={"color": "black"}),
-            ])
-        ]
+        if "Hex" in ss_style:
+            hex_q, hex_r, metric = hoverData["points"][0]["customdata"]
+            print(hex_q, hex_r, metric)
+            return False, None, None
+        else:
+            _, iteration, metric_data, text = hoverData["points"][0]["customdata"]
+            image_b64 = image_fn(text)
 
-        return True, bbox, children
+            children = [
+                html.Div([
+                    html.Img(
+                        src=image_b64,
+                        style={"width": "150px", "height": "150px"}
+                    ),
+                    html.Div(f"Iteration: {iteration}", style={"color": "black"}),
+                    html.Div(f"{metric}: {metric_data:.3f}", style={"color": "black"}),
+                ])
+            ]
+
+            return True, bbox, children
 
 
     #hover bump plot

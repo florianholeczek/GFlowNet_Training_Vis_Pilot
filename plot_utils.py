@@ -45,7 +45,6 @@ class Plotter:
             cx = size * np.sqrt(3) * (row["hex_q"] + row["hex_r"] / 2)
             cy = size * 1.5 * row["hex_r"]
             xs, ys = hex_corners(cx, cy, size)
-            print(row['metric'])
 
             fig.add_trace(
                 go.Scatter(
@@ -56,6 +55,7 @@ class Plotter:
                     line=dict(width=0.5, color="rgba(0,0,0,0.3)"),
                     fillcolor=map_color(row["metric"], metric_min, metric_max, colorscale),
                     hoverinfo="text",
+                    customdata=[row["hex_q"], row["hex_r"], row["metric"]],
                     text=(
                         f"q: {row['hex_q']}<br>"
                         f"r: {row['hex_r']}<br>"
@@ -65,6 +65,28 @@ class Plotter:
                     showlegend=False,
                 )
             )
+
+        # dummy trace for legend
+        fig.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode="markers",
+                marker=dict(
+                    size=0,
+                    color=[metric_min, metric_max],
+                    colorscale=colorscale,
+                    cmin=metric_min,
+                    cmax=metric_max,
+                    showscale=True,
+                    colorbar=dict(
+                        title="Metric Title",
+                    ),
+                ),
+                hoverinfo="none",
+                showlegend=False,
+            )
+        )
 
         fig.update_layout(
             xaxis=dict(

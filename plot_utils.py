@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
+import plotly.colors as pc
 from sklearn import manifold
 from umap import UMAP
 from scipy.stats import norm
@@ -89,7 +90,8 @@ class Plotter:
                     y=loss_df["min"],
                     mode="lines",
                     fill="tonexty",
-                    fillcolor="rgba(0, 100, 80, 0.2)",  # translucent band
+                    fillcolor=self.cs_main[-1].replace("rgb", "rgba").replace(")", ", 0.2)"),
+                    opacity=0.2,
                     line=dict(width=0),
                     showlegend=False,
                 )
@@ -99,7 +101,7 @@ class Plotter:
                     x=loss_df["iteration"],
                     y=loss_df["mean"],
                     mode="lines",
-                    line=dict(color="rgb(0, 100, 80)", width=2),
+                    line=dict(color=self.cs_main[-1], width=2),
                     showlegend=False,
                 )
             )
@@ -113,6 +115,8 @@ class Plotter:
                 margin=dict(l=20, r=20, t=20, b=20),
                 xaxis=dict(nticks=4)
             )
+            lossfig.update_xaxes(range=[0, loss_df["iteration"].max()])
+            lossfig.update_yaxes(range=[0, loss_df["max"].max()])
 
         # create reward distribution
         if len(rewards_samples) !=0:
@@ -134,14 +138,14 @@ class Plotter:
                     y=np.zeros_like(rewards_samples),
                     mode="markers",
                     name="Train data",
-                    marker=dict(color="blue", opacity=0.6)
+                    marker=dict(color=self.cs_diverging_testset[-1], opacity=0.6)
                 ))
                 rewardfig.add_trace(go.Scatter(
                     x=x_vals,
                     y=norm.pdf(x_vals, mu_samples, sigma_samples),
                     mode="lines",
                     name="Gaussian fit (train)",
-                    line=dict(color="blue")
+                    line=dict(color=self.cs_diverging_testset[-1])
                 ))
             if usetestset and len(rewards_testset)!=0:
                 rewardfig.add_trace(go.Scatter(
@@ -149,14 +153,14 @@ class Plotter:
                     y=np.zeros_like(rewards_testset),
                     mode="markers",
                     name="Test data",
-                    marker=dict(color="red", opacity=0.6)
+                    marker=dict(color=self.cs_diverging_testset[0], opacity=0.6)
                 ))
                 rewardfig.add_trace(go.Scatter(
                     x=x_vals,
                     y=norm.pdf(x_vals, mu_test, sigma_test),
                     mode="lines",
                     name="Distribution Testset",
-                    line=dict(color="red")
+                    line=dict(color=self.cs_diverging_testset[0])
                 ))
 
             rewardfig.update_layout(

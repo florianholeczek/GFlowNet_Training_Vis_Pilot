@@ -93,6 +93,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
         dcc.Store(id="max-frequency", data= 0),
         dcc.Store(id="dag-overview-tid-list", data= []),
         dcc.Store(id="dag-overview-edge-list", data= []),
+        dcc.Store(id="hexbin-size", data=8),
 
         # ================= LEFT SIDEBAR (12%) =================
         html.Div([
@@ -847,23 +848,23 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
     # State Space Callback
     @app.callback(
         Output("state-space-plot", "figure"),
+        Output("hexbin-size", "data"),
         Input("selected-objects", "data"),
         Input("projection-method", "value"),
         Input("projection-param", "value"),
         Input("iteration", "value"),
         Input("use-testset", "value"),
         Input("fo-metric", "value"),
-        Input("state-space-style", "value")
+        Input("state-space-style", "value"),
+        State("hexbin-size", "data"),
     )
-    def update_projection_plots(selected_ids, method, param_value, iteration, use_testset, metric, ss_style):
+    def update_projection_plots(selected_ids, method, param_value, iteration, use_testset, metric, ss_style, hexbin_size):
         ctx = dash.callback_context
         if not ctx.triggered:
-            return no_update
+            return no_update, no_update
         trigger = ctx.triggered[0]["prop_id"]
         metric_lists = (final_object_metrics, testset_metrics)
-        hexbin_size = 8.0
-
-
+        new_hexbin_size = hexbin_size
 
         # fetch from db
         if trigger == "selected-objects.data" or trigger == "fo-metric.value" or trigger == "state-space-style.value":
@@ -875,7 +876,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
             conn.close()
         else:
             #downproject and write to db
-            df = plotter.create_dp_table(
+            df, new_hexbin_size = plotter.create_dp_table(
                 data_path,
                 feature_cols,
                 iteration,
@@ -883,8 +884,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
                 feature_cols_testset,
                 method,
                 param_value,
-                metric_lists,
-                hexbin_size
+                metric_lists
             )
             if "Hex" in ss_style:
                 conn = sqlite3.connect(data_path)
@@ -892,8 +892,8 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
                 conn.close()
 
         if "Hex" in ss_style:
-            return plotter.update_hex(df, ss_style, metric, use_testset, hexbin_size)
-        return plotter.update_state_space(df, selected_ids, metric)
+            return plotter.update_hex(df, ss_style, metric, use_testset, new_hexbin_size), new_hexbin_size
+        return plotter.update_state_space(df, selected_ids, metric), new_hexbin_size
 
 
 

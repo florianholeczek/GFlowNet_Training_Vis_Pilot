@@ -45,13 +45,14 @@ class Plotter:
                     showlegend=False,
                     marker=dict(color=self.cs_diverging_testset[-1], opacity=0.6)
                 ))
-                fig.add_trace(go.Scatter(
-                    x=x_vals,
-                    y=norm.pdf(x_vals, mu_samples, sigma_samples),
-                    mode="lines",
-                    name="Samples",
-                    line=dict(color=self.cs_diverging_testset[-1])
-                ))
+                if sigma_samples !=0:
+                    fig.add_trace(go.Scatter(
+                        x=x_vals,
+                        y=norm.pdf(x_vals, mu_samples, sigma_samples),
+                        mode="lines",
+                        name="Samples",
+                        line=dict(color=self.cs_diverging_testset[-1])
+                    ))
             if testdata is not None:
                 fig.add_trace(go.Scatter(
                     x=testdata,
@@ -61,13 +62,14 @@ class Plotter:
                     showlegend=False,
                     marker=dict(color=self.cs_diverging_testset[0], opacity=0.6)
                 ))
-                fig.add_trace(go.Scatter(
-                    x=x_vals,
-                    y=norm.pdf(x_vals, mu_test, sigma_test),
-                    mode="lines",
-                    name="Testset",
-                    line=dict(color=self.cs_diverging_testset[0])
-                ))
+                if sigma_test != 0:
+                    fig.add_trace(go.Scatter(
+                        x=x_vals,
+                        y=norm.pdf(x_vals, mu_test, sigma_test),
+                        mode="lines",
+                        name="Testset",
+                        line=dict(color=self.cs_diverging_testset[0])
+                    ))
 
             fig.update_layout(
                 title=f"Distribution of {name}",
@@ -392,8 +394,7 @@ class Plotter:
             feature_cols_testset=None,
             method = "tsne",
             param_value=15,
-            metric_lists=([], []),
-            hexbin_size=8.0
+            metric_lists=([], [])
     ):
         conn = sqlite3.connect(data_path)
 
@@ -485,6 +486,9 @@ class Plotter:
         df_dp["istestset"] = df_dp["id"] < 0
 
         # calc hexbins
+        print(proj_s.max(axis=0) - proj_s.min(axis=0))
+        hexbin_size=float(max(proj_s.max(axis=0) - proj_s.min(axis=0)))/16
+        print(proj_s.min(), proj_s.max(), hexbin_size)
         df_dp["hex_q"], df_dp["hex_r"] = self.calculate_hexbins(df_dp, size = hexbin_size)
 
         # write
@@ -496,7 +500,7 @@ class Plotter:
         )
         conn.close()
 
-        return df_dp
+        return df_dp, hexbin_size
 
     def update_DAG(
             self,

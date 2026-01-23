@@ -1034,7 +1034,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
                 metric_title = f"Average {metric}: {metric_value:.4f}"
 
 
-            lossfig, rewardfig, metricfig = plotter.hex_hover_figures(
+            figures = plotter.hex_hover_figures(
                 data_path,
                 hex_q,
                 hex_r,
@@ -1042,21 +1042,21 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
                 metric in testset_metrics,
                 usetestset
             )
+            fig_graphs = [
+                dcc.Graph(
+                    figure=fig,
+                    config={"displayModeBar": False},
+                    style={"marginTop": "20px"}
+                )
+                for fig in figures
+                if fig is not None
+            ]
 
             children = [
                 html.Div([
                     html.Div(f" Unique Samples: {n_samples}", style={"color": "black", "marginTop": "5px"}),
                     html.Div(metric_title, style={"color": "black", "marginTop": "5px"}),
-                    dcc.Graph(
-                        figure=lossfig,
-                        config={"displayModeBar": False},
-                        style={"marginTop": "20px"}
-                    ),
-                    dcc.Graph(
-                        figure=rewardfig,
-                        config={"displayModeBar": False},
-                        style={"marginTop": "20px"}
-                    ),
+                    *fig_graphs
                 ])
             ]
 

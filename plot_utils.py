@@ -21,6 +21,64 @@ class Plotter:
         self.cs_diverging_testset = px.colors.diverging.Geyser_r
         self.cs_diverging_direction = px.colors.diverging.Temps_r
 
+    def hex_distplot(self, data, testdata, name):
+        fig = None
+        if len(data) !=0:
+            mu_samples, sigma_samples = norm.fit(data)
+            x_range = data.min(), data.max()
+        else:
+            x_range = (np.inf, -np.inf)
+        if testdata is not None:
+            mu_test, sigma_test = norm.fit(testdata)
+            x_range = min(x_range[0], testdata.min()), max(x_range[1], testdata.max())
+        x_vals = np.linspace(x_range[0], x_range[1], 100)
+
+        if len(data) != 0 or testdata is not None:
+            fig = go.Figure()
+            if len(data) != 0:
+                fig.add_trace(go.Scatter(
+                    x=data,
+                    y=np.zeros_like(data),
+                    mode="markers",
+                    name="Samples",
+                    showlegend=False,
+                    marker=dict(color=self.cs_diverging_testset[-1], opacity=0.6)
+                ))
+                fig.add_trace(go.Scatter(
+                    x=x_vals,
+                    y=norm.pdf(x_vals, mu_samples, sigma_samples),
+                    mode="lines",
+                    name="Samples",
+                    line=dict(color=self.cs_diverging_testset[-1])
+                ))
+            if testdata is not None:
+                fig.add_trace(go.Scatter(
+                    x=testdata,
+                    y=np.zeros_like(testdata),
+                    mode="markers",
+                    name="Testset Objects",
+                    showlegend=False,
+                    marker=dict(color=self.cs_diverging_testset[0], opacity=0.6)
+                ))
+                fig.add_trace(go.Scatter(
+                    x=x_vals,
+                    y=norm.pdf(x_vals, mu_test, sigma_test),
+                    mode="lines",
+                    name="Testset",
+                    line=dict(color=self.cs_diverging_testset[0])
+                ))
+
+            fig.update_layout(
+                title=f"Distribution of {name}",
+                xaxis_title=name,
+                yaxis_title="Density",
+                template="plotly_white",
+                height=200,
+                width=450,
+                margin=dict(l=20, r=20, t=30, b=20),
+                showlegend=True,
+            )
+        return fig
 
     def hex_hover_figures(self, data_path, hex_q, hex_r, metric, metric_in_testset, usetestset):
         """
@@ -121,65 +179,17 @@ class Plotter:
             lossfig.update_yaxes(range=[0, loss_df["max"].max()])
 
         # create reward distribution
-        if len(rewards_samples) !=0:
-            mu_samples, sigma_samples = norm.fit(rewards_samples)
-            x_range = rewards_samples.min(), rewards_samples.max()
+        if usetestset and len(rewards_testset) != 0:
+            rewardfig = self.hex_distplot(rewards_samples, rewards_testset, "Total Reward")
         else:
-            x_range = (np.inf, -np.inf)
-        if usetestset and len(rewards_testset)!=0:
-            mu_test, sigma_test = norm.fit(rewards_testset)
-            x_range = min(x_range[0], rewards_testset.min()), max(x_range[1], rewards_testset.max())
-        x_vals = np.linspace(x_range[0], x_range[1], 100)
+            rewardfig = self.hex_distplot(rewards_samples, None, "Total Reward")
 
-        if len(rewards_samples) != 0 or (usetestset and len(rewards_testset)!=0):
-            rewardfig = go.Figure()
-            if len(rewards_samples) != 0:
-                rewardfig.add_trace(go.Scatter(
-                    x=rewards_samples,
-                    y=np.zeros_like(rewards_samples),
-                    mode="markers",
-                    name="Samples",
-                    showlegend=False,
-                    marker=dict(color=self.cs_diverging_testset[-1], opacity=0.6)
-                ))
-                rewardfig.add_trace(go.Scatter(
-                    x=x_vals,
-                    y=norm.pdf(x_vals, mu_samples, sigma_samples),
-                    mode="lines",
-                    name="Samples",
-                    line=dict(color=self.cs_diverging_testset[-1])
-                ))
-            if usetestset and len(rewards_testset)!=0:
-                rewardfig.add_trace(go.Scatter(
-                    x=rewards_testset,
-                    y=np.zeros_like(rewards_testset),
-                    mode="markers",
-                    name="Testset Objects",
-                    showlegend=False,
-                    marker=dict(color=self.cs_diverging_testset[0], opacity=0.6)
-                ))
-                rewardfig.add_trace(go.Scatter(
-                    x=x_vals,
-                    y=norm.pdf(x_vals, mu_test, sigma_test),
-                    mode="lines",
-                    name="Testset",
-                    line=dict(color=self.cs_diverging_testset[0])
-                ))
+        if metric != "total_reward" and metric != "loss":
+            if metric_in_testset and usetestset and len(metric_testset) != 0:
+                metricfig = self.hex_distplot(metric_samples, metric_testset, metric)
+            else:
+                metricfig = self.hex_distplot(metric_samples, None, metric)
 
-            rewardfig.update_layout(
-                title="Distribution of total_reward",
-                xaxis_title="Reward",
-                yaxis_title="Density",
-                template="plotly_white",
-                height=200,
-                width=450,
-                margin=dict(l=20, r=20, t=30, b=20),
-                showlegend=True,
-                #legend=dict(x=0.3, y=1.1, orientation="h", xanchor="center", yanchor="bottom"),
-
-            )
-            #rewardfig.update_xaxes(range=[-1, 1])
-            #rewardfig.update_yaxes(range=[0, norm.pdf(x_vals, mu_samples, sigma_samples).max()])
 
         return lossfig, rewardfig, metricfig
 

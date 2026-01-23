@@ -93,7 +93,8 @@ class Plotter:
                     fillcolor=self.cs_main[-1].replace("rgb", "rgba").replace(")", ", 0.2)"),
                     opacity=0.2,
                     line=dict(width=0),
-                    showlegend=False,
+                    showlegend=True,
+                    name="Range"
                 )
             )
             lossfig.add_trace(
@@ -102,7 +103,8 @@ class Plotter:
                     y=loss_df["mean"],
                     mode="lines",
                     line=dict(color=self.cs_main[-1], width=2),
-                    showlegend=False,
+                    name="Mean",
+                    showlegend=True,
                 )
             )
             lossfig.update_layout(
@@ -111,8 +113,8 @@ class Plotter:
                 yaxis_title="Loss",
                 template="plotly_white",
                 height=200,
-                width=250,
-                margin=dict(l=20, r=20, t=20, b=20),
+                width=450,
+                margin=dict(l=20, r=20, t=30, b=20),
                 xaxis=dict(nticks=4)
             )
             lossfig.update_xaxes(range=[0, loss_df["iteration"].max()])
@@ -127,7 +129,6 @@ class Plotter:
         if usetestset and len(rewards_testset)!=0:
             mu_test, sigma_test = norm.fit(rewards_testset)
             x_range = min(x_range[0], rewards_testset.min()), max(x_range[1], rewards_testset.max())
-        print(x_range)
         x_vals = np.linspace(x_range[0], x_range[1], 100)
 
         if len(rewards_samples) != 0 or (usetestset and len(rewards_testset)!=0):
@@ -137,14 +138,15 @@ class Plotter:
                     x=rewards_samples,
                     y=np.zeros_like(rewards_samples),
                     mode="markers",
-                    name="Train data",
+                    name="Samples",
+                    showlegend=False,
                     marker=dict(color=self.cs_diverging_testset[-1], opacity=0.6)
                 ))
                 rewardfig.add_trace(go.Scatter(
                     x=x_vals,
                     y=norm.pdf(x_vals, mu_samples, sigma_samples),
                     mode="lines",
-                    name="Gaussian fit (train)",
+                    name="Samples",
                     line=dict(color=self.cs_diverging_testset[-1])
                 ))
             if usetestset and len(rewards_testset)!=0:
@@ -152,14 +154,15 @@ class Plotter:
                     x=rewards_testset,
                     y=np.zeros_like(rewards_testset),
                     mode="markers",
-                    name="Test data",
+                    name="Testset Objects",
+                    showlegend=False,
                     marker=dict(color=self.cs_diverging_testset[0], opacity=0.6)
                 ))
                 rewardfig.add_trace(go.Scatter(
                     x=x_vals,
                     y=norm.pdf(x_vals, mu_test, sigma_test),
                     mode="lines",
-                    name="Distribution Testset",
+                    name="Testset",
                     line=dict(color=self.cs_diverging_testset[0])
                 ))
 
@@ -167,15 +170,13 @@ class Plotter:
                 title="Distribution of total_reward",
                 xaxis_title="Reward",
                 yaxis_title="Density",
-                #yaxis=dict(showticklabels=False),
                 template="plotly_white",
-                height=200*2,
-                width=250*2,
-                margin=dict(l=20, r=20, t=20, b=20),
-                showlegend=False,
-                legend=dict(x=0.3, y=1.1, orientation="h", xanchor="center", yanchor="bottom"),
-                #xaxis=dict(tickformat=".2f", nticks=4),
-                #yaxis=dict(nticks=4),
+                height=200,
+                width=450,
+                margin=dict(l=20, r=20, t=30, b=20),
+                showlegend=True,
+                #legend=dict(x=0.3, y=1.1, orientation="h", xanchor="center", yanchor="bottom"),
+
             )
             #rewardfig.update_xaxes(range=[-1, 1])
             #rewardfig.update_yaxes(range=[0, norm.pdf(x_vals, mu_samples, sigma_samples).max()])
@@ -197,7 +198,6 @@ class Plotter:
         title = "State Space - "
         metric_min = df["metric"].min()
         metric_max = df["metric"].max()
-        print(metric_max, metric_min)
         if ss_style == "Hex Ratio":
             if usetestset:
                 colorscale = self.cs_diverging_testset
@@ -296,8 +296,8 @@ class Plotter:
         """
         if method == "Hex Ratio":
             query = f"""
-                SELECT
-                    hex_r,
+                SELECT 
+                    hex_r, 
                     hex_q,
                     SUM(CASE WHEN istestset = 1 THEN 1 ELSE 0 END) AS n_test,
                     SUM(CASE WHEN istestset = 0 THEN 1 ELSE 0 END) AS n_samples

@@ -19,7 +19,8 @@ class Plotter:
         #colorscales
         self.cs_main = px.colors.sequential.speed
         self.cs_diverging_testset = px.colors.diverging.Geyser_r
-        self.cs_diverging_direction = px.colors.diverging.Temps_r
+        self.cs_diverging_edgechange = px.colors.diverging.Temps_r
+        self.cs_diverging_dir = px.colors.diverging.PuOr
 
     def hex_distplot(self, data, testdata, name):
         fig = None
@@ -687,7 +688,7 @@ class Plotter:
             colorscale = self.cs_main
         elif metric == "variance":
             vmin, vmax = -3, 3
-            colorscale = self.cs_diverging_direction
+            colorscale = self.cs_diverging_edgechange
         elif metric == "frequency":
             vmin, vmax = 0, max_freq
             colorscale = self.cs_main
@@ -943,7 +944,7 @@ class Plotter:
         ).sort_index()
 
         if metric == "variance":
-            color_scale = self.cs_diverging_direction
+            color_scale = self.cs_diverging_edgechange
             zmin, zmax, zmid = -3, 3, 0
             colorbar_title = "Value - Mean"
             title = f"Edge Heatmap - Highest Variance of {direction.capitalize()} Logprobabilities"
@@ -1012,8 +1013,8 @@ class Plotter:
             y=edge_data["logprobs_forward"],
             mode="lines+markers",
             name="forward",
-            line=dict(color=self.cs_diverging_direction[-1]),
-            marker=dict(color=self.cs_diverging_direction[-1])
+            line=dict(color=self.cs_diverging_dir[-3]),
+            marker=dict(color=self.cs_diverging_dir[-3])
         ))
 
         fig.add_trace(go.Scatter(
@@ -1021,8 +1022,8 @@ class Plotter:
             y=edge_data["logprobs_backward"],
             mode="lines+markers",
             name="backward",
-            line=dict(color=self.cs_diverging_direction[0]),
-            marker=dict(color=self.cs_diverging_direction[0])
+            line=dict(color=self.cs_diverging_dir[2]),
+            marker=dict(color=self.cs_diverging_dir[2])
         ))
 
         fig.update_layout(

@@ -19,7 +19,7 @@ class Plotter:
         #colorscales
         self.cs_main = px.colors.sequential.speed
         self.cs_diverging_testset = px.colors.diverging.Geyser_r
-        self.cs_diverging_direction = px.colors.diverging.Temps
+        self.cs_diverging_direction = px.colors.diverging.Temps_r
 
 
     def hex_hover_figures(self, data_path, hex_q, hex_r, metric, metric_in_testset, usetestset):
@@ -1001,14 +1001,18 @@ class Plotter:
             x=edge_data["iteration"],
             y=edge_data["logprobs_forward"],
             mode="lines+markers",
-            name="forward"
+            name="forward",
+            line=dict(color=self.cs_diverging_direction[-1]),
+            marker=dict(color=self.cs_diverging_direction[-1])
         ))
 
         fig.add_trace(go.Scatter(
             x=edge_data["iteration"],
             y=edge_data["logprobs_backward"],
             mode="lines+markers",
-            name="backward"
+            name="backward",
+            line=dict(color=self.cs_diverging_direction[0]),
+            marker=dict(color=self.cs_diverging_direction[0])
         ))
 
         fig.update_layout(

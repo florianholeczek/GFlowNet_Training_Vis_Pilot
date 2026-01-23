@@ -200,7 +200,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
                         dcc.Dropdown(
                             id="state-space-style",
                             options=["Hex Ratio", "Hex Obj. Metric", "Scatter"],
-                            value="Scatter",
+                            value="Hex Ratio",
                             clearable=False,
                             style={"color": "black"}
                         )
@@ -1034,11 +1034,29 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
                 metric_title = f"{metric}: {metric_value:.4f}"
 
 
+            lossfig, rewardfig, metricfig = plotter.hex_hover_figures(
+                data_path,
+                hex_q,
+                hex_r,
+                metric,
+                metric in testset_metrics,
+                usetestset
+            )
 
             children = [
                 html.Div([
                     html.Div(f" Unique Samples: {n_samples}", style={"color": "black"}),
                     html.Div(metric_title, style={"color": "black"}),
+                    dcc.Graph(
+                        figure=lossfig,
+                        config={"displayModeBar": False},
+                        style={"marginTop": "10px"}
+                    ),
+                    dcc.Graph(
+                        figure=rewardfig,
+                        config={"displayModeBar": False},
+                        style={"marginTop": "10px"}
+                    ),
                 ])
             ]
 

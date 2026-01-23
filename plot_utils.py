@@ -7,6 +7,7 @@ import plotly.graph_objects as go
 import plotly.express as px
 from sklearn import manifold
 from umap import UMAP
+from scipy.stats import norm
 
 
 class Plotter:
@@ -20,19 +21,24 @@ class Plotter:
         self.cs_diverging_direction = px.colors.diverging.Temps
 
 
-    def hex_hover_figures(self, data_path, hex_q, hex_r, metric, metric_in_testset):
+    def hex_hover_figures(self, data_path, hex_q, hex_r, metric, metric_in_testset, usetestset):
         """
         Calculate the figures for the tooltips for the hex state space
         :return:
         """
+        rewardfig = None
+        lossfig = None
+        metricfig = None
+
         # get texts
         conn = sqlite3.connect(data_path)
         query = f"SELECT text FROM current_dp WHERE hex_q = {hex_q} AND hex_r = {hex_r} AND istestset = 0"
         texts = pd.read_sql_query(query, conn)["text"].tolist()
         placeholders = ",".join("?" for _ in texts)
-        query = f"SELECT id FROM current_dp WHERE hex_q = {hex_q} AND hex_r = {hex_r} AND istestset = 1"
-        ids_testset = pd.read_sql_query(query, conn)["id"].tolist()
-        placeholders_t = ",".join("?" for _ in ids_testset)
+        if usetestset:
+            query = f"SELECT id FROM current_dp WHERE hex_q = {hex_q} AND hex_r = {hex_r} AND istestset = 1"
+            ids_testset = pd.read_sql_query(query, conn)["id"].tolist()
+            placeholders_t = ",".join("?" for _ in ids_testset)
 
         # get loss table
         query = f"""
@@ -50,21 +56,128 @@ class Plotter:
 
         # get reward data
         query = f"SELECT total_reward FROM trajectories WHERE final_object = 1 AND text in ({placeholders})"
-        rewards_samples = pd.read_sql_query(query, conn, params=texts).to_numpy()
-        query = f"SELECT total_reward FROM testset WHERE id in ({placeholders_t})"
-        rewards_testset = pd.read_sql_query(query, conn, params=ids_testset).to_numpy()
+        rewards_samples = pd.read_sql_query(query, conn, params=texts).to_numpy().flatten()
+        if usetestset:
+            query = f"SELECT total_reward FROM testset WHERE id in ({placeholders_t})"
+            rewards_testset = pd.read_sql_query(query, conn, params=ids_testset).to_numpy().flatten()
 
         # if metric custom metric is choosen, give dist as well
         if metric != "total_reward" and metric != "loss":
             query = f"SELECT {metric} FROM trajectories WHERE final_object = 1 AND text in ({placeholders})"
-            metric_samples = pd.read_sql_query(query, conn, params=texts).to_numpy()
-            if metric_in_testset:
+            metric_samples = pd.read_sql_query(query, conn, params=texts).to_numpy().flatten()
+            if metric_in_testset and usetestset:
                 query = f"SELECT {metric} FROM testset WHERE id in ({placeholders_t})"
-                metric_testset = pd.read_sql_query(query, conn, params=ids_testset).to_numpy()
-
+                metric_testset = pd.read_sql_query(query, conn, params=ids_testset).to_numpy().flatten()
         conn.close()
 
-        print(loss_df)
+        #create loss figure
+        if len(loss_df) != 0:
+            lossfig = go.Figure()
+            lossfig.add_trace(
+                go.Scatter(
+                    x=loss_df["iteration"],
+                    y=loss_df["max"],
+                    mode="lines",
+                    line=dict(width=0),
+                    showlegend=False,
+                    hoverinfo="skip"
+                )
+            )
+            lossfig.add_trace(
+                go.Scatter(
+                    x=loss_df["iteration"],
+                    y=loss_df["min"],
+                    mode="lines",
+                    fill="tonexty",
+                    fillcolor="rgba(0, 100, 80, 0.2)",  # translucent band
+                    line=dict(width=0),
+                    showlegend=False,
+                )
+            )
+            lossfig.add_trace(
+                go.Scatter(
+                    x=loss_df["iteration"],
+                    y=loss_df["mean"],
+                    mode="lines",
+                    line=dict(color="rgb(0, 100, 80)", width=2),
+                    showlegend=False,
+                )
+            )
+            lossfig.update_layout(
+                title="Average Loss per Iteration",
+                xaxis_title="Iteration",
+                yaxis_title="Loss",
+                template="plotly_white",
+                height=200,
+                width=250,
+                margin=dict(l=20, r=20, t=20, b=20),
+                xaxis=dict(nticks=4)
+            )
+
+        # create reward distribution
+        if len(rewards_samples) !=0:
+            mu_samples, sigma_samples = norm.fit(rewards_samples)
+            x_range = rewards_samples.min(), rewards_samples.max()
+        else:
+            x_range = (np.inf, -np.inf)
+        if usetestset and len(rewards_testset)!=0:
+            mu_test, sigma_test = norm.fit(rewards_testset)
+            x_range = min(x_range[0], rewards_testset.min()), max(x_range[1], rewards_testset.max())
+        print(x_range)
+        x_vals = np.linspace(x_range[0], x_range[1], 100)
+
+        if len(rewards_samples) != 0 or (usetestset and len(rewards_testset)!=0):
+            rewardfig = go.Figure()
+            if len(rewards_samples) != 0:
+                rewardfig.add_trace(go.Scatter(
+                    x=rewards_samples,
+                    y=np.zeros_like(rewards_samples),
+                    mode="markers",
+                    name="Train data",
+                    marker=dict(color="blue", opacity=0.6)
+                ))
+                rewardfig.add_trace(go.Scatter(
+                    x=x_vals,
+                    y=norm.pdf(x_vals, mu_samples, sigma_samples),
+                    mode="lines",
+                    name="Gaussian fit (train)",
+                    line=dict(color="blue")
+                ))
+            if usetestset and len(rewards_testset)!=0:
+                rewardfig.add_trace(go.Scatter(
+                    x=rewards_testset,
+                    y=np.zeros_like(rewards_testset),
+                    mode="markers",
+                    name="Test data",
+                    marker=dict(color="red", opacity=0.6)
+                ))
+                rewardfig.add_trace(go.Scatter(
+                    x=x_vals,
+                    y=norm.pdf(x_vals, mu_test, sigma_test),
+                    mode="lines",
+                    name="Distribution Testset",
+                    line=dict(color="red")
+                ))
+
+            rewardfig.update_layout(
+                title="Distribution of total_reward",
+                xaxis_title="Reward",
+                yaxis_title="Density",
+                #yaxis=dict(showticklabels=False),
+                template="plotly_white",
+                height=200*2,
+                width=250*2,
+                margin=dict(l=20, r=20, t=20, b=20),
+                showlegend=False,
+                legend=dict(x=0.3, y=1.1, orientation="h", xanchor="center", yanchor="bottom"),
+                #xaxis=dict(tickformat=".2f", nticks=4),
+                #yaxis=dict(nticks=4),
+            )
+            #rewardfig.update_xaxes(range=[-1, 1])
+            #rewardfig.update_yaxes(range=[0, norm.pdf(x_vals, mu_samples, sigma_samples).max()])
+
+        return lossfig, rewardfig, metricfig
+
 
     def update_hex(self, df, ss_style, metric, usetestset, size=8.0):
         """

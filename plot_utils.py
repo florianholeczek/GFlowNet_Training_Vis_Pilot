@@ -19,10 +19,57 @@ class Plotter:
         self.cs_diverging_testset = px.colors.diverging.Geyser_r
         self.cs_diverging_direction = px.colors.diverging.Temps
 
+
+    def hex_hover_figures(self, data_path, hex_q, hex_r, metric, metric_in_testset):
+        """
+        Calculate the figures for the tooltips for the hex state space
+        :return:
+        """
+        # get texts
+        conn = sqlite3.connect(data_path)
+        query = f"SELECT text FROM current_dp WHERE hex_q = {hex_q} AND hex_r = {hex_r} AND istestset = 0"
+        texts = pd.read_sql_query(query, conn)["text"].tolist()
+        placeholders = ",".join("?" for _ in texts)
+        query = f"SELECT id FROM current_dp WHERE hex_q = {hex_q} AND hex_r = {hex_r} AND istestset = 1"
+        ids_testset = pd.read_sql_query(query, conn)["id"].tolist()
+        placeholders_t = ",".join("?" for _ in ids_testset)
+
+        # get loss table
+        query = f"""
+                        SELECT
+                            iteration,
+                            AVG(loss) AS mean,
+                            MIN(loss) AS min,
+                            MAX(loss) AS max
+                        FROM trajectories 
+                        WHERE final_object = 1
+                        AND text in ({placeholders})
+                        GROUP BY iteration
+                    """
+        loss_df = pd.read_sql_query(query, conn, params=texts)
+
+        # get reward data
+        query = f"SELECT total_reward FROM trajectories WHERE final_object = 1 AND text in ({placeholders})"
+        rewards_samples = pd.read_sql_query(query, conn, params=texts).to_numpy()
+        query = f"SELECT total_reward FROM testset WHERE id in ({placeholders_t})"
+        rewards_testset = pd.read_sql_query(query, conn, params=ids_testset).to_numpy()
+
+        # if metric custom metric is choosen, give dist as well
+        if metric != "total_reward" and metric != "loss":
+            query = f"SELECT {metric} FROM trajectories WHERE final_object = 1 AND text in ({placeholders})"
+            metric_samples = pd.read_sql_query(query, conn, params=texts).to_numpy()
+            if metric_in_testset:
+                query = f"SELECT {metric} FROM testset WHERE id in ({placeholders_t})"
+                metric_testset = pd.read_sql_query(query, conn, params=ids_testset).to_numpy()
+
+        conn.close()
+
+        print(loss_df)
+
     def update_hex(self, df, ss_style, metric, usetestset, size=8.0):
         """
         Update the state space plot for hex style
-        :param df: df with grouped data for hex (hex_r, hex_q, metric)
+        :param df: df with grouped data for hex (hex_r, hex_q, metric, n_samples)
         :param size: size of bins
         :return: figure
         """
@@ -77,14 +124,9 @@ class Plotter:
                     fill="toself",
                     line=dict(width=0.5, color="rgba(0,0,0,0.3)"),
                     fillcolor=map_color(row["metric"], metric_min, metric_max, colorscale),
-                    hoverinfo="text",
-                    customdata=[row["hex_q"], row["hex_r"], row["metric"]],
-                    text=(
-                        f"q: {row['hex_q']}<br>"
-                        f"r: {row['hex_r']}<br>"
-                        f"metric: {row['metric']}"
-                    ),
-
+                    hoverinfo="none",
+                    hovertemplate=None,
+                    customdata=[row["hex_q"], row["hex_r"], row["metric"], row["n_samples"], (xs, ys)],
                     showlegend=False,
                 )
             )
@@ -157,7 +199,8 @@ class Plotter:
                 SELECT
                     hex_r,
                     hex_q,
-                    AVG({metric}) AS metric
+                    AVG({metric}) AS metric,
+                    COUNT(*) AS n_samples
                 FROM current_dp
                 WHERE istestset = 0
                 GROUP BY

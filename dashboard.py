@@ -1015,18 +1015,33 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
         Output("image-tooltip1", "children"),
         Input("state-space-plot", "hoverData"),
         State("fo-metric", "value"),
-        State("state-space-style", "value")
+        State("state-space-style", "value"),
+        State("use-testset", "value")
     )
-    def display_image_tooltip1(hoverData, metric, ss_style):
+    def display_image_tooltip1(hoverData, metric, ss_style, usetestset):
         if hoverData is None:
             return False, None, None
-
         bbox = hoverData["points"][0]["bbox"]
 
         if "Hex" in ss_style:
-            hex_q, hex_r, metric = hoverData["points"][0]["customdata"]
-            print(hex_q, hex_r, metric)
-            return False, None, None
+            hex_q, hex_r, metric_value, n_samples, hexcorners = hoverData["points"][0]["customdata"]
+            if ss_style == "Hex Ratio":
+                if usetestset:
+                    metric_title = f"Difference Score: {metric_value:.4f}"
+                else:
+                    metric_title = ""
+            else:
+                metric_title = f"{metric}: {metric_value:.4f}"
+
+
+
+            children = [
+                html.Div([
+                    html.Div(f" Unique Samples: {n_samples}", style={"color": "black"}),
+                    html.Div(metric_title, style={"color": "black"}),
+                ])
+            ]
+
         else:
             _, iteration, metric_data, text = hoverData["points"][0]["customdata"]
             image_b64 = image_fn(text)
@@ -1042,7 +1057,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
                 ])
             ]
 
-            return True, bbox, children
+        return True, bbox, children
 
 
     #hover bump plot

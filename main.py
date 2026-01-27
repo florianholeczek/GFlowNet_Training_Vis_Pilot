@@ -1,11 +1,9 @@
 from dashboard import run_dashboard
-
-# plotting function for molecules.
-# keep here for now, when reworking data loading and starting the app pass it when running the app
-# make plot utils class and define image_fn on init
 from rdkit import Chem
 from rdkit.Chem import Draw
+from rdkit.Chem import rdFMCS
 import base64
+
 
 
 def imagefn_seh(smiles):
@@ -45,9 +43,18 @@ def imagefn_seh(smiles):
 
     return b64
 
+#state aggregation seh
+def state_agg_fn_seh(smiles):
+    mols = [Chem.MolFromSmiles(s) for s in smiles]
+    #find mcs
+    mcs_result = rdFMCS.FindMCS(mols)
+    #convert
+    mcs_smarts = mcs_result.smartsString
+    mcs_mol = Chem.MolFromSmarts(mcs_smarts)
+    mcs_smiles = Chem.MolToSmiles(mcs_mol)
+    return mcs_smiles
 
 #plotting function for debugdata
-import base64
 def imagefn_debugdata(s):
     dots = [(i%3, i//3) for i in range(int(s))]
     svg = '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="100">' + \
@@ -56,7 +63,11 @@ def imagefn_debugdata(s):
     b64 = base64.b64encode(svg.encode()).decode()
     return b64
 
+#aggregation function for debugdata
+def state_agg_fn_debugdata(texts):
+    return min([int(i) for i in texts])
 
 
-run_dashboard(data="seh_small", text_to_img_fn=imagefn_seh, debug_mode=True)
-#run_dashboard(data="debugdata", text_to_img_fn=imagefn_debugdata, debug_mode=True)
+
+run_dashboard(data="seh_small", text_to_img_fn=imagefn_seh, state_aggregation_fn=state_agg_fn_seh, debug_mode=True)
+#run_dashboard(data="debugdata", text_to_img_fn=imagefn_debugdata, state_aggregation_fn= state_agg_fn_debugdata, debug_mode=True)

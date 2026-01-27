@@ -13,14 +13,48 @@ from scipy.stats import norm
 
 class Plotter:
 
-    def __init__(self, data, image_fn):
+    def __init__(self, data, image_fn, state_aggregation_fn):
         self.data = data
         self.image_fn = image_fn
+        if state_aggregation_fn is None:
+            self.raw_state_aggregation_fn = self.longest_common_substring
+        else:
+            self.raw_state_aggregation_fn = state_aggregation_fn
+
         #colorscales
         self.cs_main = px.colors.sequential.speed
         self.cs_diverging_testset = px.colors.diverging.Geyser_r
         self.cs_diverging_edgechange = px.colors.diverging.Temps_r
         self.cs_diverging_dir = px.colors.diverging.PuOr
+
+    def state_aggregation_fn(self, texts):
+        if len(texts) == 0:
+            return None
+        elif len(texts) == 1:
+            return texts[0]
+        else:
+            return self.raw_state_aggregation_fn(texts)
+
+
+    @staticmethod
+    def longest_common_substring(texts):
+        """
+        Dummy state_aggregation_fn: If no function is provided, the longest common substring of the texts is given
+        :param texts: list of texts
+        :return: longest substring
+        """
+        if not texts:
+            return ""
+        reference = min(texts, key=len)
+        longest = ""
+        for i in range(len(reference)):
+            for j in range(i + 1, len(reference) + 1):
+                substring = reference[i:j]
+                # Check if this substring appears in all strings
+                if all(substring in s for s in texts):
+                    if len(substring) > len(longest):
+                        longest = substring
+        return longest
 
     def hex_distplot(self, data, testdata, name):
         fig = None
@@ -98,9 +132,9 @@ class Plotter:
         texts = pd.read_sql_query(query, conn)["text"].tolist()
         placeholders = ",".join("?" for _ in texts)
         if usetestset:
-            query = f"SELECT id FROM current_dp WHERE hex_q = {hex_q} AND hex_r = {hex_r} AND istestset = 1"
-            ids_testset = pd.read_sql_query(query, conn)["id"].tolist()
-            placeholders_t = ",".join("?" for _ in ids_testset)
+            query = f"SELECT text FROM current_dp WHERE hex_q = {hex_q} AND hex_r = {hex_r} AND istestset = 1"
+            texts_t = pd.read_sql_query(query, conn)["text"].tolist()
+            placeholders_t = ",".join("?" for _ in texts_t)
 
         # get loss table
         query = f"""
@@ -120,16 +154,16 @@ class Plotter:
         query = f"SELECT total_reward FROM trajectories WHERE final_object = 1 AND text in ({placeholders})"
         rewards_samples = pd.read_sql_query(query, conn, params=texts).to_numpy().flatten()
         if usetestset:
-            query = f"SELECT total_reward FROM testset WHERE id in ({placeholders_t})"
-            rewards_testset = pd.read_sql_query(query, conn, params=ids_testset).to_numpy().flatten()
+            query = f"SELECT total_reward FROM testset WHERE text in ({placeholders_t})"
+            rewards_testset = pd.read_sql_query(query, conn, params=texts_t).to_numpy().flatten()
 
         # if metric custom metric is choosen, give dist as well
         if metric != "total_reward" and metric != "loss":
             query = f"SELECT {metric} FROM trajectories WHERE final_object = 1 AND text in ({placeholders})"
             metric_samples = pd.read_sql_query(query, conn, params=texts).to_numpy().flatten()
             if metric_in_testset and usetestset:
-                query = f"SELECT {metric} FROM testset WHERE id in ({placeholders_t})"
-                metric_testset = pd.read_sql_query(query, conn, params=ids_testset).to_numpy().flatten()
+                query = f"SELECT {metric} FROM testset WHERE text in ({placeholders_t})"
+                metric_testset = pd.read_sql_query(query, conn, params=texts_t).to_numpy().flatten()
         conn.close()
 
         #create loss figure
@@ -193,8 +227,9 @@ class Plotter:
             else:
                 metricfig = self.hex_distplot(metric_samples, None, metric)
 
-
-        return lossfig, rewardfig, metricfig
+        if usetestset:
+            texts += texts_t
+        return (lossfig, rewardfig, metricfig), texts
 
 
     def update_hex(self, df, ss_style, metric, usetestset, size=8.0):

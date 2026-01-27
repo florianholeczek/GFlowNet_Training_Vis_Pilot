@@ -13,11 +13,18 @@ from umap import UMAP
 from plot_utils import *
 from pathlib import Path
 
-def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False):
+def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: callable, debug_mode: bool = False):
     """
     Runs the dashboard on http://127.0.0.1:8050/
     :param data: folder of the logged data
-    :param text_to_img_fn: function to convert the texts representing the states to base64 encoded svg images to identify states
+    :param text_to_img_fn: function to convert the texts representing the states to base64 encoded svg images.
+        Used to identify states on the dashboard
+    :param state_aggregation_fn: function to aggregate states.
+        In the state space it might help to see what states in a bin have in common.
+        This function provides this aggregation.
+        This can be eg the Maximum Common Substructure in Molecules / Graphs, paths that must have been taken for all states in Games, etc.
+        Must take the states as a list of strings and return one state as a string.
+        If not specified the longest common substring of all strings will be used. There is no guarantee that this is a valid state.
     :param debug_mode: whether to display in debug mode for error handling
     :return: None
     """
@@ -46,7 +53,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
             return f"data:image/svg+xml;base64,{text_to_img_fn(state)}"
 
 
-    plotter = Plotter(data_path, image_fn)
+    plotter = Plotter(data_path, image_fn, state_aggregation_fn)
 
     # get provided metrics and feature columns
     conn = sqlite3.connect(data_path)
@@ -1034,7 +1041,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
                 metric_title = f"Average {metric}: {metric_value:.4f}"
 
 
-            figures = plotter.hex_hover_figures(
+            figures, texts = plotter.hex_hover_figures(
                 data_path,
                 hex_q,
                 hex_r,
@@ -1051,12 +1058,24 @@ def run_dashboard(data: str, text_to_img_fn: callable, debug_mode: bool = False)
                 for fig in figures
                 if fig is not None
             ]
+            aggregation = plotter.state_aggregation_fn(texts)
 
             children = [
                 html.Div([
-                    html.Div(f" Unique Samples: {n_samples}", style={"color": "black", "marginTop": "5px"}),
-                    html.Div(metric_title, style={"color": "black", "marginTop": "5px"}),
-                    *fig_graphs
+                    *fig_graphs,
+                    html.Div([
+                        html.Img(
+                            src=plotter.image_fn(aggregation),
+                            style={"width": "150px", "height": "150px", "marginRight": "15px"}
+                        ),
+                        html.Div([
+                            html.Div(f" Unique Samples: {n_samples}", style={"color": "black", "marginTop": "5px"}),
+                            html.Div(metric_title, style={"color": "black", "marginTop": "5px"}),
+                        ]),
+                    ], style={
+                        "display": "flex",
+                        "alignItems": "center"  # vertical alignment
+                    })
                 ])
             ]
 

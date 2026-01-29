@@ -58,14 +58,18 @@ class Plotter:
 
     def hex_distplot(self, data, testdata, name):
         fig = None
-        if len(data) !=0:
+        if len(data) > 1:
             mu_samples, sigma_samples = norm.fit(data)
             x_range = data.min(), data.max()
+        elif len(data) == 1:
+            mu_samples, sigma_samples = norm.fit(data)
+            x_range = data[0], data[0]
         else:
             x_range = (np.inf, -np.inf)
         if testdata is not None:
             mu_test, sigma_test = norm.fit(testdata)
             x_range = min(x_range[0], testdata.min()), max(x_range[1], testdata.max())
+        print(x_range, data, testdata)
         x_vals = np.linspace(x_range[0], x_range[1], 100)
 
         if len(data) != 0 or testdata is not None:
@@ -252,8 +256,8 @@ class Plotter:
                 metric_max = 1
                 metric_min = -1
                 legend_title = "Score"
-                title += "Normalized Difference Score of Testset Objects to Samples"
-                title += "<br><sup>1: Only Testset Objects; -1: Only Samples. Normalized for Sample and Testset Size.</sup>"
+                title += "Log Odds Ratio of Samples to Testset Objects (Scaled to [-1,1])"
+                title += "<br><sup>1: Only Testset Objects. -1: Only Samples. 0: Ratio Samples/Testset Objects Is the Same as the Global Ratio.</sup>"
             else:
                 legend_title = "N Samples"
                 title += "Number of Sampled Objects"
@@ -357,8 +361,13 @@ class Plotter:
             df = pd.read_sql_query(query, conn)
             if df["n_test"].sum() == 0: #no testset used, return frequency
                 df["metric"] = df["n_samples"]
-            else: # Normalized Difference Score
-                df["metric"] = (df["n_samples"] - df["n_test"]) / (df["n_samples"] + df["n_test"])
+            else:
+                # Log Odds ratio scaled to [-1,1]
+                # Identical to tanh(log((samples/test)/(sum(samples)/sum(test))))
+                eps = 0.0001
+                ratio = (df["n_samples"].sum()+eps) / (df["n_test"].sum()+eps)
+                df["metric"] = (df["n_samples"]+eps)/(df["n_test"]+eps)
+                df["metric"] = (df["metric"]**2-ratio**2)/(df["metric"]**2+ratio**2)
         elif method == "Hex Obj. Metric":
             query = f"""
                 SELECT
@@ -521,9 +530,7 @@ class Plotter:
         df_dp["istestset"] = df_dp["id"] < 0
 
         # calc hexbins
-        print(proj_s.max(axis=0) - proj_s.min(axis=0))
         hexbin_size=float(max(proj_s.max(axis=0) - proj_s.min(axis=0)))/16
-        print(proj_s.min(), proj_s.max(), hexbin_size)
         df_dp["hex_q"], df_dp["hex_r"] = self.calculate_hexbins(df_dp, size = hexbin_size)
 
         # write

@@ -1031,14 +1031,14 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
         bbox = hoverData["points"][0]["bbox"]
 
         if "Hex" in ss_style:
-            hex_q, hex_r, metric_value, n_samples, hexcorners = hoverData["points"][0]["customdata"]
+            hex_q, hex_r, metric_value, n_samples, n_test, hexcorners = hoverData["points"][0]["customdata"]
             if ss_style == "Hex Ratio":
                 if usetestset:
-                    metric_title = f"Difference Score: {metric_value:.4f}"
+                    metric_title = f"Log Odds Ratio: {metric_value:.2f}"
                 else:
                     metric_title = ""
             else:
-                metric_title = f"Average {metric}: {metric_value:.4f}"
+                metric_title = f"Average {metric} (Samples): {metric_value:.4f}"
 
 
             figures, texts = plotter.hex_hover_figures(
@@ -1070,6 +1070,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
                         ),
                         html.Div([
                             html.Div(f" Unique Samples: {n_samples}", style={"color": "black", "marginTop": "5px"}),
+                            html.Div(f" Testset Objects: {n_test}", style={"color": "black", "marginTop": "5px"}),
                             html.Div(metric_title, style={"color": "black", "marginTop": "5px"}),
                         ]),
                     ], style={

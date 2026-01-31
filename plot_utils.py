@@ -189,7 +189,7 @@ class Plotter:
                     y=loss_df["min"],
                     mode="lines",
                     fill="tonexty",
-                    fillcolor=self.cs_main[-1].replace("rgb", "rgba").replace(")", ", 0.2)"),
+                    fillcolor=self.cs_diverging_testset[-1].replace("rgb", "rgba").replace(")", ", 0.2)"),
                     opacity=0.2,
                     line=dict(width=0),
                     showlegend=True,
@@ -201,13 +201,13 @@ class Plotter:
                     x=loss_df["iteration"],
                     y=loss_df["mean"],
                     mode="lines",
-                    line=dict(color=self.cs_main[-1], width=2),
+                    line=dict(color=self.cs_diverging_testset[-1], width=2),
                     name="Mean",
                     showlegend=True,
                 )
             )
             lossfig.update_layout(
-                title="Average Loss per Iteration",
+                title="Average Loss per Iteration (Samples)",
                 xaxis_title="Iteration",
                 yaxis_title="Loss",
                 template="plotly_white",
@@ -239,7 +239,7 @@ class Plotter:
     def update_hex(self, df, ss_style, metric, usetestset, size=8.0):
         """
         Update the state space plot for hex style
-        :param df: df with grouped data for hex (hex_r, hex_q, metric, n_samples)
+        :param df: df with grouped data for hex (hex_r, hex_q, metric, n_samples, n_test)
         :param size: size of bins
         :return: figure
         """
@@ -295,7 +295,7 @@ class Plotter:
                     fillcolor=map_color(row["metric"], metric_min, metric_max, colorscale),
                     hoverinfo="none",
                     hovertemplate=None,
-                    customdata=[row["hex_q"], row["hex_r"], row["metric"], row["n_samples"], (xs, ys)],
+                    customdata=[row["hex_q"], row["hex_r"], row["metric"], row["n_samples"], row["n_test"], (xs, ys)],
                     showlegend=False,
                 )
             )
@@ -370,13 +370,13 @@ class Plotter:
                 df["metric"] = (df["metric"]**2-ratio**2)/(df["metric"]**2+ratio**2)
         elif method == "Hex Obj. Metric":
             query = f"""
-                SELECT
-                    hex_r,
+                SELECT 
+                    hex_r, 
                     hex_q,
-                    AVG({metric}) AS metric,
-                    COUNT(*) AS n_samples
+                    SUM(CASE WHEN istestset = 1 THEN 1 ELSE 0 END) AS n_test,
+                    SUM(CASE WHEN istestset = 0 THEN 1 ELSE 0 END) AS n_samples,
+                    COALESCE(AVG(CASE WHEN istestset = 0 THEN {metric} END), 0) AS metric
                 FROM current_dp
-                WHERE istestset = 0
                 GROUP BY
                     hex_r,
                     hex_q;
@@ -1269,7 +1269,7 @@ class Plotter:
                         opacity=opacity,
                         # name="1",#obj if opacity == 1 else f"{obj} (faded)",
                         customdata=sub_df[['final_id', 'value', 'metric', 'text']].values,
-                        showlegend=False
+                        showlegend=True
                     )
                 )
 
@@ -1284,7 +1284,7 @@ class Plotter:
                 "Markers show if an object was actually sampled in this iteration."
                 "</sup>"
             ),
-            showlegend=True,
+            showlegend=False,
             legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="left", x=0),
             xaxis_title="Iteration",
             yaxis_title="Rank",

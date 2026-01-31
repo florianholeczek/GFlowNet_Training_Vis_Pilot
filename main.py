@@ -69,5 +69,5 @@ def state_agg_fn_debugdata(texts):
 
 
 
-run_dashboard(data="seh_mid", text_to_img_fn=imagefn_seh, state_aggregation_fn=state_agg_fn_seh, debug_mode=True)
+run_dashboard(data="seh_small", text_to_img_fn=imagefn_seh, state_aggregation_fn=state_agg_fn_seh, debug_mode=True)
 #run_dashboard(data="debugdata", text_to_img_fn=imagefn_debugdata, state_aggregation_fn= state_agg_fn_debugdata, debug_mode=True)

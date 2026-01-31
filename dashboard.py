@@ -101,6 +101,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
         dcc.Store(id="dag-overview-tid-list", data= []),
         dcc.Store(id="dag-overview-edge-list", data= []),
         dcc.Store(id="hexbin-size", data=8),
+        dcc.Store(id="dag-overview-page", data=0),
 
         # ================= LEFT SIDEBAR (12%) =================
         html.Div([
@@ -424,20 +425,23 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
             # ================= DAG TAB =================
             html.Div([
                 html.Div([
-                    # LEFT SIDE - DAG AREA
+                    # DAG Overview
                     html.Div([
-                        html.Div([
-                            dcc.Graph(
-                                id="dag-overview",
-                                clear_on_unhover=True,
-                                style={"height": "100%", "width": "100%"},
-                                config={"responsive": True},
-                            ),
-                        ], style={
-                            "height": "24vh",
-                            #"border": "1px solid #ddd",
-                            "boxSizing": "border-box"
-                        }),
+                        dcc.Graph(
+                            id="dag-overview",
+                            clear_on_unhover=True,
+                            style={"height": "100%", "width": "100%"},
+                            config={"responsive": True},
+                        ),
+                    ], style={
+                        "flex": "0 0 400px",
+                        "display": "flex",
+                        "flexDirection": "column",
+                        "height": "100vh",
+                        "width": "400px",
+                    }),
+                    # DAG AREA
+                    html.Div([
 
                         html.Div("DAG-title", id="dag-title", style={
                             "height": "20px",
@@ -483,7 +487,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
                         "flex": 1,
                         "display": "flex",
                         "flexDirection": "column",
-                        "height": "100vh"
+                        "height": "100vh",
                     }),
 
                     # RIGHT SIDE - DATA TABLE
@@ -1144,9 +1148,10 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
         if hoverData is None or hoverData["points"][0]["z"] is None:
             return False, None, None
 
+        print(hoverData["points"][0])
         value = hoverData["points"][0]["z"]
         bbox = hoverData["points"][0]["bbox"]
-        idx = hoverData["points"][0]["x"]
+        idx = hoverData["points"][0]["y"]
         source, target = edge_list[idx]
 
         # get data

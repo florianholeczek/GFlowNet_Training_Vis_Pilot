@@ -993,24 +993,26 @@ class Plotter:
             color_scale = self.cs_diverging_edgechange
             zmin, zmax, zmid = -3, 3, 0
             colorbar_title = "Value - Mean"
-            title = f"Edge Heatmap - Highest Variance of {direction.capitalize()} Logprobabilities"
+            title = f"Edge Heatmap<br><sup>Difference: {direction.capitalize()} Logprobability - Mean of Edge</sup>"
         elif metric == "frequency":
             color_scale = self.cs_main
             zmin = 0
             zmax = df['metric_val'].max()
             zmid = None
             colorbar_title = "Frequency"
-            title = f"Edge Heatmap - Highest frequency"
+            title = f"Edge Heatmap<br><sup>Highest frequency</sup>"
         else:  # highest or lowest
             color_scale = self.cs_main
             zmin, zmax, zmid = -10, 0, None
             colorbar_title = "Value"
-            title = f"Edge Heatmap - {metric.capitalize()} Value of {direction.capitalize()} Logprobabilities"
+            title = f"Edge Heatmap<br><sup>{metric.capitalize()} Value of {direction.capitalize()} Logprobabilities</sup>"
+
+        #heatmap_data = heatmap_data.sort_index(axis=1)
 
         fig = go.Figure(data=go.Heatmap(
-            z=heatmap_data.values,
-            x=heatmap_data.columns,
-            y=heatmap_data.index,
+            z=heatmap_data.values.T,
+            x=heatmap_data.index,
+            y=heatmap_data.columns,
             colorscale=color_scale,
             showscale=True,
             zmin=zmin,
@@ -1018,7 +1020,7 @@ class Plotter:
             zmid=zmid,
             # customdata=customdata,
             # hovertemplate = "<<%{customdata}>><extra></extra>",
-            colorbar=dict(title=dict(text=colorbar_title))
+            colorbar=dict(title=dict(text=None), orientation='h', y=1.01, yanchor='bottom')
         ))
 
         fig.update_layout(
@@ -1026,26 +1028,28 @@ class Plotter:
             template='plotly_dark',
             margin=dict(l=40, r=40, t=40, b=40),
             dragmode="select",
-            title=title,
+            title=dict(text = title, ),
             xaxis=dict(
-                title=f"Edges (Top {top_n}, ordered by Metric)",
-                showticklabels=False,
+                title=f"Iteration",
+                ticks="outside",
+                showticklabels=True,
                 showline=False,
                 zeroline=False,
                 showgrid=False,
                 showspikes=False,
             ),
             yaxis=dict(
-                title="Iteration",
+                title=f"Edge Rank ",
+                ticks="outside",
+                showticklabels=True,
                 showgrid=False,
                 showline=False,
                 zeroline=False,
-                ticks="outside",
-                showticklabels=True,
                 showspikes=False,
             ),
         )
         fig.update_traces(hoverinfo="none", hovertemplate=None)
+        fig.update_yaxes(autorange="reversed")
 
         if metric == "frequency":
             return fig, zmax, trajectory_id_list, edge_list

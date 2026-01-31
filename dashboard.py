@@ -427,19 +427,56 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
                 html.Div([
                     # DAG Overview
                     html.Div([
-                        dcc.Graph(
-                            id="dag-overview",
-                            clear_on_unhover=True,
-                            style={"height": "100%", "width": "100%"},
-                            config={"responsive": True},
+                        html.Div(
+                            [
+                                html.Button(
+                                    "Top 150",
+                                    id="dag-overview-button-top",
+                                    style={"flex": 1, "height": "40px", "border-top-left-radius": "8px",}
+                                ),
+                                html.Button(
+                                    "Previous 150",
+                                    id="dag-overview-button-prev",
+                                    style={"flex": 1, "height": "40px", "border-top-right-radius": "8px",}),
+                            ],
+                            style={
+                                "display": "flex",
+                                "margin-top": "10px",
+                            },
                         ),
-                    ], style={
-                        "flex": "0 0 400px",
-                        "display": "flex",
-                        "flexDirection": "column",
-                        "height": "100vh",
-                        "width": "400px",
-                    }),
+
+                        # --- Graph (fills remaining height) ---
+                        html.Div(
+                            dcc.Graph(
+                                id="dag-overview",
+                                clear_on_unhover=True,
+                                style={"height": "100%", "width": "100%"},
+                                config={"responsive": True},
+                            ),
+                            style={"flex": 1},
+                        ),
+
+                        # --- Bottom button ---
+                        html.Button(
+                            "Next 150",
+                            id="dag-overview-button-next",
+                            style={
+                                "height": "40px",
+                                "width": "100%",
+                                "border-bottom-left-radius": "8px",
+                                "border-bottom-right-radius": "8px",
+                                "margin-bottom": "10px",
+                            },
+                        ),
+                    ],style={
+                            "display": "flex",
+                            "flexDirection": "column",
+                            "flex": "0 0 400px",
+                            "height": "100vh",
+                            "width": "400px",
+                            "gap": "8px",
+                        },
+                    ),
                     # DAG AREA
                     html.Div([
 
@@ -488,6 +525,8 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
                         "display": "flex",
                         "flexDirection": "column",
                         "height": "100vh",
+                        "margin-right": "10px",
+                        "margin-left": "10px",
                     }),
 
                     # RIGHT SIDE - DATA TABLE
@@ -547,7 +586,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
         }),
         dcc.Tooltip(
             id="image-tooltip4",
-            direction="bottom",
+            direction="right",
             style = {"zIndex": 999, "pointerEvents": "none", "overflow": "visible"}
         ),
 
@@ -1012,9 +1051,11 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
         Input("dag-direction", "value"),
         Input("dag-metric", "value"),
         Input("iteration", "value"),
+        Input("dag-overview-page", "data")
     )
-    def update_dag_overview(direction, metric, iteration):
-        fig, max_freq, ids, edge_list = plotter.update_DAG_overview(direction, metric, iteration)
+    def update_dag_overview(direction, metric, iteration, page):
+        print(page)
+        fig, max_freq, ids, edge_list = plotter.update_DAG_overview(direction, metric, iteration, page)
         if max_freq:
             return fig, max_freq, ids, edge_list
         return fig, no_update, ids, edge_list
@@ -1215,6 +1256,33 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
         )
 
         return True, bbox, children
+
+    @app.callback(
+        Output("dag-overview-page", "data"),
+        Output("dag-overview-button-top", "disabled"),
+        Output("dag-overview-button-prev", "disabled"),
+        Output("dag-overview-button-next", "disabled"),
+        Input("dag-overview-button-top", "n_clicks"),
+        Input("dag-overview-button-next", "n_clicks"),
+        Input("dag-overview-button-prev", "n_clicks"),
+        Input("iteration", "value"),
+        State("dag-overview-page", "data"),
+    )
+    def dag_overview_buttons(top, nxt, prev, iterations, page):
+        trigger = dash.callback_context.triggered[0]["prop_id"]
+        print(trigger)
+        if "top" in trigger or "iteration" in trigger:
+            page = 0
+        elif "prev" in trigger:
+            page = max(page - 1, 0)
+        elif "next" in trigger:
+            page += 1
+        disabled_top = page ==0
+        conn = sqlite3.connect(data_path)
+        query = "SELECT COUNT(*) AS count FROM (SELECT DISTINCT source, target FROM edges WHERE iteration BETWEEN ? AND ?);"
+        n_edges = pd.read_sql_query(query, conn, params=iterations)["count"].tolist()[0]
+        disabled_bottom = (page+1)*150 >= n_edges
+        return page, disabled_top, disabled_top, disabled_bottom
 
 
     # Run the dashboard

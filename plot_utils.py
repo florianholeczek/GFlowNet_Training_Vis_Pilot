@@ -862,9 +862,16 @@ class Plotter:
             'stylesheet': stylesheet,
         }
 
-    def update_DAG_overview(self, direction, metric, iteration):
+    def update_DAG_overview(self, direction, metric, iteration, page):
+        """
+        edge heatmap plot
+        pagination is implemented with offset.
+        This is the fast implementation and might break for scrolling far down.
+        might need to implement with keyset later on.
+        """
         column = "logprobs_" + direction
         top_n = 150
+        offset = top_n * page
 
         conn = sqlite3.connect(self.data)
 
@@ -877,7 +884,7 @@ class Plotter:
                         WHERE iteration BETWEEN ? AND ?
                         GROUP BY source, target
                         ORDER BY max_val DESC
-                        LIMIT {top_n}
+                        LIMIT {top_n} OFFSET {offset}
                     )
                     SELECT e.source, e.target, e.iteration, e.{column} as value, em.max_val as metric_val, e.trajectory_id
                     FROM edges e
@@ -893,7 +900,7 @@ class Plotter:
                         WHERE iteration BETWEEN ? AND ?
                         GROUP BY source, target
                         ORDER BY min_val ASC
-                        LIMIT {top_n}
+                        LIMIT {top_n} OFFSET {offset}
                     )
                     SELECT e.source, e.target, e.iteration, e.{column} as value, em.min_val as metric_val, e.trajectory_id
                     FROM edges e
@@ -925,7 +932,7 @@ class Plotter:
                         WHERE e.iteration BETWEEN ? AND ?
                         GROUP BY es.source, es.target, es.mean_val, es.cnt
                         ORDER BY variance DESC
-                        LIMIT {top_n}
+                        LIMIT {top_n} OFFSET {offset}
                     )
                     SELECT e.source, e.target, e.iteration, e.{column} as value, ev.mean_val, ev.variance as metric_val, e.trajectory_id
                     FROM edges e
@@ -941,7 +948,7 @@ class Plotter:
                         WHERE iteration BETWEEN ? AND ?
                         GROUP BY source, target
                         ORDER BY freq DESC
-                        LIMIT {top_n}
+                        LIMIT {top_n} OFFSET {offset}
                     )
                     SELECT e.source, e.target, e.iteration, e.{column} as value, ef.freq as metric_val, e.trajectory_id
                     FROM edges e
@@ -980,6 +987,7 @@ class Plotter:
         edge_list = df[['source', "target", "edge_idx"]]
         edge_list = edge_list.drop_duplicates().reset_index(drop=True)
         edge_list = list(edge_list[['source', 'target']].itertuples(index=False, name=None))
+        print("df", len(df))
 
         # Create pivot table for heatmap
         heatmap_data = df.pivot_table(
@@ -1022,7 +1030,8 @@ class Plotter:
             # hovertemplate = "<<%{customdata}>><extra></extra>",
             colorbar=dict(title=dict(text=None), orientation='h', y=1.01, yanchor='bottom')
         ))
-
+        ticks = 10*(np.arange(15)+1)+(150*page)
+        print(ticks)
         fig.update_layout(
             autosize=True,
             template='plotly_dark',
@@ -1041,6 +1050,8 @@ class Plotter:
             yaxis=dict(
                 title=f"Edge Rank ",
                 ticks="outside",
+                tickvals=heatmap_data.columns[9::10],
+                ticktext=[str(int(v)) for v in ticks],
                 showticklabels=True,
                 showgrid=False,
                 showline=False,
@@ -1050,6 +1061,7 @@ class Plotter:
         )
         fig.update_traces(hoverinfo="none", hovertemplate=None)
         fig.update_yaxes(autorange="reversed")
+        print(len(edge_list))
 
         if metric == "frequency":
             return fig, zmax, trajectory_id_list, edge_list

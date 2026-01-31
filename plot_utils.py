@@ -58,67 +58,67 @@ class Plotter:
 
     def hex_distplot(self, data, testdata, name):
         fig = None
-        if len(data) > 1:
-            mu_samples, sigma_samples = norm.fit(data)
-            x_range = data.min(), data.max()
-        elif len(data) == 1:
-            mu_samples, sigma_samples = norm.fit(data)
-            x_range = data[0], data[0]
+
+        # Determine x_range safely
+        x_min, x_max = np.inf, -np.inf
+
+        if len(data) > 0:
+            x_min = min(x_min, data.min())
+            x_max = max(x_max, data.max())
+
+        if testdata is not None and len(testdata) > 0:
+            x_min = min(x_min, testdata.min())
+            x_max = max(x_max, testdata.max())
+
+        if x_min == np.inf:
+            return None
+
+        fig = go.Figure()
+        if len(data)>0 and testdata is not None and len(testdata)>0:
+            opacity = 0.6
         else:
-            x_range = (np.inf, -np.inf)
-        if testdata is not None:
-            mu_test, sigma_test = norm.fit(testdata)
-            x_range = min(x_range[0], testdata.min()), max(x_range[1], testdata.max())
-        print(x_range, data, testdata)
-        x_vals = np.linspace(x_range[0], x_range[1], 100)
+            opacity = 1
 
-        if len(data) != 0 or testdata is not None:
-            fig = go.Figure()
-            if len(data) != 0:
-                fig.add_trace(go.Scatter(
-                    x=data,
-                    y=np.zeros_like(data),
-                    mode="markers",
-                    name="Samples",
-                    showlegend=False,
-                    marker=dict(color=self.cs_diverging_testset[-1], opacity=0.6)
-                ))
-                if sigma_samples !=0:
-                    fig.add_trace(go.Scatter(
-                        x=x_vals,
-                        y=norm.pdf(x_vals, mu_samples, sigma_samples),
-                        mode="lines",
-                        name="Samples",
-                        line=dict(color=self.cs_diverging_testset[-1])
-                    ))
-            if testdata is not None:
-                fig.add_trace(go.Scatter(
-                    x=testdata,
-                    y=np.zeros_like(testdata),
-                    mode="markers",
-                    name="Testset Objects",
-                    showlegend=False,
-                    marker=dict(color=self.cs_diverging_testset[0], opacity=0.6)
-                ))
-                if sigma_test != 0:
-                    fig.add_trace(go.Scatter(
-                        x=x_vals,
-                        y=norm.pdf(x_vals, mu_test, sigma_test),
-                        mode="lines",
-                        name="Testset",
-                        line=dict(color=self.cs_diverging_testset[0])
-                    ))
+        # Samples histogram
+        if len(data) > 0:
+            fig.add_trace(go.Histogram(
+                x=data,
+                name="Samples",
+                marker=dict(color=self.cs_diverging_testset[-1]),
+                opacity=opacity,
+                nbinsx=30,
+                autobinx=False,
+                xbins=dict(start=x_min, end=x_max, size=(x_max - x_min) / 20),
+                histnorm="probability density"
+            ))
 
-            fig.update_layout(
-                title=f"Distribution of {name}",
-                xaxis_title=name,
-                yaxis_title="Density",
-                template="plotly_white",
-                height=200,
-                width=450,
-                margin=dict(l=20, r=20, t=30, b=20),
-                showlegend=True,
-            )
+        # Testdata histogram
+        if testdata is not None and len(testdata) > 0:
+            fig.add_trace(go.Histogram(
+                x=testdata,
+                name="Testset Objects",
+                marker=dict(color=self.cs_diverging_testset[0]),
+                opacity=opacity,
+                nbinsx=30,
+                autobinx=False,
+                xbins=dict(start=x_min, end=x_max, size=(x_max - x_min) / 20),
+                histnorm="probability density"
+            ))
+
+        fig.update_layout(
+            title=f"Histogram of {name}",
+            xaxis_title=name,
+            yaxis_title="Probability Density",
+            template="plotly_white",
+            height=200,
+            width=450,
+            margin=dict(l=20, r=20, t=30, b=20),
+            barmode="overlay",
+            showlegend=True,
+        )
+
+        fig.update_xaxes(range=[x_min, x_max])
+
         return fig
 
     def hex_hover_figures(self, data_path, hex_q, hex_r, metric, metric_in_testset, usetestset):

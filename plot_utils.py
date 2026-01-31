@@ -1264,14 +1264,37 @@ class Plotter:
                             symbol="circle",
                             size=sub_df["sampled"],
                             color=obj_color[obj],
+                            coloraxis="coloraxis",
                         ),
                         line=dict(width=1),
                         opacity=opacity,
                         # name="1",#obj if opacity == 1 else f"{obj} (faded)",
                         customdata=sub_df[['final_id', 'value', 'metric', 'text']].values,
-                        showlegend=True
+                        showlegend=False
                     )
                 )
+
+        #dummy legend trace
+        fig.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode="markers",
+                marker=dict(
+                    size=0,
+                    color=[df["iteration"].min(), df["iteration"].max()],
+                    colorscale=self.cs_main,
+                    cmin=df["iteration"].min(),
+                    cmax=df["iteration"].max(),
+                    showscale=True,
+                    colorbar=dict(
+                        title="Iteration of<br>First Sample",
+                    ),
+                ),
+                hoverinfo="none",
+                showlegend=False,
+            )
+        )
 
         fig.update_traces(hoverinfo="none", hovertemplate=None)
 
@@ -1284,12 +1307,13 @@ class Plotter:
                 "Markers show if an object was actually sampled in this iteration."
                 "</sup>"
             ),
-            showlegend=False,
+            showlegend=True,
             legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="left", x=0),
             xaxis_title="Iteration",
             yaxis_title="Rank",
             template='plotly_dark',
-            margin=dict(l=40, r=40, t=40, b=40)
+            margin=dict(l=40, r=40, t=40, b=40),
+
         )
 
         fig.update_yaxes(autorange="reversed")
@@ -1322,7 +1346,8 @@ class Plotter:
                 mode='markers',
                 marker=dict(
                     color=df['iteration'],
-                    colorscale='Emrld',
+                    colorscale=self.cs_main,
+                    colorbar=dict(title="Iteration of<br>First Sample"),
                     symbol="square",
                     line=dict(width=1, color="black"),
                     size=10,

@@ -692,6 +692,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
         Output("dag-table", "selected_rows"),
         Input("clear-selection", "n_clicks"),
         Input("state-space-plot", "selectedData"),
+        Input("state-space-plot", "clickData"),
         Input("bumpchart", "selectedData"),
         Input("dag-graph", "tapNodeData"),
         Input("dag-overview", "selectedData"),
@@ -700,7 +701,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
         State("dag-overview-tid-list", "data"),
         prevent_initial_call=True
     )
-    def update_selected_objects(clear_clicks, ss_select, bump_select, dag_node, selected_tids, current_ids, build_ids, tid_list):
+    def update_selected_objects(clear_clicks, ss_select, ss_click, bump_select, dag_node, selected_tids, current_ids, build_ids, tid_list):
 
         ctx = dash.callback_context
         if not ctx.triggered:
@@ -719,6 +720,21 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
 
             selected_ids = {pt["customdata"][0] for pt in ss_select["points"]}
             return list(selected_ids), None, []
+
+        # ---------- State-space click ----------
+        if "state-space-plot.clickData" in trigger:
+            if not ss_click or not ss_click["points"] or ss_click["points"][0]["customdata"][0] != "usehex":
+                return no_update
+
+            _, hex_q, hex_r, _, _, _, hexborders = ss_click["points"][0]["customdata"]
+            print(hex_q, hex_r)
+            conn = sqlite3.connect(data_path)
+            query = f"SELECT id FROM current_dp WHERE hex_q = ? AND hex_r = ?"
+            selected_ids = pd.read_sql_query(query, conn, params=[hex_q, hex_r])["id"].tolist()
+            print(selected_ids)
+            print(hexborders)
+
+            return selected_ids, None, []
 
         # ---------- Bump chart lasso ----------
         elif "bumpchart.selectedData" in trigger:
@@ -1072,8 +1088,9 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
         if hoverData is None:
             return False, None, None
         bbox = hoverData["points"][0]["bbox"]
-        print(hoverData["points"][0])
         customdata = hoverData["points"][0]["customdata"]
+        if customdata is None:
+            return False, None, None
 
         if customdata[0] == "usehex":
             _, hex_q, hex_r, metric_value, n_samples, n_test, hexcorners = customdata
@@ -1127,6 +1144,13 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
         else:
             _, iteration, metric_data, text = customdata
             image_b64 = image_fn(text)
+            if ss_style == "Hex Ratio":
+                texts = [html.Div(f"Iteration: {iteration}", style={"color": "black"}),]
+            else:
+                texts = [
+                    html.Div(f"Iteration: {iteration}", style={"color": "black"}),
+                    html.Div(f"{metric}: {metric_data:.3f}", style={"color": "black"}),
+                ]
 
             children = [
                 html.Div([
@@ -1134,8 +1158,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
                         src=image_b64,
                         style={"width": "150px", "height": "150px"}
                     ),
-                    html.Div(f"Iteration: {iteration}", style={"color": "black"}),
-                    html.Div(f"{metric}: {metric_data:.3f}", style={"color": "black"}),
+                    *texts
                 ])
             ]
 
@@ -1188,7 +1211,6 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
         if hoverData is None or hoverData["points"][0]["z"] is None:
             return False, None, None
 
-        print(hoverData["points"][0])
         value = hoverData["points"][0]["z"]
         bbox = hoverData["points"][0]["bbox"]
         idx = hoverData["points"][0]["y"]
@@ -1270,7 +1292,6 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
     )
     def dag_overview_buttons(top, nxt, prev, iterations, metric, page):
         trigger = dash.callback_context.triggered[0]["prop_id"]
-        print(trigger)
         if "top" in trigger or "iteration" in trigger or "metric" in trigger:
             page = 0
         elif "prev" in trigger:
@@ -1296,7 +1317,6 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
         n_edges = pd.read_sql_query(query, conn, params=iterations)["count"].tolist()[0]
         disabled_bottom = (page+1)*150 >= n_edges
         return page, disabled_top, disabled_top, disabled_bottom
-
 
     # Run the dashboard
     app.run(debug=debug_mode)

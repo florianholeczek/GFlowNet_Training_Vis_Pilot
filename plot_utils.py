@@ -266,18 +266,6 @@ class Plotter:
         else:
             raise NotImplementedError("Unknown ss_style")
 
-        if selected_ids:
-            # get texts first as ids in dp table might not be the same (multiple final objects)
-            conn = sqlite3.connect(self.data)
-            placeholders = ",".join("?" for _ in selected_ids)
-            query = f"SELECT DISTINCT text FROM trajectories WHERE final_object = 1 AND final_id IN ({placeholders})"
-            selected_texts = pd.read_sql_query(query, conn, params=selected_ids)["text"].tolist()
-            placeholders = ",".join("?" for _ in selected_texts)
-            query = f"SELECT id, text, iteration, {metric} AS metric, x, y FROM current_dp WHERE text in ({placeholders})"
-            selected_df = pd.read_sql_query(query, conn, params=selected_texts)
-            if ss_style == "Hex Ratio":
-                selected_df["metric"] = 1
-
         def hex_corners(x, y, s):
             angles = np.deg2rad(np.arange(0, 360, 60) - 30)  # pointy-top
             return (
@@ -290,6 +278,27 @@ class Plotter:
             norm = (v - vmin) / (vmax - vmin) if vmax > vmin else 0
             idx = int(norm * (len(colorscale) - 1))
             return colorscale[idx].replace("rgb", "rgba").replace(")", f", {opacity})")
+
+        if selected_ids:
+            # get texts first as ids in dp table might not be the same (multiple final objects)
+            conn = sqlite3.connect(self.data)
+            placeholders = ",".join("?" for _ in selected_ids)
+            query = f"SELECT DISTINCT text FROM trajectories WHERE final_object = 1 AND final_id IN ({placeholders})"
+            selected_texts = pd.read_sql_query(query, conn, params=selected_ids)["text"].tolist()
+            placeholders = ",".join("?" for _ in selected_texts)
+            query = f"SELECT id, text, iteration, {metric} AS metric, x, y, hex_q, hex_r FROM current_dp WHERE text in ({placeholders})"
+            selected_df = pd.read_sql_query(query, conn, params=selected_texts)
+            if ss_style == "Hex Ratio":
+                selected_df["metric"] = 1
+            # check if all selected ids are in one hex: in this case zoom in and disable hex hover
+            zoom = selected_df['hex_q'].nunique() == 1 and selected_df['hex_r'].nunique() == 1
+            if zoom:
+                cx = size * np.sqrt(3) * (selected_df['hex_q'][0] + selected_df['hex_r'][0] / 2)
+                cy = size * 1.5 * selected_df['hex_r'][0]
+                zoom_corners = hex_corners(cx, cy, size)
+                offset = size*0.2
+                zoom_xrange = [zoom_corners[0].min() - offset,  zoom_corners[0].max() + offset]
+                zoom_yrange = [zoom_corners[1].min() - offset, zoom_corners[1].max() + offset]
 
         hex_opacity = 0.3 if selected_ids else 1
         for _, row in df.iterrows():
@@ -358,21 +367,25 @@ class Plotter:
 
         fig.update_layout(
             xaxis=dict(
-                showgrid=False,
+                showgrid=True,
                 zeroline=False,
-                showticklabels=False,
+                showticklabels=True,
                 scaleanchor="y",
             ),
             yaxis=dict(
-                showgrid=False,
+                showgrid=True,
                 zeroline=False,
-                showticklabels=False,
+                showticklabels=True,
             ),
             margin=dict(l=40, r=40, t=40, b=40),
             autosize=True,
             template='plotly_dark',
             title=title,
         )
+
+        if selected_ids and zoom:
+            fig.update_xaxes(range=zoom_xrange)
+            fig.update_yaxes(range=zoom_yrange)
 
         return fig
 
@@ -1020,7 +1033,6 @@ class Plotter:
         edge_list = df[['source', "target", "edge_idx"]]
         edge_list = edge_list.drop_duplicates().reset_index(drop=True)
         edge_list = list(edge_list[['source', 'target']].itertuples(index=False, name=None))
-        print("el", edge_list)
 
         # Create pivot table for heatmap
         heatmap_data = df.pivot_table(
@@ -1064,7 +1076,6 @@ class Plotter:
             colorbar=dict(title=dict(text=None), orientation='h', y=1.01, yanchor='bottom')
         ))
         ticks = 10*(np.arange(15)+1)+(150*page)
-        print(ticks)
         fig.update_layout(
             autosize=True,
             template='plotly_dark',
@@ -1094,7 +1105,6 @@ class Plotter:
         )
         fig.update_traces(hoverinfo="none", hovertemplate=None)
         fig.update_yaxes(autorange="reversed")
-        print(len(edge_list))
 
         if metric == "frequency":
             return fig, zmax, trajectory_id_list, edge_list

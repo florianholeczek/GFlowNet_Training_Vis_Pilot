@@ -27,7 +27,7 @@ Final Objects:
    
     - Hex Metric shows coloring based on the average value of the selected Object Metric of the samples of each bin
    
-    - Scatter shows all samples without aggregation
+    - Scatter shows all samples without aggregation. Size shows the total reward, coloring shows the last iteration this object was sampled
    
   - Dimensinality reduction: Choose t-sne or umap to downproject the data
 

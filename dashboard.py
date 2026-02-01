@@ -1140,13 +1140,14 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
 
         else:
             _, iteration, metric_data, text = customdata
+            metric_data = float('nan') if metric_data is None else metric_data
             image_b64 = image_fn(text)
             if ss_style == "Hex Ratio":
                 texts = [html.Div(f"Iteration: {iteration}", style={"color": "black"}),]
             else:
                 texts = [
                     html.Div(f"Iteration: {iteration}", style={"color": "black"}),
-                    html.Div(f"{metric}: {metric_data:.3f}", style={"color": "black"}),
+                    html.Div(f"{metric}: {metric_data:.4f}", style={"color": "black"}),
                 ]
 
             children = [

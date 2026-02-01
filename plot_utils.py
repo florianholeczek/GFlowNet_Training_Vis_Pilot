@@ -265,6 +265,7 @@ class Plotter:
             title += f"Mean {metric} of the Sampled Objects"
         else:
             raise NotImplementedError("Unknown ss_style")
+        title += "<br><sup>Select a hex or hover over it to see its details</sup>"
 
         def hex_corners(x, y, s):
             angles = np.deg2rad(np.arange(0, 360, 60) - 30)  # pointy-top
@@ -285,11 +286,15 @@ class Plotter:
             placeholders = ",".join("?" for _ in selected_ids)
             query = f"SELECT DISTINCT text FROM trajectories WHERE final_object = 1 AND final_id IN ({placeholders})"
             selected_texts = pd.read_sql_query(query, conn, params=selected_ids)["text"].tolist()
+            if usetestset:
+                query = f"SELECT DISTINCT text FROM testset WHERE id IN ({placeholders})"
+                selected_texts_t = pd.read_sql_query(query, conn, params=selected_ids)["text"].tolist()
+                selected_texts = selected_texts + selected_texts_t
             placeholders = ",".join("?" for _ in selected_texts)
             query = f"SELECT id, text, iteration, {metric} AS metric, x, y, hex_q, hex_r FROM current_dp WHERE text in ({placeholders})"
             selected_df = pd.read_sql_query(query, conn, params=selected_texts)
             if ss_style == "Hex Ratio":
-                selected_df["metric"] = 1
+                selected_df["metric"] = np.where(selected_df["id"] >= 0, 1, -1)
             # check if all selected ids are in one hex: in this case zoom in and disable hex hover
             zoom = selected_df['hex_q'].nunique() == 1 and selected_df['hex_r'].nunique() == 1
             if zoom:
@@ -324,23 +329,44 @@ class Plotter:
 
         # selected ids scatter
         if selected_ids:
+            selected_df_s = selected_df[selected_df["id"]>=0]
             fig.add_trace(go.Scatter(
-                x=selected_df['x'],
-                y=selected_df['y'],
+                x=selected_df_s['x'],
+                y=selected_df_s['y'],
                 mode='markers',
                 marker=dict(
                     size=12,
-                    color=selected_df['metric'],
+                    color=selected_df_s['metric'],
                     colorscale=colorscale,
                     line=dict(color='white', width=1),
                     showscale=False,
                     cmin=metric_min,
                     cmax=metric_max,
                 ),
-                customdata=selected_df[['id', 'iteration', 'metric', 'text']].values,
+                customdata=selected_df_s[['id', 'iteration', 'metric', 'text']].values,
                 hoverinfo='none',
                 name="Selected Samples"
             ))
+            if usetestset:
+                selected_df_t = selected_df[selected_df["id"]<0]
+                selected_df_t["color"] = -1
+                fig.add_trace(go.Scatter(
+                    x=selected_df_t['x'],
+                    y=selected_df_t['y'],
+                    mode='markers',
+                    marker=dict(
+                        size=12,
+                        color=selected_df_t['color'],
+                        colorscale=self.cs_diverging_testset,
+                        line=dict(color='white', width=1),
+                        showscale=False,
+                        cmin=metric_min,
+                        cmax=metric_max,
+                    ),
+                    customdata=selected_df_t[['id', 'iteration', 'metric', 'text']].values,
+                    hoverinfo='none',
+                    name="Testset"
+                ))
 
         # dummy trace for legend
         fig.add_trace(
@@ -367,20 +393,22 @@ class Plotter:
 
         fig.update_layout(
             xaxis=dict(
-                showgrid=True,
+                showgrid=False,
                 zeroline=False,
-                showticklabels=True,
+                showticklabels=False,
                 scaleanchor="y",
             ),
             yaxis=dict(
-                showgrid=True,
+                showgrid=False,
                 zeroline=False,
-                showticklabels=True,
+                showticklabels=False,
             ),
             margin=dict(l=40, r=40, t=40, b=40),
             autosize=True,
             template='plotly_dark',
             title=title,
+            modebar_remove=["lasso2d", "select2d"]
+
         )
 
         if selected_ids and zoom:

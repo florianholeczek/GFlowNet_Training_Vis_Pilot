@@ -179,14 +179,6 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
             # --------------- Projection Controls ---------------
             html.Div([
                 html.Div([
-
-                    # -------- Use Testset --------
-                    dcc.Checklist([" Use Testset"], [], id="use-testset", style={
-                        "display": "flex",
-                        "flexDirection": "column",
-                        "gap": "6px"
-                    }),
-
                     # -------- Final Object Metric --------
                     html.Div([
                         html.Div("Object Metric", style={"textAlign": "center"}),
@@ -194,22 +186,6 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
                             id="fo-metric",
                             options=final_object_metrics,
                             value="total_reward",
-                            clearable=False,
-                            style={"color": "black"}
-                        )
-                    ], style={
-                        "display": "flex",
-                        "flexDirection": "column",
-                        "gap": "6px"
-                    }),
-
-                    # -------- State Space Style --------
-                    html.Div([
-                        html.Div("State Space Style", style={"textAlign": "center"}),
-                        dcc.Dropdown(
-                            id="state-space-style",
-                            options=["Hex Ratio", "Hex Obj. Metric", "Scatter"],
-                            value="Hex Ratio",
                             clearable=False,
                             style={"color": "black"}
                         )
@@ -235,6 +211,27 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
                         "gap": "6px"
                     }),
 
+                    # -------- Use Testset --------
+                    dcc.Checklist([" Use Testset"], [], id="use-testset", style={
+                        "display": "flex",
+                        "flexDirection": "column",
+                        "gap": "6px"
+                    }),
+                    # -------- State Space Style --------
+                    html.Div([
+                        html.Div("State Space Style", style={"textAlign": "center"}),
+                        dcc.Dropdown(
+                            id="state-space-style",
+                            options=["Hex Ratio", "Hex Obj. Metric", "Scatter"],
+                            value="Hex Ratio",
+                            clearable=False,
+                            style={"color": "black"}
+                        )
+                    ], style={
+                        "display": "flex",
+                        "flexDirection": "column",
+                        "gap": "6px"
+                    }),
                     # -------- Projection method --------
                     html.Div([
                         html.Div("Dimensionality reduction", style={"textAlign": "center"}),
@@ -253,7 +250,6 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
                         "flexDirection": "column",
                         "gap": "6px",
                     }),
-
                     # -------- Projection param --------
                     html.Div([
                         html.Div(

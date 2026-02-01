@@ -987,7 +987,7 @@ class Plotter:
         edge_list = df[['source', "target", "edge_idx"]]
         edge_list = edge_list.drop_duplicates().reset_index(drop=True)
         edge_list = list(edge_list[['source', 'target']].itertuples(index=False, name=None))
-        print("df", len(df))
+        print("el", edge_list)
 
         # Create pivot table for heatmap
         heatmap_data = df.pivot_table(

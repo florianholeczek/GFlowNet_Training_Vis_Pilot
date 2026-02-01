@@ -1054,7 +1054,6 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
         Input("dag-overview-page", "data")
     )
     def update_dag_overview(direction, metric, iteration, page):
-        print(page)
         fig, max_freq, ids, edge_list = plotter.update_DAG_overview(direction, metric, iteration, page)
         if max_freq:
             return fig, max_freq, ids, edge_list
@@ -1266,12 +1265,13 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
         Input("dag-overview-button-next", "n_clicks"),
         Input("dag-overview-button-prev", "n_clicks"),
         Input("iteration", "value"),
+        Input("dag-metric", "value"),
         State("dag-overview-page", "data"),
     )
-    def dag_overview_buttons(top, nxt, prev, iterations, page):
+    def dag_overview_buttons(top, nxt, prev, iterations, metric, page):
         trigger = dash.callback_context.triggered[0]["prop_id"]
         print(trigger)
-        if "top" in trigger or "iteration" in trigger:
+        if "top" in trigger or "iteration" in trigger or "metric" in trigger:
             page = 0
         elif "prev" in trigger:
             page = max(page - 1, 0)
@@ -1279,7 +1279,20 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
             page += 1
         disabled_top = page ==0
         conn = sqlite3.connect(data_path)
-        query = "SELECT COUNT(*) AS count FROM (SELECT DISTINCT source, target FROM edges WHERE iteration BETWEEN ? AND ?);"
+        if metric == "variance":
+            query = """
+                SELECT COUNT(*) AS count
+                FROM (
+                    SELECT source, target
+                    FROM edges
+                    WHERE iteration BETWEEN ? AND ?
+                    GROUP BY source, target
+                    HAVING COUNT(*) > 1
+                ) t;
+            """
+        else:
+            query = "SELECT COUNT(*) AS count FROM (SELECT DISTINCT source, target FROM edges WHERE iteration BETWEEN ? AND ?);"
+
         n_edges = pd.read_sql_query(query, conn, params=iterations)["count"].tolist()[0]
         disabled_bottom = (page+1)*150 >= n_edges
         return page, disabled_top, disabled_top, disabled_bottom

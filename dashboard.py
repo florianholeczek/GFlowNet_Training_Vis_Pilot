@@ -726,13 +726,10 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
             if not ss_click or not ss_click["points"] or ss_click["points"][0]["customdata"][0] != "usehex":
                 return no_update
 
-            _, hex_q, hex_r, _, _, _, hexborders = ss_click["points"][0]["customdata"]
-            print(hex_q, hex_r)
+            _, hex_q, hex_r, _, _, _ = ss_click["points"][0]["customdata"]
             conn = sqlite3.connect(data_path)
             query = f"SELECT id FROM current_dp WHERE hex_q = ? AND hex_r = ?"
             selected_ids = pd.read_sql_query(query, conn, params=[hex_q, hex_r])["id"].tolist()
-            print(selected_ids)
-            print(hexborders)
 
             return selected_ids, None, []
 
@@ -1093,7 +1090,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
             return False, None, None
 
         if customdata[0] == "usehex":
-            _, hex_q, hex_r, metric_value, n_samples, n_test, hexcorners = customdata
+            _, hex_q, hex_r, metric_value, n_samples, n_test = customdata
             if ss_style == "Hex Ratio":
                 if usetestset:
                     metric_title = f"Log Odds Ratio: {metric_value:.2f}"

@@ -305,7 +305,7 @@ class Plotter:
             cx = size * np.sqrt(3) * (row["hex_q"] + row["hex_r"] / 2)
             cy = size * 1.5 * row["hex_r"]
             xs, ys = hex_corners(cx, cy, size)
-            customdata = ["usehex", row["hex_q"], row["hex_r"], row["metric"], row["n_samples"], row["n_test"], (xs, ys)]
+            customdata = ["usehex", row["hex_q"], row["hex_r"], row["metric"], row["n_samples"], row["n_test"]]
 
             fig.add_trace(
                 go.Scatter(

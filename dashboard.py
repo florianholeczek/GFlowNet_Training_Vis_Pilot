@@ -927,7 +927,6 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
         else:
             #downproject and write to db
             df, new_hexbin_size = plotter.create_dp_table(
-                data_path,
                 feature_cols,
                 iteration,
                 use_testset,
@@ -942,7 +941,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
                 conn.close()
 
         if "Hex" in ss_style:
-            return plotter.update_hex(df, ss_style, metric, use_testset, new_hexbin_size), new_hexbin_size
+            return plotter.update_hex(df, selected_ids, ss_style, metric, use_testset, new_hexbin_size), new_hexbin_size
         return plotter.update_state_space(df, selected_ids, metric), new_hexbin_size
 
 
@@ -1073,9 +1072,11 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
         if hoverData is None:
             return False, None, None
         bbox = hoverData["points"][0]["bbox"]
+        print(hoverData["points"][0])
+        customdata = hoverData["points"][0]["customdata"]
 
-        if "Hex" in ss_style:
-            hex_q, hex_r, metric_value, n_samples, n_test, hexcorners = hoverData["points"][0]["customdata"]
+        if customdata[0] == "usehex":
+            _, hex_q, hex_r, metric_value, n_samples, n_test, hexcorners = customdata
             if ss_style == "Hex Ratio":
                 if usetestset:
                     metric_title = f"Log Odds Ratio: {metric_value:.2f}"
@@ -1086,7 +1087,6 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
 
 
             figures, texts = plotter.hex_hover_figures(
-                data_path,
                 hex_q,
                 hex_r,
                 metric,
@@ -1125,7 +1125,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
             ]
 
         else:
-            _, iteration, metric_data, text = hoverData["points"][0]["customdata"]
+            _, iteration, metric_data, text = customdata
             image_b64 = image_fn(text)
 
             children = [

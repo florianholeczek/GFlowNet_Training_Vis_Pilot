@@ -121,7 +121,7 @@ class Plotter:
 
         return fig
 
-    def hex_hover_figures(self, data_path, hex_q, hex_r, metric, metric_in_testset, usetestset):
+    def hex_hover_figures(self, hex_q, hex_r, metric, metric_in_testset, usetestset):
         """
         Calculate the figures for the tooltips for the hex state space
         :return:
@@ -131,7 +131,7 @@ class Plotter:
         metricfig = None
 
         # get texts
-        conn = sqlite3.connect(data_path)
+        conn = sqlite3.connect(self.data)
         query = f"SELECT text FROM current_dp WHERE hex_q = {hex_q} AND hex_r = {hex_r} AND istestset = 0"
         texts = pd.read_sql_query(query, conn)["text"].tolist()
         placeholders = ",".join("?" for _ in texts)
@@ -236,11 +236,10 @@ class Plotter:
         return (lossfig, rewardfig, metricfig), texts
 
 
-    def update_hex(self, df, ss_style, metric, usetestset, size=8.0):
+    def update_hex(self, df, selected_ids, ss_style, metric, usetestset, size=8.0):
         """
         Update the state space plot for hex style
         :param df: df with grouped data for hex (hex_r, hex_q, metric, n_samples, n_test)
-        :param size: size of bins
         :return: figure
         """
         fig = go.Figure()
@@ -267,23 +266,37 @@ class Plotter:
         else:
             raise NotImplementedError("Unknown ss_style")
 
+        if selected_ids:
+            # get texts first as ids in dp table might not be the same (multiple final objects)
+            conn = sqlite3.connect(self.data)
+            placeholders = ",".join("?" for _ in selected_ids)
+            query = f"SELECT DISTINCT text FROM trajectories WHERE final_object = 1 AND final_id IN ({placeholders})"
+            selected_texts = pd.read_sql_query(query, conn, params=selected_ids)["text"].tolist()
+            placeholders = ",".join("?" for _ in selected_texts)
+            query = f"SELECT id, text, iteration, {metric} AS metric, x, y FROM current_dp WHERE text in ({placeholders})"
+            selected_df = pd.read_sql_query(query, conn, params=selected_texts)
+            if ss_style == "Hex Ratio":
+                selected_df["metric"] = 1
+
         def hex_corners(x, y, s):
             angles = np.deg2rad(np.arange(0, 360, 60) - 30)  # pointy-top
             return (
                 x + s * np.cos(angles),
                 y + s * np.sin(angles),
             )
-        def map_color(v, vmin, vmax, colorscale):
+        def map_color(v, vmin, vmax, colorscale, opacity):
             if v is None:
                 return "black"
             norm = (v - vmin) / (vmax - vmin) if vmax > vmin else 0
             idx = int(norm * (len(colorscale) - 1))
-            return colorscale[idx]
+            return colorscale[idx].replace("rgb", "rgba").replace(")", f", {opacity})")
 
+        hex_opacity = 0.3 if selected_ids else 1
         for _, row in df.iterrows():
             cx = size * np.sqrt(3) * (row["hex_q"] + row["hex_r"] / 2)
             cy = size * 1.5 * row["hex_r"]
             xs, ys = hex_corners(cx, cy, size)
+            customdata = ["usehex", row["hex_q"], row["hex_r"], row["metric"], row["n_samples"], row["n_test"], (xs, ys)]
 
             fig.add_trace(
                 go.Scatter(
@@ -292,13 +305,33 @@ class Plotter:
                     mode="lines",
                     fill="toself",
                     line=dict(width=0.5, color="rgba(0,0,0,0.3)"),
-                    fillcolor=map_color(row["metric"], metric_min, metric_max, colorscale),
+                    fillcolor=map_color(row["metric"], metric_min, metric_max, colorscale, hex_opacity),
                     hoverinfo="none",
                     hovertemplate=None,
-                    customdata=[row["hex_q"], row["hex_r"], row["metric"], row["n_samples"], row["n_test"], (xs, ys)],
+                    customdata=customdata,
                     showlegend=False,
                 )
             )
+
+        # selected ids scatter
+        if selected_ids:
+            fig.add_trace(go.Scatter(
+                x=selected_df['x'],
+                y=selected_df['y'],
+                mode='markers',
+                marker=dict(
+                    size=12,
+                    color=selected_df['metric'],
+                    colorscale=colorscale,
+                    line=dict(color='white', width=1),
+                    showscale=False,
+                    cmin=metric_min,
+                    cmax=metric_max,
+                ),
+                customdata=selected_df[['id', 'iteration', 'metric', 'text']].values,
+                hoverinfo='none',
+                name="Selected Samples"
+            ))
 
         # dummy trace for legend
         fig.add_trace(
@@ -315,6 +348,7 @@ class Plotter:
                     showscale=True,
                     colorbar=dict(
                         title=legend_title,
+                        len=0.9
                     ),
                 ),
                 hoverinfo="none",
@@ -431,7 +465,6 @@ class Plotter:
 
     def create_dp_table (
             self,
-            data_path,
             feature_cols,
             iteration,
             use_testset,
@@ -440,7 +473,7 @@ class Plotter:
             param_value=15,
             metric_lists=([], [])
     ):
-        conn = sqlite3.connect(data_path)
+        conn = sqlite3.connect(self.data)
 
         # Get logged data (unique texts, metric: latest iteration)
         query = f"""
@@ -1127,7 +1160,6 @@ class Plotter:
 
         fig = go.Figure()
 
-        # Normal points with continuous color scale
         fig.add_trace(go.Scatter(
             x=df_normal['x'],
             y=df_normal['y'],
@@ -1145,7 +1177,6 @@ class Plotter:
                 ),
                 opacity=df_normal['opacity'],
             ),
-
             customdata=df_normal[['id', 'iteration', metric, 'text']].values,
             hoverinfo='none',
             name="Samples"

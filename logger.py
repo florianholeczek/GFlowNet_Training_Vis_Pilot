@@ -15,9 +15,37 @@ Note that for running the dashboard you will also need a text-to-image function
 to calculate the image representation of a state.
 
 Functions:
-    log() stores all given data in a df.
-    write_to_db() writes the logged data to the database after logging is done.
+    - log() stores all given data in a df.
+    - write_to_db() writes the logged data to the database after logging a batch is done.
+    - compute_graph() computes the dag from the trajectories. 
+        By default this is done each time write_to_db is called.
+        You can disable this behavior to save resources and call compute_graph() after training is finished if you do not need the data while training.
     create_and_append_testset() allows you to write batches of data to the testset in the expected format
+
+
+How to use:
+    Before starting training create a VisLogger instance.
+    You will need:
+        -a path where the data is stored
+        -a function that converts your logged states to a text representation that allows for uniquely identifying each state
+        -(optional) a function to compute features from the text representations
+        -(optional) a list with the names of additional metrics to log (by default loss and total_reward are logged)
+        -(optional) a list with features you will log
+        -set the flag s0_included to show if you will pass your trajectories with the empty first state or if they start with s1
+    
+    in your training loop, call log() every m iterations. 
+    You can use your existing training samples or sample new ones if you are training off policy.
+        if iteration % m ==0:
+            batch_idx, states, logprobs_forward, logprobs_backward = my_sampling(...)
+            logger.log(batch_idx=batch_idx, states=states, logprobs_forward=logprobs_forward, logprobs_backward=logprobs_backward)
+            loss = calc_my_loss(states)
+            reward = calc_my_reward(states)
+            logger.log(loss=loss, total_reward=reward)
+            # If all neccessary data is logged:
+            logger.write_to_db(compute_graph = False)
+    As we did flagged compute_graph=False, we need to call compute_graph() once after training is done.
+    If you have a testset you want to include you can then also call create_and_append_testset().
+    Further detail on the expected parameters and shapes is in the function documentation.
     
 Scalability: 
     The complete trajectories get saved, so the resulting rowcount is n * (total iterations / m) * average trajectory length.
@@ -37,10 +65,10 @@ class VisLogger:
     ):
         """
         A Logger for the visualizations.
-        :param path: path to a folder to save the data. If none creates based on datetime
-        :param s0_included: if True, the trajectories are expected to have the start state included.
+        :param path: path to a folder to save the data. If none creates one based on datetime in root.
+        :param s0_included: if True, the trajectories are expected to have the (empty) start state included.
             The start states will then be removed before writing to the database.
-             s0 will be specified as '#' in the visualizations
+             s0 will be specified as '#' in the visualizations.
         :param fn_state_to_text:
             Function to convert a batch of states to a list of readable strings to identify a single state.
             Neccessary, used to distinguish states.
@@ -141,7 +169,7 @@ class VisLogger:
             Expected size: (batchsize, ).
         :param loss: array or tensor of losses.
             Expected size: (batchsize, ).
-        :param iteration: current iteration
+        :param iteration: current iteration, scalar
         :param states: array or tensor of states (full trajectories).
             Expected size: (sum(trajectory_lengths), ).
         :param logprobs_forward: array or tensor of forward logprobabilities.
@@ -150,11 +178,14 @@ class VisLogger:
         :param logprobs_backward: array or tensor of backward logprobabilities.
             Expected size: (sum(trajectory_lengths), ).
             The lobprob of a state s is expected to be the logprob of reaching s, eg.:
+
             state   | logprob_forward       | logprobs_backward
+            --------|-----------------------|------------------
             s0      | 0                     | logprob(s1->s0)=0
             s1      | logprob(s0->s1)       | logprob(s2->s1)
             s2      | logprob(s1->s2)       | logprob(s3->s2)
             st      | logprob(s(t-1)->st)   | logprob(s(t+1)->st) = 0, not applicable
+
         :param metrics: Optional. Additionally logged metrics of final objects based on the initialized metrics.
             Total reward and loss are logged seperately.
             A torch Tensor or np array of shape (len(metrics), batchsize,) or
@@ -225,9 +256,10 @@ class VisLogger:
         Should be called every m iterations.
         :param compute_graph: bool, whether to compute the graph when writing to the db.
             When true, the graph dbs neccessary to view the DAG gets computed.
-            As this takes some time and computation power, this makes only sense when you want to view the Graph during running training.
+            As this takes some time, memory and computation power,
+            this makes sense only if you want to view the Graph during running training.
             When false you will need to call compute_graph() after training is done.
-            If you write the samples to the db in batches, write all batches first with compute_graph = False and call
+            If you write the samples to the db in batches instead of all at once, write all batches first with compute_graph = False and call
             compute_graph() afterwards.
         :return: None
         """

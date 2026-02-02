@@ -23,10 +23,10 @@ class Plotter:
             self.raw_state_aggregation_fn = state_aggregation_fn
 
         #colorscales
-        self.cs_main = px.colors.sequential.speed
-        self.cs_diverging_testset = px.colors.diverging.Geyser_r
-        self.cs_diverging_edgechange = px.colors.diverging.Temps_r
-        self.cs_diverging_dir = px.colors.diverging.PuOr
+        self.cs_main = px.colors.sequential.YlGn
+        self.cs_diverging_testset = px.colors.diverging.PRGn
+        self.cs_diverging_edgechange = px.colors.diverging.PiYG
+        self.cs_diverging_dir = px.colors.diverging.balance_r
 
     def state_aggregation_fn(self, texts):
         if len(texts) == 0:

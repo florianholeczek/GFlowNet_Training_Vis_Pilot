@@ -323,7 +323,7 @@ class Plotter:
             metric_max = 1
             metric_min = 0
             legend_title = "R"
-            title += "Correlation Between the Sum of the Forward Logprobabilities and Reward for bins with > 14 Samples"
+            title += "Correlation Between the Sum of the Forward Logprobabilities and Reward for bins with > 10 Samples"
         else:
             raise NotImplementedError("Unknown ss_style")
         title += "<br><sup>Select a hex or hover over it to see its details</sup>"
@@ -550,7 +550,7 @@ class Plotter:
                 (n * df["sum_b2"] - df["sum_b"] ** 2)
             )
             df["metric"] = num / den
-            df.loc[df["n_samples"] < 15, "metric"] = np.nan
+            df.loc[df["n_samples"] <= 10, "metric"] = np.nan
             df = df.drop(columns=["sum_a2", "sum_b2", "sum_a", "sum_b", "sum_ab"])
 
         else:

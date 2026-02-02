@@ -222,7 +222,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
                         html.Div("State Space Style", style={"textAlign": "center"}),
                         dcc.Dropdown(
                             id="state-space-style",
-                            options=["Hex Ratio", "Hex Obj. Metric", "Scatter"],
+                            options=["Hex Ratio", "Hex Obj. Metric", "Hex Correlation", "Scatter"],
                             value="Hex Ratio",
                             clearable=False,
                             style={"color": "black"}
@@ -1092,8 +1092,14 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
                     metric_title = f"Log Odds Ratio: {metric_value:.2f}"
                 else:
                     metric_title = ""
-            else:
+            elif ss_style == "Hex Obj. Metric":
                 metric_title = f"Average {metric} (Samples): {metric_value:.4f}"
+            else:
+                print(metric_value)
+                if metric_value is None or np.isnan(metric_value):
+                    metric_title = "Not enough samples for Correlation"
+                else:
+                    metric_title = f"Correlation: {metric_value:.2f}"
 
 
             figures, texts = plotter.hex_hover_figures(

@@ -263,6 +263,11 @@ class Plotter:
         elif ss_style == "Hex Obj. Metric":
             legend_title = f"Mean {metric}"
             title += f"Mean {metric} of the Sampled Objects"
+        elif ss_style == "Hex Correlation":
+            metric_max = 1
+            metric_min = 0
+            legend_title = "R"
+            title += "Correlation Between the Sum of the Forward Logprobabilities and Reward for bins with > 14 Samples"
         else:
             raise NotImplementedError("Unknown ss_style")
         title += "<br><sup>Select a hex or hover over it to see its details</sup>"
@@ -276,6 +281,8 @@ class Plotter:
         def map_color(v, vmin, vmax, colorscale, opacity):
             if v is None:
                 return "black"
+            if np.isnan(v) or v == float("nan"):
+                return "grey"
             norm = (v - vmin) / (vmax - vmin) if vmax > vmin else 0
             idx = int(norm * (len(colorscale) - 1))
             return colorscale[idx].replace("rgb", "rgba").replace(")", f", {opacity})")
@@ -457,6 +464,35 @@ class Plotter:
                     hex_q;
             """
             df = pd.read_sql_query(query, conn)
+        elif method == "Hex Correlation":
+            query = f"""
+                SELECT 
+                    hex_r, 
+                    hex_q,
+                    SUM(CASE WHEN istestset = 1 THEN 1 ELSE 0 END) AS n_test,
+                    SUM(CASE WHEN istestset = 0 THEN 1 ELSE 0 END) AS n_samples,
+                    SUM(CASE WHEN istestset = 0 THEN total_reward END)              AS sum_a,
+                    SUM(CASE WHEN istestset = 0 THEN pf END)                        AS sum_b,
+                    SUM(CASE WHEN istestset = 0 THEN total_reward*total_reward END) AS sum_a2,
+                    SUM(CASE WHEN istestset = 0 THEN pf*pf END)                     AS sum_b2,
+                    SUM(CASE WHEN istestset = 0 THEN total_reward*pf END)           AS sum_ab
+                FROM current_dp
+                GROUP BY
+                    hex_r,
+                    hex_q;
+            """
+            df = pd.read_sql_query(query, conn)
+            n = df["n_samples"]
+            num = n * df["sum_ab"] - df["sum_a"] * df["sum_b"]
+            den = np.sqrt(
+                (n * df["sum_a2"] - df["sum_a"] ** 2) *
+                (n * df["sum_b2"] - df["sum_b"] ** 2)
+            )
+            df["metric"] = num / den
+            df.loc[df["n_samples"] < 15, "metric"] = np.nan
+            df = df.drop(columns=["sum_a2", "sum_b2", "sum_a", "sum_b", "sum_ab"])
+
+
         else:
             raise NotImplementedError("Hexbin Data Method Not Implemented")
         return df
@@ -516,32 +552,38 @@ class Plotter:
     ):
         conn = sqlite3.connect(self.data)
 
-        # Get logged data (unique texts, metric: latest iteration)
+        # Get logged data (unique texts, latest iteration)
         query = f"""
-                    SELECT 
-                        final_id AS id, 
-                        text, 
-                        {", ".join(feature_cols)}, 
-                        {", ".join(metric_lists[0])}, 
-                        iteration
-                    FROM (
-                        SELECT
-                            final_id,
-                            text,
-                            {", ".join(feature_cols)},
-                            {", ".join(metric_lists[0])},
-                            iteration,
-                            ROW_NUMBER() OVER (
-                                PARTITION BY text
-                                ORDER BY iteration DESC
-                            ) AS rn
-                        FROM trajectories
-                        WHERE final_object = 1
-                          AND iteration BETWEEN ? AND ?
-                          AND features_valid = 1
-                    )
-                    WHERE rn = 1
-                """
+            SELECT 
+                final_id AS id, 
+                text, 
+                {", ".join(feature_cols)}, 
+                {", ".join(metric_lists[0])}, 
+                iteration,
+                pf
+            FROM (
+                SELECT
+                    final_id,
+                    text,
+                    {", ".join(feature_cols)},
+                    {", ".join(metric_lists[0])},
+                    iteration,
+                    final_object,
+                    SUM(logprobs_forward) OVER (
+                        PARTITION BY final_id
+                    ) AS pf,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY text
+                        ORDER BY iteration DESC
+                    ) AS rn
+                FROM trajectories
+                WHERE iteration BETWEEN ? AND ?
+                  AND features_valid = 1
+            )
+            WHERE rn = 1
+              AND final_object = 1
+        """
+
         logged = pd.read_sql_query(query, conn, params=iteration)
         query = f"""
                         SELECT COUNT(*) AS count

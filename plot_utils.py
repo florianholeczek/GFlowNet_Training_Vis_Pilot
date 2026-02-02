@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
+from plotly.subplots import make_subplots
 import plotly.colors as pc
 from sklearn import manifold
 from umap import UMAP
@@ -121,7 +122,7 @@ class Plotter:
 
         return fig
 
-    def hex_hover_figures(self, hex_q, hex_r, metric, metric_in_testset, usetestset):
+    def hex_hover_figures(self, hex_q, hex_r, metric, ss_style, metric_in_testset, usetestset):
         """
         Calculate the figures for the tooltips for the hex state space
         :return:
@@ -162,12 +163,21 @@ class Plotter:
             rewards_testset = pd.read_sql_query(query, conn, params=texts_t).to_numpy().flatten()
 
         # if metric custom metric is choosen, give dist as well
-        if metric != "total_reward" and metric != "loss":
+        if ss_style == "Hex Obj. Metric" and metric != "total_reward" and metric != "loss":
             query = f"SELECT {metric} FROM trajectories WHERE final_object = 1 AND text in ({placeholders})"
             metric_samples = pd.read_sql_query(query, conn, params=texts).to_numpy().flatten()
             if metric_in_testset and usetestset:
                 query = f"SELECT {metric} FROM testset WHERE text in ({placeholders_t})"
                 metric_testset = pd.read_sql_query(query, conn, params=texts_t).to_numpy().flatten()
+
+        #Use metric plot for correlation scatter
+        if ss_style == "Hex Correlation":
+            query = f"SELECT id FROM current_dp WHERE hex_q = {hex_q} AND hex_r = {hex_r} AND istestset = 0"
+            ids = pd.read_sql_query(query, conn)["id"].tolist()
+            placeholders = ",".join("?" for _ in ids)
+            query = f"SELECT SUM(total_reward) AS reward, SUM(logprobs_forward) AS pf  FROM trajectories WHERE final_id IN ({placeholders}) GROUP BY final_id"
+            corr_df = pd.read_sql_query(query, conn, params=ids)
+            corr_df["pf"] = np.exp(corr_df["pf"])
         conn.close()
 
         #create loss figure
@@ -225,11 +235,55 @@ class Plotter:
         else:
             rewardfig = self.hex_distplot(rewards_samples, None, "Total Reward")
 
-        if metric != "total_reward" and metric != "loss":
+        if ss_style == "Hex Obj. Metric" and metric != "total_reward" and metric != "loss":
             if metric_in_testset and usetestset and len(metric_testset) != 0:
                 metricfig = self.hex_distplot(metric_samples, metric_testset, metric)
             else:
                 metricfig = self.hex_distplot(metric_samples, None, metric)
+        if ss_style == "Hex Correlation":
+            metricfig = make_subplots(
+                rows=1,
+                cols=2,
+                horizontal_spacing=0.15,
+            )
+            metricfig.add_trace(
+                go.Scatter(
+                    x=corr_df["reward"],
+                    y=corr_df["pf"],
+                    mode="markers",
+                    marker=dict(color=self.cs_diverging_testset[-1]),
+                    showlegend=False,
+                    hoverinfo="skip"
+                ),
+                row=1,
+                col=1
+            )
+            metricfig.add_trace(
+                go.Scatter(
+                    x=np.log(corr_df["reward"]),
+                    y=np.log(corr_df["pf"]),
+                    mode="markers",
+                    marker=dict(color=self.cs_diverging_testset[-1]),
+                    showlegend=False,
+                    hoverinfo="skip"
+                ),
+                row=1,
+                col=2
+            )
+            metricfig.update_layout(
+                title="(Log) Reward vs Forward (Log) Probabilities for Samples",
+                #xaxis_title="log reward",
+                #yaxis_title="forward logprobs",
+                template="plotly_white",
+                height=200,
+                width=550,
+                margin=dict(l=20, r=20, t=30, b=20),
+            )
+            metricfig.update_xaxes(row=1, col=1, title_text = "Reward") #, range=[,])
+            metricfig.update_yaxes(row=1, col=1, title_text = "Probabilities")
+            metricfig.update_xaxes(row=1, col=2, title_text=" Log Reward")
+            metricfig.update_yaxes(row=1, col=2, title_text="Logprobabilities")
+
 
         if usetestset:
             texts += texts_t
@@ -278,14 +332,19 @@ class Plotter:
                 x + s * np.cos(angles),
                 y + s * np.sin(angles),
             )
-        def map_color(v, vmin, vmax, colorscale, opacity):
+        def map_color(v, vmin, vmax, cs, opacity):
             if v is None:
                 return "black"
             if np.isnan(v) or v == float("nan"):
                 return "grey"
-            norm = (v - vmin) / (vmax - vmin) if vmax > vmin else 0
-            idx = int(norm * (len(colorscale) - 1))
-            return colorscale[idx].replace("rgb", "rgba").replace(")", f", {opacity})")
+            if v < vmin:
+                idx=0
+            elif v > vmax:
+                idx=-1
+            else:
+                norm = (v - vmin) / (vmax - vmin) if vmax > vmin else 0
+                idx = int(norm * (len(cs) - 1))
+            return cs[idx].replace("rgb", "rgba").replace(")", f", {opacity})")
 
         if selected_ids:
             # get texts first as ids in dp table might not be the same (multiple final objects)

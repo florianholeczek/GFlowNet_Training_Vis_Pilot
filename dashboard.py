@@ -1099,13 +1099,14 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
                 if metric_value is None or np.isnan(metric_value):
                     metric_title = "Not enough samples for Correlation"
                 else:
-                    metric_title = f"Correlation: {metric_value:.2f}"
+                    metric_title = f"Correlation log reward and logprobs: {metric_value:.2f}"
 
 
             figures, texts = plotter.hex_hover_figures(
                 hex_q,
                 hex_r,
                 metric,
+                ss_style,
                 metric in testset_metrics,
                 usetestset
             )

@@ -177,8 +177,8 @@ class Plotter:
             placeholders = ",".join("?" for _ in ids)
             query = f"SELECT SUM(total_reward) AS reward, SUM(logprobs_forward) AS pf  FROM trajectories WHERE final_id IN ({placeholders}) GROUP BY final_id"
             corr_df = pd.read_sql_query(query, conn, params=ids)
-            #check if correlation is similar
-            #corr_df["reward"] = np.log(corr_df["reward"])
+            corr_df["reward"] = np.log(corr_df["reward"])
+            # check if correlation is similar
             #print("corr", corr_df["reward"].corr(corr_df["pf"]))
         conn.close()
 
@@ -274,17 +274,15 @@ class Plotter:
             )
             metricfig.update_layout(
                 title="(Log) Reward vs Forward (Log) Probabilities for Samples",
-                #xaxis_title="log reward",
-                #yaxis_title="forward logprobs",
                 template="plotly_white",
                 height=200,
                 width=550,
                 margin=dict(l=20, r=20, t=30, b=20),
             )
-            metricfig.update_xaxes(row=1, col=1, title_text = "Reward") #, range=[,])
-            metricfig.update_yaxes(row=1, col=1, title_text = "Probabilities")
-            metricfig.update_xaxes(row=1, col=2, title_text=" Log Reward")
-            metricfig.update_yaxes(row=1, col=2, title_text="Logprobabilities")
+            metricfig.update_xaxes(row=1, col=1, title_text=" Log Reward")
+            metricfig.update_yaxes(row=1, col=1, title_text="Logprobabilities")
+            metricfig.update_xaxes(row=1, col=2, title_text="Reward")  # , range=[,])
+            metricfig.update_yaxes(row=1, col=2, title_text="Probabilities")
 
 
         if usetestset:

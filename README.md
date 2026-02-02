@@ -1,4 +1,4 @@
-# Testing Visualizations for GFlowNet Training
+# Visualizations for GFlowNet Training
 
 The goal of this project is to develop visualizations to help developers of Generative Flow Networks in understanding and improving training.
 Comparing logged samples to a testset representative of the state space helps assess the quality of the trained model and find areas to improve upon.
@@ -6,7 +6,7 @@ The dataset used for testing is created using the SEHTask, which rewards molecul
 
 
 ## Dashboard
-The dashboard contains all visualizations with the possibility to crossfilter and displaying the image representation of the state on hover.
+The dashboard contains all visualizations with the possibility to crossfilter and displaying the image representation of the state on hover. See [here](Dashboard_Introduction.md) for how to use it.
 
 ### Sampled Objects Overview
 <img width="2550" height="968" alt="grafik" src="https://github.com/user-attachments/assets/86bd4e01-6266-4f91-ae1e-adf5e74ad7ff" />
@@ -25,8 +25,9 @@ This allows the following questions:
 
 
 ### State space
-<img width="2550" height="1360" alt="State space" src="https://github.com/user-attachments/assets/9dd414ba-741b-4cdc-a737-54c1d41d6fdf" />
-Shows the final objects downprojected in two dimensions (In this case based on the fingerprints of the molecules). Adding the data of the testset is possible here.
+<img width="1984" height="1798" alt="grafik" src="https://github.com/user-attachments/assets/e77fbca9-95de-4c24-a1b8-7e6503db320a" />
+
+Shows the final objects downprojected in two dimensions (In this case based on the fingerprints of the molecules). It allows for comparison with the testset.
 This helps answer the questions:
 
 - What parts of the state space covered by the testset are discovered by the model? Did the model learn a sufficient part of the state space?
@@ -36,7 +37,8 @@ This helps answer the questions:
 - In what areas does the model struggle to sample proportonally (areas with highest loss)
 
 ### DAG
-<img width="3590" height="2420" alt="grafik" src="https://github.com/user-attachments/assets/4251f277-0ff1-413b-ba71-5194687d4bd8" />
+<img width="3702" height="1776" alt="grafik" src="https://github.com/user-attachments/assets/26630b6f-9876-4683-9610-4eb4ec297ae9" />
+
 
 This shows the Directed Acyclic Graph of the sampled objects. To reduce the size:
 
@@ -97,14 +99,14 @@ python python\main.py
 python3 python/main.py
 ```
 
-## Logger
+## Use it for your own training
 The logger.py allows logging during training in the format expected by the dashboard. 
 Find the documentation directly in the file.
 
-## Running the dashboard on your own logged data
-
 Log your training with the logger and add the testset if neccessary.
-You will need an text to image function that converts your logged text representations of the state to images to identify a state. Run the db like this:
+You will need an text to image function that converts your logged text representations of the state to images to identify a state and an aggregation function that shows similarities of a batch of states (egMaximum Common Substructure). 
+
+Run the db like this:
 
 ```python
 from dashboard import run_dashboard

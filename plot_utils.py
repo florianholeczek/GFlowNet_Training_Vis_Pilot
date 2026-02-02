@@ -177,7 +177,9 @@ class Plotter:
             placeholders = ",".join("?" for _ in ids)
             query = f"SELECT SUM(total_reward) AS reward, SUM(logprobs_forward) AS pf  FROM trajectories WHERE final_id IN ({placeholders}) GROUP BY final_id"
             corr_df = pd.read_sql_query(query, conn, params=ids)
-            corr_df["pf"] = np.exp(corr_df["pf"])
+            #check if correlation is similar
+            #corr_df["reward"] = np.log(corr_df["reward"])
+            #print("corr", corr_df["reward"].corr(corr_df["pf"]))
         conn.close()
 
         #create loss figure
@@ -260,8 +262,8 @@ class Plotter:
             )
             metricfig.add_trace(
                 go.Scatter(
-                    x=np.log(corr_df["reward"]),
-                    y=np.log(corr_df["pf"]),
+                    x=np.exp(corr_df["reward"]),
+                    y=np.exp(corr_df["pf"]),
                     mode="markers",
                     marker=dict(color=self.cs_diverging_testset[-1]),
                     showlegend=False,
@@ -530,11 +532,11 @@ class Plotter:
                     hex_q,
                     SUM(CASE WHEN istestset = 1 THEN 1 ELSE 0 END) AS n_test,
                     SUM(CASE WHEN istestset = 0 THEN 1 ELSE 0 END) AS n_samples,
-                    SUM(CASE WHEN istestset = 0 THEN total_reward END)              AS sum_a,
-                    SUM(CASE WHEN istestset = 0 THEN EXP(pf) END)                   AS sum_b,
-                    SUM(CASE WHEN istestset = 0 THEN total_reward*total_reward END) AS sum_a2,
-                    SUM(CASE WHEN istestset = 0 THEN EXP(pf)*EXP(pf) END)           AS sum_b2,
-                    SUM(CASE WHEN istestset = 0 THEN total_reward*EXP(pf) END)      AS sum_ab
+                    SUM(CASE WHEN istestset = 0 THEN LOG(total_reward) END)              AS sum_a,
+                    SUM(CASE WHEN istestset = 0 THEN pf END)                        AS sum_b,
+                    SUM(CASE WHEN istestset = 0 THEN LOG(total_reward)*LOG(total_reward) END) AS sum_a2,
+                    SUM(CASE WHEN istestset = 0 THEN pf*pf END)                     AS sum_b2,
+                    SUM(CASE WHEN istestset = 0 THEN LOG(total_reward)*pf END)           AS sum_ab
                 FROM current_dp
                 GROUP BY
                     hex_r,
@@ -550,7 +552,6 @@ class Plotter:
             df["metric"] = num / den
             df.loc[df["n_samples"] < 15, "metric"] = np.nan
             df = df.drop(columns=["sum_a2", "sum_b2", "sum_a", "sum_b", "sum_ab"])
-
 
         else:
             raise NotImplementedError("Hexbin Data Method Not Implemented")
@@ -619,7 +620,8 @@ class Plotter:
                 {", ".join(feature_cols)}, 
                 {", ".join(metric_lists[0])}, 
                 iteration,
-                pf
+                pf,
+                features_valid
             FROM (
                 SELECT
                     final_id,
@@ -631,19 +633,19 @@ class Plotter:
                     SUM(logprobs_forward) OVER (
                         PARTITION BY final_id
                     ) AS pf,
+                    features_valid,
                     ROW_NUMBER() OVER (
                         PARTITION BY text
                         ORDER BY iteration DESC
                     ) AS rn
                 FROM trajectories
                 WHERE iteration BETWEEN ? AND ?
-                  AND features_valid = 1
             )
             WHERE rn = 1
               AND final_object = 1
         """
-
         logged = pd.read_sql_query(query, conn, params=iteration)
+        logged = logged[logged["features_valid"]==1]
         query = f"""
                         SELECT COUNT(*) AS count
                         FROM trajectories

@@ -1095,7 +1095,6 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
             elif ss_style == "Hex Obj. Metric":
                 metric_title = f"Average {metric} (Samples): {metric_value:.4f}"
             else:
-                print(metric_value)
                 if metric_value is None or np.isnan(metric_value):
                     metric_title = "Not enough samples for Correlation"
                 else:

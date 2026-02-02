@@ -531,10 +531,10 @@ class Plotter:
                     SUM(CASE WHEN istestset = 1 THEN 1 ELSE 0 END) AS n_test,
                     SUM(CASE WHEN istestset = 0 THEN 1 ELSE 0 END) AS n_samples,
                     SUM(CASE WHEN istestset = 0 THEN total_reward END)              AS sum_a,
-                    SUM(CASE WHEN istestset = 0 THEN pf END)                        AS sum_b,
+                    SUM(CASE WHEN istestset = 0 THEN EXP(pf) END)                   AS sum_b,
                     SUM(CASE WHEN istestset = 0 THEN total_reward*total_reward END) AS sum_a2,
-                    SUM(CASE WHEN istestset = 0 THEN pf*pf END)                     AS sum_b2,
-                    SUM(CASE WHEN istestset = 0 THEN total_reward*pf END)           AS sum_ab
+                    SUM(CASE WHEN istestset = 0 THEN EXP(pf)*EXP(pf) END)           AS sum_b2,
+                    SUM(CASE WHEN istestset = 0 THEN total_reward*EXP(pf) END)      AS sum_ab
                 FROM current_dp
                 GROUP BY
                     hex_r,

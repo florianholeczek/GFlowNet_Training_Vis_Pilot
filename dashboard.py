@@ -13,7 +13,12 @@ from umap import UMAP
 from plot_utils import *
 from pathlib import Path
 
-def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: callable, debug_mode: bool = False):
+def run_dashboard(
+        data: str,
+        text_to_img_fn: callable,
+        state_aggregation_fn: callable,
+        s0: str = "#",
+        debug_mode: bool = False):
     """
     Runs the dashboard on http://127.0.0.1:8050/
     :param data: folder of the logged data
@@ -25,6 +30,9 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
         This can be eg the Maximum Common Substructure in Molecules / Graphs, paths that must have been taken for all states in Games, etc.
         Must take the states as a list of strings and return one state as a string.
         If not specified the longest common substring of all strings will be used. There is no guarantee that this is a valid state.
+    :param s0: Gives the option to specify the start state. By default '#' is used and treated as an empty state.
+        If s0 is meaningful in your environment (e.g. the position [0, 0] in a grid) you can specify how your start state looks here.
+        In that case it will be displayed via the text_to_img_fn.
     :param debug_mode: whether to display in debug mode for error handling
     :return: None
     """
@@ -53,7 +61,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
             return f"data:image/svg+xml;base64,{text_to_img_fn(state)}"
 
 
-    plotter = Plotter(data_path, image_fn, state_aggregation_fn)
+    plotter = Plotter(data_path, image_fn, state_aggregation_fn, s0)
 
     # get provided metrics and feature columns
     conn = sqlite3.connect(data_path)
@@ -860,7 +868,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
             """
             params = t_ids + [iterations[0], iterations[1]]
             selected_ids = pd.read_sql_query(query, conn, params=params)
-            selected_ids = list(set(selected_ids["trajectory_id"].to_list())) + ["#"]
+            selected_ids = list(set(selected_ids["trajectory_id"].to_list()))
             conn.close()
             return selected_ids, None, []
 
@@ -1014,7 +1022,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
             layout_config['rankDir'] = 'LR'  # Left to right
         elif layout_name == 'breadthfirst':
             layout_config['spacingFactor'] = 1.2
-            layout_config['roots'] = '[id = "START"]'
+            layout_config['roots'] = '[id = "#"]'
 
         if add_handlers:
             title = "Directed Acyclic Graph, Mode: Expand"
@@ -1228,7 +1236,7 @@ def run_dashboard(data: str, text_to_img_fn: callable, state_aggregation_fn: cal
 
         def make_img(svg_b64):
             if svg_b64 is None:
-                return html.Div("root")
+                return html.Div("s0")
             return html.Img(src=svg_b64, style={"height": "100px"})
 
         children = html.Div(

@@ -14,8 +14,9 @@ from scipy.stats import norm
 
 class Plotter:
 
-    def __init__(self, data, image_fn, state_aggregation_fn):
+    def __init__(self, data, image_fn, state_aggregation_fn, s0):
         self.data = data
+        self.s0 = s0
         self.image_fn = image_fn
         if state_aggregation_fn is None:
             self.raw_state_aggregation_fn = self.longest_common_substring
@@ -897,6 +898,11 @@ class Plotter:
         if direction == "backward":
             edges.rename(columns={"source": "target", "target": "source"}, inplace=True)
 
+        if self.s0 != "#":
+            nodes.loc[nodes["id"] == "#", "image"] = self.image_fn(self.s0)
+        print(nodes.loc[nodes["id"] == "#", "image"])
+
+
         # convert to cytoscape structure
         nodes = [{"data": row} for row in nodes.to_dict(orient="records")]
         edges = [{"data": row} for row in edges.to_dict(orient="records")]
@@ -951,7 +957,7 @@ class Plotter:
                     'border-color': '#000000'
                 }
             },
-            # START node (keep text label)
+            # START node default "#" (keep text label)
             {
                 'selector': 'node[node_type = "start"]',
                 'style': {
@@ -1017,6 +1023,26 @@ class Plotter:
                 }
             }
         ]
+
+        if self.s0 != "#":
+            stylesheet.append(
+                # START node custom (display image)
+                {
+                    'selector': 'node[node_type = "start"]',
+                    'style': {
+                        'label': '',
+                        'background-color': '#fff',
+                        'background-image': 'data(image)',
+                        'background-fit': 'contain',
+                        'background-clip': 'none',
+                        'shape': 'round-rectangle',
+                        'width': '60px',
+                        'height': '45px',
+                        'border-width': '5px',
+                        'border-color': '#BAEB9D'
+                    }
+                },
+            )
 
         # Add color styles for each edge
         for edge in edges:

@@ -852,10 +852,11 @@ def run_dashboard(
             if not selected_tids or "range" not in selected_tids:
                 return no_update
 
-            x_range = np.round(selected_tids["range"]["x"]).astype(int)
-            t_ids = tid_list[x_range[0]:x_range[1] + 1]
+            y_range = np.round(selected_tids["range"]["y"]).astype(int)
+            t_ids = tid_list[y_range[0]:y_range[1] + 1]
             t_ids = list({elem for sublist in t_ids for elem in sublist})
-            iterations = np.round(selected_tids["range"]["y"]).astype(int).tolist()
+            iterations = np.round(selected_tids["range"]["x"]).astype(int).tolist()
+
 
             # get trajectory ids that are also in iteration range and then all node ids for these trajectory_ids
             conn = sqlite3.connect(data_path)
@@ -870,6 +871,7 @@ def run_dashboard(
             selected_ids = pd.read_sql_query(query, conn, params=params)
             selected_ids = list(set(selected_ids["trajectory_id"].to_list()))
             conn.close()
+            print(t_ids, tid_list, iterations, selected_ids)
             return selected_ids, None, []
 
 

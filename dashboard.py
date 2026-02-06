@@ -871,7 +871,6 @@ def run_dashboard(
             selected_ids = pd.read_sql_query(query, conn, params=params)
             selected_ids = list(set(selected_ids["trajectory_id"].to_list()))
             conn.close()
-            print(t_ids, tid_list, iterations, selected_ids)
             return selected_ids, None, []
 
 

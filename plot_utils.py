@@ -900,8 +900,6 @@ class Plotter:
 
         if self.s0 != "#":
             nodes.loc[nodes["id"] == "#", "image"] = self.image_fn(self.s0)
-        print(nodes.loc[nodes["id"] == "#", "image"])
-
 
         # convert to cytoscape structure
         nodes = [{"data": row} for row in nodes.to_dict(orient="records")]

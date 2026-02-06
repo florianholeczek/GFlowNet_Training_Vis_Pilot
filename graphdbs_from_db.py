@@ -63,7 +63,7 @@ def truncate_graph(conn):
             )
             SELECT id
             FROM node_connections
-            WHERE num_predecessors = 1 AND num_successors = 1
+            WHERE num_predecessors = 1 AND num_successors = 1 AND type != "final"
         """)
 
     removable_count = cursor.execute("SELECT COUNT(*) FROM removable_nodes").fetchone()[0]

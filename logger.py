@@ -143,6 +143,15 @@ class VisLogger:
         # Checks and Warnings
         assert self.fn_state_to_text is not None, "No fn_state_to_text provided. This is neccessary to distinguish states."
 
+    def attach_fns(self, fn_state_to_text=None, fn_compute_features=None):
+        """
+        Allows attaching the functions after initialization.
+        """
+        if fn_state_to_text is not None:
+            self.fn_state_to_text = fn_state_to_text
+        if fn_compute_features is not None:
+            self.fn_compute_features = fn_compute_features
+
     def log(
             self,
             batch_idx: np.ndarray | torch.Tensor | None,

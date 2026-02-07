@@ -115,6 +115,18 @@ def run_dashboard(
         html.Div([
 
     # -------- TAB SELECTOR --------
+            html.A(
+                html.Button("How to Use", style={"border-radius": "8px",}),
+                href="https://github.com/florianholeczek/GFlowNet_Training_Vis_Pilot/blob/master/Dashboard_Introduction.md",
+                target="_blank",
+                style = {
+                    "display": "flex",
+                    "flexDirection": "column",
+                    "margin-bottom": "50px",
+                    "textDecoration": "none"
+                }
+            ),
+
             html.H4("View"),
             html.Div([
                 html.Button(

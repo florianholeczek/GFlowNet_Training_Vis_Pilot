@@ -62,32 +62,34 @@ Based on the provided / computed features a downprojection was applied to show t
 
 Coloring by 'State Space Style':
 
-    - Hex Ratio without testset: If no testset is used, the plot simply shows the frequency of samples in each bin. Note that the dimensionality reduction does not neccesarily preserve density, so without the testset this plot might be misleading in the differentiation from dense / sparse bins: A bin with many samples is not neccessarily dense in the original state space. Use the hover information to see if the states of a bin are really similar.
 
-    - Hex Ratio with testset: If a testset is provided, the plot shows coloring based on the number of sampled objects and testset objects in each bin. The Odds Ratio is computed: (n_samples/n_testset) / (n_samples_total/n_testset_total). This is to account for the different number of samples and testset objects. The Odds Ratio is then scaled to [-1,1] via tanh(log(OR)). So a bin with -1 consists of only testset objects and a bin with 1 of only samples. Bins with a metric of -1 might be the most interesting ones. This part of the state space is represented in the testset, but the model fails to sample from it. Use the information on hover to see how the states look like (see example below).
 
-    - Hex Obj. Metric: This shows the bins based on the average of the metric choosen in 'Object Metric' (reward, loss or custom logged metric) of the samples (testset is ignored). Areas with high loss might be interesting, as here the model fails to sample proportionally to reward.
+  - Hex Ratio without testset: If no testset is used, the plot simply shows the frequency of samples in each bin. Note that the dimensionality reduction does not neccesarily preserve density, so without the testset this plot might be misleading in the differentiation from dense / sparse bins: A bin with many samples is not neccessarily dense in the original state space. Use the hover information to see if the states of a bin are really similar.
 
-    - Hex Correlation: This shows the correlation between the sum of the forward logprobabilities and the log reward of each bin of the samples (testset is ignored). The higher the correlation the better the model is in sampling proportional to reward in this area of the state space. Bins with less than 10 samples are greyed out as the correlation would not be very robust. You can still see the scatterplot for them on hover.
+  - Hex Ratio with testset: If a testset is provided, the plot shows coloring based on the number of sampled objects and testset objects in each bin. The Odds Ratio is computed: (n_samples/n_testset) / (n_samples_total/n_testset_total). This is to account for the different number of samples and testset objects. The Odds Ratio is then scaled to [-1,1] via tanh(log(OR)). So a bin with -1 consists of only testset objects and a bin with 1 of only samples. Bins with a metric of -1 might be the most interesting ones. This part of the state space is represented in the testset, but the model fails to sample from it. Use the information on hover to see how the states look like (see example below).
 
-    - Scatter: Objects are colored based on the last iteration they were sampled. The size is based on the choosen Object Metric. 
+  - Hex Obj. Metric: This shows the bins based on the average of the metric choosen in 'Object Metric' (reward, loss or custom logged metric) of the samples (testset is ignored). Areas with high loss might be interesting, as here the model fails to sample proportionally to reward.
+
+  - Hex Correlation: This shows the correlation between the sum of the forward logprobabilities and the log reward of each bin of the samples (testset is ignored). The higher the correlation the better the model is in sampling proportional to reward in this area of the state space. Bins with less than 10 samples are greyed out as the correlation would not be very robust. You can still see the scatterplot for them on hover.
+
+  - Scatter: Objects are colored based on the last iteration they were sampled. The size is based on the choosen Object Metric. 
 
 Click on a hexbin to select it and see its samples in detail and highlighted in the other visualizations. If the State Space Style is 'Scatter' you can use the Lasso Tool to select objects.
 
 Hovering over an object point shows its state image, the iteration it was sampled last and the choosen Object Metric.
 Hovering over an hexbin  shows:
 
-    1. The mean loss of all its samples over iterations and the range of all losses.
+  1. The mean loss of all its samples over iterations and the range of all losses.
 
-    2. A Histogram over the reward of the samples and the testset (if used). The y-Axis is density (area = 1), to allow comparison of the distribution of samples and testset objects.
+  2. A Histogram over the reward of the samples and the testset (if used). The y-Axis is density (area = 1), to allow comparison of the distribution of samples and testset objects.
 
-    3. If a custom logged metric is choosen in Object Metric and 'Hex Obj. Metric' is choosen, a histogram similar to that of the reward is displayed
+  3. If a custom logged metric is choosen in Object Metric and 'Hex Obj. Metric' is choosen, a histogram similar to that of the reward is displayed
 
-    4. If 'Hex Correlation' is choosen as State Space Style, a scatterplot is shown plotting the log reward vs the sum of the forward logprobabilities of each sample. A second plot shows the reward vs the product of the forward probabilities.
+  4. If 'Hex Correlation' is choosen as State Space Style, a scatterplot is shown plotting the log reward vs the sum of the forward logprobabilities of each sample. A second plot shows the reward vs the product of the forward probabilities.
 
-    5. The result of the state aggregation function provided when running the dashboard. This shows what all the states have in common (Most common substructure, areas present in all states in a grid environment, point groups shared in a crytal env..., its up to you how to implement it in your env). This allows checking a bin to what part of the state space it represents.
+  5. The result of the state aggregation function provided when running the dashboard. This shows what all the states have in common (Most common substructure, areas present in all states in a grid environment, point groups shared in a crytal env..., its up to you how to implement it in your env). This allows checking a bin to what part of the state space it represents.
 
-    6. The number of samples in a bin, the number of testset objects in a bin and the value of the metric used for coloring.
+  6. The number of samples in a bin, the number of testset objects in a bin and the value of the metric used for coloring.
 
 Example:
 
@@ -111,9 +113,9 @@ image
 
 This shows a subgraph of the Directed Acyclic Graph of all trajectories for the current selection. There are two methods of selecting:
 
-    1. By selections in other plots: If you select final objects or edges in other plots, all trajectories with these final objects or edges will be shown here.
+  1. By selections in other plots: If you select final objects or edges in other plots, all trajectories with these final objects or edges will be shown here.
 
-    2. By exploring: each node has a handler (Select children: N). Clicking it shows its children in the table on the right. selecting them adds them to the subgraph, deselection removes them and all their children if they are not connected to other nodes. Selecting a node by clicking on it changes to the first method: All trajectories with this node are shown. Clicking 'Clear selection' gets you back to exploring again.
+  2. By exploring: each node has a handler (Select children: N). Clicking it shows its children in the table on the right. selecting them adds them to the subgraph, deselection removes them and all their children if they are not connected to other nodes. Selecting a node by clicking on it changes to the first method: All trajectories with this node are shown. Clicking 'Clear selection' gets you back to exploring again.
 
 Selecting the root node collapses the built graph and clears all selections. The edge coloring is based on the choosen metric and uses the same colorscale as the Edge Heatmap to the left. Transitions with one child and one parent have been merged to avoid long chains, their logprobabilities have been added up. For each transition, only one edge is displayed, the color is based on the latest iteration.
 

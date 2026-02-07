@@ -50,7 +50,7 @@ This shows the Directed Acyclic Graph of the sampled objects. To reduce the size
 
 4. Alternatively final objects can be selected in other visualizations and their trajectories will be expanded (until deselection) Selecting a node in the DAG expands its trajectories as well.
 
-The overview on top shows the edges of the DAG with different metrics: highest/lowest logprobabilities, variance in logprobabilities or frequency. The edge coloring in the DAG fits the choosen metric.
+The overview on the left shows the edges of the DAG with different metrics: highest/lowest logprobabilities, variance in logprobabilities or frequency. The edge coloring in the DAG fits the choosen metric.
 This helps answering the following questions:
 
 - How did the transition probabilities change during training?

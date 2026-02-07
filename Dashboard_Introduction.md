@@ -46,7 +46,7 @@ DAG:
 
 ### Ranking
 
-image
+<img width="2578" height="966" alt="grafik" src="https://github.com/user-attachments/assets/619cb87a-3fc1-439a-bcb7-0da6cfe81804" />
 
 This plot shows the Top 30 Objects based on the choosen metric (reward, loss or custom). Markers show that an object was sampled in this iteration. Lines show the changes in the objects rank over iterations (Only if 'Highest /Lowest over all' is choosen as Ranking Metric). 
 
@@ -56,13 +56,11 @@ Hovering over and objects shows its metric and the state image. You can select O
 
 ### State space
 
-image
+file:///home/flo/Schreibtisch/Bildschirmfoto%20vom%202026-02-07%2013-30-093.png
 
 Based on the provided / computed features a downprojection was applied to show the state space in two dimensions. Based on the setting in 'State Space Style', all objects are shown in a scatterplot or the space is binned in hexbins and coloring happens based on an aggreagation metric.
 
 Coloring by 'State Space Style':
-
-
 
   - Hex Ratio without testset: If no testset is used, the plot simply shows the frequency of samples in each bin. Note that the dimensionality reduction does not neccesarily preserve density, so without the testset this plot might be misleading in the differentiation from dense / sparse bins: A bin with many samples is not neccessarily dense in the original state space. Use the hover information to see if the states of a bin are really similar.
 
@@ -93,13 +91,11 @@ Hovering over an hexbin  shows:
 
 Example:
 
-image
-
-In this case all the upper purple hexbins have the same most common substructure (The three rings). These bins almost exlusively have testset objects. This shows that the model might fail to sample objects containing this structure or it might underrepresent this part of the state space (assuming the testset is representative).
+In the case of the image above, all the upper purple hexbins have the same most common substructure (The three rings). These bins almost exlusively have testset objects. This shows that the model might fail to sample objects containing this structure or it might underrepresent this part of the state space (assuming the testset is representative).
 
 ### DAG - Edge Overview
 
-image
+<img width="866" height="2758" alt="Bildschirmfoto vom 2026-02-07 13-43-17" src="https://github.com/user-attachments/assets/53397f8a-497d-4187-8c39-2b4b9fd33c0b" />
 
 This heatmap shows the Top 150 Ranked edges based on the choosen metric (highest logprobabilities, lowest logprobabilities, variance, frequency) for the choosen direction. On the y-axis are the ranked edges, you can see its source and target state on hover. If an edge is sampled in an iteration it gets colored based on the choosen metric, otherwise it is black. Use the buttons above and below the plot to see the edges not covered in the Top 150. This visualization is only filtered by the iterations slider and not by other selections. 
 
@@ -109,7 +105,7 @@ Use the box select to see all trajectories with this transition in the DAG and a
 
 ### DAG
 
-image
+<img width="4690" height="3001" alt="Bildschirmfoto vom 2026-02-07 17-22-46" src="https://github.com/user-attachments/assets/7dd0c80b-ad13-4ceb-95ec-37a736059d81" />
 
 This shows a subgraph of the Directed Acyclic Graph of all trajectories for the current selection. There are two methods of selecting:
 

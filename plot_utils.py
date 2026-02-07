@@ -881,7 +881,7 @@ class Plotter:
             nodes["n_children"] = nodes["n_children"].fillna(0)
 
             # create handlers
-            handler_nodes = nodes[nodes['node_type'] != "final"].copy().drop(["reward"], axis=1)
+            handler_nodes = (nodes[(nodes['node_type'] != "final") | (nodes['n_children'] > 0)].copy().drop(["reward"], axis=1))
             handler_nodes["node_type"] = "handler"
             handler_nodes["id"] = "handler_" + handler_nodes["id"]
             handler_nodes["label"] = "Select children: " + handler_nodes["n_children"].astype(int).astype(str)

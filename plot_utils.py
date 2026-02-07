@@ -25,6 +25,7 @@ class Plotter:
 
         #colorscales
         self.cs_main = px.colors.sequential.YlGn
+        self.cs_iteration = px.colors.sequential.Teal
         self.cs_diverging_testset = px.colors.diverging.PRGn
         self.cs_diverging_edgechange = px.colors.diverging.PiYG
         self.cs_diverging_dir = px.colors.diverging.balance_r
@@ -1342,7 +1343,7 @@ class Plotter:
         if selected_ids:
             df["opacity"] = df["id"].isin(selected_ids)*0.9 +0.1
         else:
-            df["opacity"] = 1
+            df["opacity"] = 0.5
 
 
         # Separate test set and normal points
@@ -1358,7 +1359,7 @@ class Plotter:
             marker=dict(
                 size=df_normal["metric_norm"],
                 color=df_normal['iteration'],
-                colorscale=self.cs_main,
+                colorscale=self.cs_iteration,
                 line=dict(color='black', width=1),
                 showscale=True,
                 colorbar=dict(
@@ -1473,10 +1474,10 @@ class Plotter:
         # Map iteration categories to numeric indices
         iter_to_idx = {it: i for i, it in enumerate(iterations)}
         first_iter_idx = first_iter.map(iter_to_idx)
-        n_colors = len(self.cs_main)
+        n_colors = len(self.cs_iteration)
         # Normalize first-iteration index → color
         obj_color = {
-            text: self.cs_main[int(idx / max(1, len(iterations) - 1) * (n_colors - 1))]
+            text: self.cs_iteration[int(idx / max(1, len(iterations) - 1) * (n_colors - 1))]
             for text, idx in first_iter_idx.items()
         }
 
@@ -1521,7 +1522,7 @@ class Plotter:
                 marker=dict(
                     size=0,
                     color=[df["iteration"].min(), df["iteration"].max()],
-                    colorscale=self.cs_main,
+                    colorscale=self.cs_iteration,
                     cmin=df["iteration"].min(),
                     cmax=df["iteration"].max(),
                     showscale=True,
@@ -1584,7 +1585,7 @@ class Plotter:
                 mode='markers',
                 marker=dict(
                     color=df['iteration'],
-                    colorscale=self.cs_main,
+                    colorscale=self.cs_iteration,
                     colorbar=dict(title="Iteration of<br>First Sample"),
                     symbol="square",
                     line=dict(width=1, color="black"),

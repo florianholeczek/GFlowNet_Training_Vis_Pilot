@@ -56,7 +56,7 @@ Hovering over and objects shows its metric and the state image. You can select O
 
 ### State space
 
-file:///home/flo/Schreibtisch/Bildschirmfoto%20vom%202026-02-07%2013-30-093.png
+<img width="2525" height="2812" alt="Bildschirmfoto vom 2026-02-07 13-30-093" src="https://github.com/user-attachments/assets/42d0932a-a5ac-4861-9911-9c9e3e4227ed" />
 
 Based on the provided / computed features a downprojection was applied to show the state space in two dimensions. Based on the setting in 'State Space Style', all objects are shown in a scatterplot or the space is binned in hexbins and coloring happens based on an aggreagation metric.
 

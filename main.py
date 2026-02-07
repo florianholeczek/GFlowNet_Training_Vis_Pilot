@@ -73,6 +73,6 @@ run_dashboard(
     data="seh_small",
     text_to_img_fn=imagefn_seh,
     state_aggregation_fn=state_agg_fn_seh,
-    s0="C1=CC=CC=C1",
+    s0="#",
     debug_mode=True)
 #run_dashboard(data="debugdata", text_to_img_fn=imagefn_debugdata, state_aggregation_fn= state_agg_fn_debugdata, debug_mode=True)

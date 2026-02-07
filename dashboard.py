@@ -1047,15 +1047,17 @@ def run_dashboard(
         State("build-ids", "data")
     )
     def save_selected_rows(selected_rows, table_data, build_ids):
-        if selected_rows:
+        if selected_rows or table_data:
+            print("selected rows")
             children = set([r["id"] for r in table_data])
             unselected = children - set(selected_rows)
-            build_ids = set(build_ids) - unselected
-            build_ids = set(selected_rows) | build_ids | set(["#"])
+            new_build_ids = set(build_ids) - unselected
+            if len(new_build_ids) < len(build_ids):
+                removed_node = set(build_ids) - new_build_ids
+                assert len(removed_node)==1, "Bug in DAG selection"
+                build_ids = plotter.dag_remove_node_prune(build_ids, list(removed_node)[0])
+            build_ids = set(selected_rows) | set(build_ids) | set(["#"])
             return list(build_ids)
-        elif table_data:
-            children = set([r["id"] for r in table_data])
-            return list(set(build_ids)-children)
         else:
             return ["#"]
 

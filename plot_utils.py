@@ -1061,6 +1061,34 @@ class Plotter:
             'stylesheet': stylesheet,
         }
 
+    def dag_remove_node_prune(self, nodelist, node_to_remove):
+        """
+        removes the node from the list and all unconnected children
+        :return: new list
+        """
+        conn = sqlite3.connect(self.data)
+        remaining = set(nodelist)
+        if node_to_remove not in remaining:
+            return remaining
+        stack = [node_to_remove]
+        while stack:
+            node = stack.pop()
+            if node not in remaining:
+                continue
+            remaining.remove(node)
+            query = "SELECT DISTINCT target FROM edges WHERE source = ?"
+            children = pd.read_sql_query(query, conn, params=[node])["target"].tolist()
+            for child in children:
+                if child not in remaining:
+                    continue
+                query = "SELECT DISTINCT source FROM edges WHERE target = ?"
+                parents = pd.read_sql_query(query, conn, params=[child])["source"].tolist()
+                if not any(parent in remaining for parent in parents):
+                    stack.append(child)
+
+        conn.close()
+        return remaining
+
     def update_DAG_overview(self, direction, metric, iteration, page):
         """
         edge heatmap plot

@@ -1043,10 +1043,18 @@ def run_dashboard(
     @app.callback(
         Output('build-ids', 'data'),
         Input('dag-table', 'selected_row_ids'),
+        Input("dag-graph", "tapNodeData"),
         State('dag-table', 'data'),
         State("build-ids", "data")
     )
-    def save_selected_rows(selected_rows, table_data, build_ids):
+    def save_selected_rows(selected_rows, node_select, table_data, build_ids):
+        #reset build ids if root selected
+        if "dag-graph.tapNodeData" in dash.callback_context.triggered[0]["prop_id"]:
+            if node_select.get("id") == "#":
+                return ["#"]
+            else:
+                return no_update
+        # update build ids from table
         if selected_rows or table_data:
             print("selected rows")
             children = set([r["id"] for r in table_data])

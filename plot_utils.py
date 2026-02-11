@@ -643,7 +643,9 @@ class Plotter:
         df_dp = logged.drop(columns=feature_cols)
 
         # Get testset data
-        if use_testset:
+        testset_hasdata = pd.read_sql_query("SELECT COUNT(*) FROM testset", conn)
+        testset_hasdata = testset_hasdata["COUNT(*)"].tolist()[0]
+        if use_testset and testset_hasdata:
             query = f"""
                             SELECT id, text, {", ".join(feature_cols_testset)}, {", ".join(metric_lists[1])}
                             FROM testset

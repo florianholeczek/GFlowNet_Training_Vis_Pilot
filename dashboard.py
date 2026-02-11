@@ -94,7 +94,8 @@ def run_dashboard(
     cur = conn.cursor()
     cur.execute(f"""
             CREATE TABLE IF NOT EXISTS testset (
-                id TEXT PRIMARY KEY,
+                id INT,
+                text TEXT,
                 total_reward REAL,
                 features_valid REAL
             )

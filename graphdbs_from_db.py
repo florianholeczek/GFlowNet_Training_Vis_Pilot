@@ -50,21 +50,22 @@ def truncate_graph(conn):
     # A node is removable if it has exactly 1 unique predecessor AND 1 unique successor
     print("Step 1: Identifying removable nodes...")
     cursor.execute("""
-            CREATE TEMP TABLE IF NOT EXISTS removable_nodes AS
-            WITH node_connections AS (
-                SELECT 
-                    n.id,
-                    COUNT(DISTINCT e_in.source) as num_predecessors,
-                    COUNT(DISTINCT e_out.target) as num_successors
-                FROM nodes n
-                LEFT JOIN edges e_in ON n.id = e_in.target
-                LEFT JOIN edges e_out ON n.id = e_out.source
-                GROUP BY n.id
-            )
-            SELECT id
-            FROM node_connections
-            WHERE num_predecessors = 1 AND num_successors = 1 AND type != "final"
-        """)
+        CREATE TEMP TABLE IF NOT EXISTS removable_nodes AS
+        WITH node_connections AS (
+            SELECT 
+                n.id,
+                COUNT(DISTINCT e_in.source) as num_predecessors,
+                COUNT(DISTINCT e_out.target) as num_successors,
+                node_type
+            FROM nodes n
+            LEFT JOIN edges e_in ON n.id = e_in.target
+            LEFT JOIN edges e_out ON n.id = e_out.source
+            GROUP BY n.id
+        )
+        SELECT id
+        FROM node_connections
+        WHERE num_predecessors = 1 AND num_successors = 1 AND node_type != 'final'
+    """)
 
     removable_count = cursor.execute("SELECT COUNT(*) FROM removable_nodes").fetchone()[0]
     print(f"  Found {removable_count} removable nodes")

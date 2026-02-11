@@ -11,6 +11,7 @@ def imagefn_seh(smiles):
         return None
 
     def smiles_to_mol(smiles):
+        mol=None
         try:
             mol = Chem.MolFromSmiles(smiles)
             if mol is not None:
@@ -52,6 +53,7 @@ def state_agg_fn_seh(smiles):
     mcs_smarts = mcs_result.smartsString
     mcs_mol = Chem.MolFromSmarts(mcs_smarts)
     mcs_smiles = Chem.MolToSmiles(mcs_mol)
+    mcs_smiles = imagefn_seh(mcs_smiles)
     return mcs_smiles
 
 #plotting function for debugdata
@@ -65,9 +67,12 @@ def imagefn_debugdata(s):
 
 #aggregation function for debugdata
 def state_agg_fn_debugdata(texts):
-    return min([int(i) for i in texts])
+    return imagefn_debugdata(min([int(i) for i in texts]))
 
-
+def dummyimagefn(text):
+    # to test text display
+    a= "abcd"
+    return [a*10, a*5, a]
 
 run_dashboard(
     data="seh_small",

@@ -101,7 +101,7 @@ def run_dashboard(
             )
         """)
     testset_cols = pd.read_sql_query("SELECT name FROM pragma_table_info('testset');", conn)["name"].tolist()
-    feature_cols_testset = testset_cols[testset_cols.index("features_valid")+1:]
+    feature_cols_testset = [c for c in testset_cols if c.startswith("f_") and c[2:].isdigit()]
     testset_metrics = testset_cols[testset_cols.index("total_reward"): testset_cols.index("features_valid")]
 
     # get iteration range

@@ -42,53 +42,53 @@ class Plotter:
         return out
 
     def hex_distplot(self, data, testdata, name):
-        fig = None
-
-        # Determine x_range safely
         x_min, x_max = np.inf, -np.inf
-
         if len(data) > 0:
             x_min = min(x_min, data.min())
             x_max = max(x_max, data.max())
-
         if testdata is not None and len(testdata) > 0:
             x_min = min(x_min, testdata.min())
             x_max = max(x_max, testdata.max())
-
         if x_min == np.inf:
             return None
+        if x_max == x_min:
+            delta = 0.5 if x_min == 0 else abs(x_min) * 0.05 or 0.5
+            x_min -= delta
+            x_max += delta
 
         fig = go.Figure()
-        if len(data)>0 and testdata is not None and len(testdata)>0:
+        if len(data) > 0 and testdata is not None and len(testdata) > 0:
             opacity = 0.6
         else:
             opacity = 1
 
-        # Samples histogram
         if len(data) > 0:
-            fig.add_trace(go.Histogram(
-                x=data,
-                name="Samples",
-                marker=dict(color=self.cs_diverging_testset[-1]),
-                opacity=opacity,
-                nbinsx=30,
-                autobinx=False,
-                xbins=dict(start=x_min, end=x_max, size=(x_max - x_min) / 20),
-                histnorm="probability density"
-            ))
+            fig.add_trace(
+                go.Histogram(
+                    x=data,
+                    name="Samples",
+                    marker=dict(color=self.cs_diverging_testset[-1]),
+                    opacity=opacity,
+                    nbinsx=30,
+                    autobinx=False,
+                    xbins=dict(start=x_min, end=x_max, size=(x_max - x_min) / 20),
+                    histnorm="probability density",
+                )
+            )
 
-        # Testdata histogram
         if testdata is not None and len(testdata) > 0:
-            fig.add_trace(go.Histogram(
-                x=testdata,
-                name="Testset Objects",
-                marker=dict(color=self.cs_diverging_testset[0]),
-                opacity=opacity,
-                nbinsx=30,
-                autobinx=False,
-                xbins=dict(start=x_min, end=x_max, size=(x_max - x_min) / 20),
-                histnorm="probability density"
-            ))
+            fig.add_trace(
+                go.Histogram(
+                    x=testdata,
+                    name="Testset Objects",
+                    marker=dict(color=self.cs_diverging_testset[0]),
+                    opacity=opacity,
+                    nbinsx=30,
+                    autobinx=False,
+                    xbins=dict(start=x_min, end=x_max, size=(x_max - x_min) / 20),
+                    histnorm="probability density",
+                )
+            )
 
         fig.update_layout(
             title=f"Histogram of {name}",
@@ -101,7 +101,6 @@ class Plotter:
             barmode="overlay",
             showlegend=True,
         )
-
         fig.update_xaxes(range=[x_min, x_max])
 
         return fig
@@ -111,62 +110,101 @@ class Plotter:
         Calculate the figures for the tooltips for the hex state space
         :return:
         """
-        rewardfig = None
         lossfig = None
         metricfig = None
 
         # get texts
         conn = sqlite3.connect(self.data)
-        query = f"SELECT text FROM current_dp WHERE hex_q = {hex_q} AND hex_r = {hex_r} AND istestset = 0"
+        query = f"""
+                    SELECT text
+                    FROM current_dp
+                    WHERE hex_q = {hex_q} AND hex_r = {hex_r} AND istestset = 0
+                """
         texts = pd.read_sql_query(query, conn)["text"].tolist()
         placeholders = ",".join("?" for _ in texts)
         if usetestset:
-            query = f"SELECT text FROM current_dp WHERE hex_q = {hex_q} AND hex_r = {hex_r} AND istestset = 1"
+            query = f"""
+                        SELECT text
+                        FROM current_dp
+                        WHERE hex_q = {hex_q} AND hex_r = {hex_r} AND istestset = 1
+                    """
             texts_t = pd.read_sql_query(query, conn)["text"].tolist()
             placeholders_t = ",".join("?" for _ in texts_t)
 
         # get loss table
         query = f"""
-                        SELECT
-                            iteration,
-                            AVG(loss) AS mean,
-                            MIN(loss) AS min,
-                            MAX(loss) AS max
-                        FROM trajectories 
-                        WHERE final_object = 1
-                        AND text in ({placeholders})
-                        GROUP BY iteration
-                    """
+                                SELECT
+                                    iteration,
+                                    AVG(loss) AS mean,
+                                    MIN(loss) AS min,
+                                    MAX(loss) AS max
+                                FROM trajectories
+                                WHERE final_object = 1
+                                AND text in ({placeholders})
+                                GROUP BY iteration
+                            """
         loss_df = pd.read_sql_query(query, conn, params=texts)
 
         # get reward data
-        query = f"SELECT total_reward FROM trajectories WHERE final_object = 1 AND text in ({placeholders})"
-        rewards_samples = pd.read_sql_query(query, conn, params=texts).to_numpy().flatten()
+        query = f"""
+                    SELECT total_reward
+                    FROM trajectories
+                    WHERE final_object = 1
+                    AND text in ({placeholders})
+                """
+        rewards_samples = (
+            pd.read_sql_query(query, conn, params=texts).to_numpy().flatten()
+        )
         if usetestset:
             query = f"SELECT total_reward FROM testset WHERE text in ({placeholders_t})"
-            rewards_testset = pd.read_sql_query(query, conn, params=texts_t).to_numpy().flatten()
+            rewards_testset = (
+                pd.read_sql_query(query, conn, params=texts_t).to_numpy().flatten()
+            )
 
         # if metric custom metric is choosen, give dist as well
-        if ss_style == "Hex Obj. Metric" and metric != "total_reward" and metric != "loss":
-            query = f"SELECT {metric} FROM trajectories WHERE final_object = 1 AND text in ({placeholders})"
-            metric_samples = pd.read_sql_query(query, conn, params=texts).to_numpy().flatten()
+        if (
+                ss_style == "Hex Obj. Metric"
+                and metric != "total_reward"
+                and metric != "loss"
+        ):
+            query = f"""
+                        SELECT {metric}
+                        FROM trajectories
+                        WHERE final_object = 1 AND text in ({placeholders})
+                    """
+            metric_samples = (
+                pd.read_sql_query(query, conn, params=texts).to_numpy().flatten()
+            )
             if metric_in_testset and usetestset:
                 query = f"SELECT {metric} FROM testset WHERE text in ({placeholders_t})"
-                metric_testset = pd.read_sql_query(query, conn, params=texts_t).to_numpy().flatten()
+                metric_testset = (
+                    pd.read_sql_query(query, conn, params=texts_t).to_numpy().flatten()
+                )
 
-        #Use metric plot for correlation scatter
+        # Use metric plot for correlation scatter
         if ss_style == "Hex Correlation":
-            query = f"SELECT id FROM current_dp WHERE hex_q = {hex_q} AND hex_r = {hex_r} AND istestset = 0"
+            query = f"""
+                        SELECT id
+                        FROM current_dp
+                        WHERE hex_q = {hex_q} AND hex_r = {hex_r} AND istestset = 0
+                    """
             ids = pd.read_sql_query(query, conn)["id"].tolist()
             placeholders = ",".join("?" for _ in ids)
-            query = f"SELECT SUM(total_reward) AS reward, SUM(logprobs_forward) AS pf  FROM trajectories WHERE final_id IN ({placeholders}) GROUP BY final_id"
+            query = f"""
+                        SELECT
+                            SUM(total_reward) AS reward,
+                            SUM(logprobs_forward) AS pf
+                        FROM trajectories
+                        WHERE final_id IN ({placeholders})
+                        GROUP BY final_id
+                    """
             corr_df = pd.read_sql_query(query, conn, params=ids)
             corr_df["reward"] = np.log(corr_df["reward"])
             # check if correlation is similar
-            #print("corr", corr_df["reward"].corr(corr_df["pf"]))
+            # print("corr", corr_df["reward"].corr(corr_df["pf"]))
         conn.close()
 
-        #create loss figure
+        # create loss figure
         if len(loss_df) != 0:
             lossfig = go.Figure()
             lossfig.add_trace(
@@ -176,7 +214,7 @@ class Plotter:
                     mode="lines",
                     line=dict(width=0),
                     showlegend=False,
-                    hoverinfo="skip"
+                    hoverinfo="skip",
                 )
             )
             lossfig.add_trace(
@@ -185,19 +223,22 @@ class Plotter:
                     y=loss_df["min"],
                     mode="lines",
                     fill="tonexty",
-                    fillcolor=self.cs_diverging_testset[-1].replace("rgb", "rgba").replace(")", ", 0.2)"),
+                    fillcolor=self.cs_diverging_testset[-1]
+                    .replace("rgb", "rgba")
+                    .replace(")", ", 0.2)"),
                     opacity=0.2,
                     line=dict(width=0),
                     showlegend=True,
-                    name="Range"
+                    name="Range",
                 )
             )
             lossfig.add_trace(
                 go.Scatter(
                     x=loss_df["iteration"],
                     y=loss_df["mean"],
-                    mode="lines",
+                    mode="lines" if len(loss_df) > 1 else "markers",
                     line=dict(color=self.cs_diverging_testset[-1], width=2),
+                    marker=dict(size=8, color=self.cs_diverging_testset[-1]),
                     name="Mean",
                     showlegend=True,
                 )
@@ -210,18 +251,24 @@ class Plotter:
                 height=200,
                 width=450,
                 margin=dict(l=20, r=20, t=30, b=20),
-                xaxis=dict(nticks=4)
+                xaxis=dict(nticks=4),
             )
-            lossfig.update_xaxes(range=[0, loss_df["iteration"].max()])
-            lossfig.update_yaxes(range=[0, loss_df["max"].max()])
+            lossfig.update_xaxes(range=[0, loss_df["iteration"].max() * 1.05])
+            lossfig.update_yaxes(range=[0, loss_df["max"].max() * 1.05])
 
         # create reward distribution
         if usetestset and len(rewards_testset) != 0:
-            rewardfig = self.hex_distplot(rewards_samples, rewards_testset, "Total Reward")
+            rewardfig = self.hex_distplot(
+                rewards_samples, rewards_testset, "Total Reward"
+            )
         else:
             rewardfig = self.hex_distplot(rewards_samples, None, "Total Reward")
 
-        if ss_style == "Hex Obj. Metric" and metric != "total_reward" and metric != "loss":
+        if (
+                ss_style == "Hex Obj. Metric"
+                and metric != "total_reward"
+                and metric != "loss"
+        ):
             if metric_in_testset and usetestset and len(metric_testset) != 0:
                 metricfig = self.hex_distplot(metric_samples, metric_testset, metric)
             else:
@@ -239,10 +286,10 @@ class Plotter:
                     mode="markers",
                     marker=dict(color=self.cs_diverging_testset[-1]),
                     showlegend=False,
-                    hoverinfo="skip"
+                    hoverinfo="skip",
                 ),
                 row=1,
-                col=1
+                col=1,
             )
             metricfig.add_trace(
                 go.Scatter(
@@ -251,10 +298,10 @@ class Plotter:
                     mode="markers",
                     marker=dict(color=self.cs_diverging_testset[-1]),
                     showlegend=False,
-                    hoverinfo="skip"
+                    hoverinfo="skip",
                 ),
                 row=1,
-                col=2
+                col=2,
             )
             metricfig.update_layout(
                 title="(Log) Reward vs Forward (Log) Probabilities for Samples",
@@ -267,7 +314,6 @@ class Plotter:
             metricfig.update_yaxes(row=1, col=1, title_text="Logprobabilities")
             metricfig.update_xaxes(row=1, col=2, title_text="Reward")  # , range=[,])
             metricfig.update_yaxes(row=1, col=2, title_text="Probabilities")
-
 
         if usetestset:
             texts += texts_t
@@ -596,48 +642,51 @@ class Plotter:
 
         # Get logged data (unique texts, latest iteration)
         query = f"""
-            SELECT 
-                final_id AS id, 
-                text, 
-                {", ".join(feature_cols)}, 
-                {", ".join(metric_lists[0])}, 
-                iteration,
-                pf,
-                features_valid
-            FROM (
-                SELECT
-                    final_id,
-                    text,
-                    {", ".join(feature_cols)},
-                    {", ".join(metric_lists[0])},
-                    iteration,
-                    final_object,
-                    SUM(logprobs_forward) OVER (
-                        PARTITION BY final_id
-                    ) AS pf,
-                    features_valid,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY text
-                        ORDER BY iteration DESC
-                    ) AS rn
-                FROM trajectories
-                WHERE iteration BETWEEN ? AND ?
-            )
-            WHERE rn = 1
-              AND final_object = 1
-        """
-        logged = pd.read_sql_query(query, conn, params=iteration)
-        logged = logged[logged["features_valid"]==1]
-        query = f"""
-                        SELECT COUNT(*) AS count
+                    SELECT
+                        final_id AS id,
+                        text,
+                        {", ".join(feature_cols)},
+                        {", ".join(metric_lists[0])},
+                        iteration,
+                        pf,
+                        features_valid
+                    FROM (
+                        SELECT
+                            final_id,
+                            text,
+                            {", ".join(feature_cols)},
+                            {", ".join(metric_lists[0])},
+                            iteration,
+                            final_object,
+                            SUM(logprobs_forward) OVER (
+                                PARTITION BY final_id
+                            ) AS pf,
+                            features_valid,
+                            ROW_NUMBER() OVER (
+                                PARTITION BY text
+                                ORDER BY iteration DESC
+                            ) AS rn
                         FROM trajectories
-                        WHERE final_object = 1
-                        AND iteration BETWEEN ? AND ?
-                        AND features_valid = 0
-                    """
+                        WHERE iteration BETWEEN ? AND ?
+                        AND final_object = 1
+                    )
+                    WHERE rn = 1
+                """
+        logged = pd.read_sql_query(query, conn, params=iteration)
+        logged = logged[logged["features_valid"] == 1]
+        query = """
+                    SELECT COUNT(*) AS count
+                    FROM trajectories
+                    WHERE final_object = 1
+                    AND iteration BETWEEN ? AND ?
+                    AND features_valid = 0
+                """
         non_valid = pd.read_sql_query(query, conn, params=iteration)["count"][0]
         if non_valid:
-            print(f"{non_valid} objects of the logged data have not been downprojected due to invalid features.")
+            print(f"""
+                        {non_valid} objects of the logged data have not been
+                        downprojected due to invalid features.
+                        """)
 
         features = logged[feature_cols].to_numpy()
         df_dp = logged.drop(columns=feature_cols)
@@ -647,40 +696,48 @@ class Plotter:
         testset_hasdata = testset_hasdata["COUNT(*)"].tolist()[0]
         if use_testset and testset_hasdata:
             query = f"""
-                            SELECT id, text, {", ".join(feature_cols_testset)}, {", ".join(metric_lists[1])}
-                            FROM testset
-                            WHERE features_valid = 1
-                        """
+                        SELECT
+                            id,
+                            text,
+                            {", ".join(feature_cols_testset)},
+                            {", ".join(metric_lists[1])}
+                        FROM testset
+                        WHERE features_valid = 1
+                    """
             testset = pd.read_sql_query(query, conn)
-            non_valid_t = \
-            pd.read_sql_query("SELECT COUNT(*) AS count FROM testset WHERE features_valid = 0", conn)["count"][0]
+            query = "SELECT COUNT(*) AS count FROM testset WHERE features_valid = 0"
+            non_valid_t = pd.read_sql_query(query, conn)["count"][0]
             if non_valid_t:
-                print(f"{non_valid_t} objects of the testset have not been downprojected due to invalid features.")
+                print(f"""
+                            {non_valid_t} objects of the testset have not been
+                            downprojected due to invalid features.
+                        """)
 
             # concat features
             features_t = testset[feature_cols_testset].to_numpy()
             testset = testset.drop(columns=feature_cols_testset)
-            assert features.shape[1] == features_t.shape[1], \
-                f"""
-                        Testset and Logged data have a different amout of features.\n
-                        Testset: {feature_cols_testset}
-                        Logged: {feature_cols}
+            assert features.shape[1] == features_t.shape[1], f"""
+                            Testset and Logged data have a different amout of features.\n
+                            Testset: {feature_cols_testset}
+                            Logged: {feature_cols}
                         """
             features = np.concatenate((features, features_t), axis=0)
             df_dp = pd.concat([df_dp, testset], axis=0, ignore_index=True)
 
         # Downprojection
-        if method == "tsne":
+        if features.shape[1] <= 1:
+            raise ValueError("Not enough features")
+        elif features.shape[1] == 2:
+            proj_s = features
+        elif method == "tsne":
             proj_s = manifold.TSNE(
                 perplexity=min(param_value, features.shape[0] - 1),
                 init="pca",
-                learning_rate="auto"
+                learning_rate="auto",
             ).fit_transform(features)
 
         elif method == "umap":
-            reducer_s = UMAP(
-                n_neighbors=min(param_value, features.shape[0] - 1)
-            )
+            reducer_s = UMAP(n_neighbors=min(param_value, features.shape[0] - 1))
             proj_s = reducer_s.fit_transform(features)
 
         else:
@@ -691,16 +748,11 @@ class Plotter:
         df_dp["istestset"] = df_dp["id"] < 0
 
         # calc hexbins
-        hexbin_size=float(max(proj_s.max(axis=0) - proj_s.min(axis=0)))/16
-        df_dp["hex_q"], df_dp["hex_r"] = self.calculate_hexbins(df_dp, size = hexbin_size)
+        hexbin_size = float(max(proj_s.max(axis=0) - proj_s.min(axis=0))) / 16
+        df_dp["hex_q"], df_dp["hex_r"] = self.calculate_hexbins(df_dp, size=hexbin_size)
 
         # write
-        df_dp.to_sql(
-            "current_dp",
-            conn,
-            if_exists="replace",
-            index=False
-        )
+        df_dp.to_sql("current_dp", conn, if_exists="replace", index=False)
         conn.close()
 
         return df_dp, hexbin_size
@@ -981,7 +1033,7 @@ class Plotter:
                 'selector': 'node[node_type = "final"]',
                 'style': {
                     'background-color': '#fff',
-                    'height': '50px',
+                    'height': '60px',
                     'border-width': '3px',
                     'border-color': '#000000'
                 }
@@ -1407,14 +1459,12 @@ class Plotter:
         :param df: prepared dataframe (should NOT include testset rows)
         :param n_top: number of top objects to display
         :param selected_ids: list of final_ids to highlight
-        :param order: ASC or DSC for highest/lowest rank
+        :param order: highest or lowest for highest/lowest rank
         :return: Plotly figure
         """
 
         df["iteration"] = pd.Categorical(
-            df["iteration"],
-            categories=sorted(df["iteration"].unique()),
-            ordered=True
+            df["iteration"], categories=sorted(df["iteration"].unique()), ordered=True
         )
 
         iterations = df["iteration"].cat.categories
@@ -1431,9 +1481,14 @@ class Plotter:
 
             # Compute ranks for all seen objects
             # Use text as tiebreaker to ensure stable ordering for equal rewards
-            asc = [False, True] if order == "DESC" else [True, True]
+            asc = [False, True] if order == "highest" else [True, True]
             tmp_rank = (
-                pd.DataFrame({"text": list(seen_objects.keys()), "metric": list(seen_objects.values())})
+                pd.DataFrame(
+                    {
+                        "text": list(seen_objects.keys()),
+                        "metric": list(seen_objects.values()),
+                    }
+                )
                 .sort_values(["metric", "text"], ascending=asc)
                 .head(n_top)
             )
@@ -1447,32 +1502,38 @@ class Plotter:
 
         # Attach IDs
         tmp = tmp.merge(
-            df[['final_id', 'text']].drop_duplicates(subset='text'),
-            on='text',
-            how='left'
+            df[["final_id", "text"]].drop_duplicates(subset="text"),
+            on="text",
+            how="left",
         )
 
         # Precompute marker sizes: circle if object was sampled in that iteration
         tmp["sampled"] = tmp.apply(
-            lambda r: 8 if ((df["text"] == r["text"]) & (df["iteration"] == r["iteration"])).any() else 0,
-            axis=1)
+            lambda r: (
+                8
+                if (
+                        (df["text"] == r["text"]) & (df["iteration"] == r["iteration"])
+                ).any()
+                else 0
+            ),
+            axis=1,
+        )
 
         # Sort objects by first appearance rank for consistent line ordering
         first_ranks = tmp.groupby("text")["value"].min().sort_values().index
 
         fig = go.Figure()
 
-        first_iter = (
-            tmp.groupby("text")["iteration"]
-            .min()
-        )
+        first_iter = tmp.groupby("text")["iteration"].min()
         # Map iteration categories to numeric indices
         iter_to_idx = {it: i for i, it in enumerate(iterations)}
         first_iter_idx = first_iter.map(iter_to_idx)
         n_colors = len(self.cs_iteration)
         # Normalize first-iteration index → color
         obj_color = {
-            text: self.cs_iteration[int(idx / max(1, len(iterations) - 1) * (n_colors - 1))]
+            text: self.cs_iteration[
+                int(idx / max(1, len(iterations) - 1) * (n_colors - 1))
+            ]
             for text, idx in first_iter_idx.items()
         }
 
@@ -1503,12 +1564,14 @@ class Plotter:
                         line=dict(width=1),
                         opacity=opacity,
                         # name="1",#obj if opacity == 1 else f"{obj} (faded)",
-                        customdata=sub_df[['final_id', 'value', 'metric', 'text']].values,
-                        showlegend=False
+                        customdata=sub_df[
+                            ["final_id", "value", "metric", "text"]
+                        ].values,
+                        showlegend=False,
                     )
                 )
 
-        #dummy legend trace
+        # dummy legend trace
         fig.add_trace(
             go.Scatter(
                 x=[None],
@@ -1535,9 +1598,11 @@ class Plotter:
         fig.update_layout(
             autosize=True,
             title=(
-                f"Sampled Objects ranked by {fo_metric}, {order} object has highest rank<br><sup>"
-                "For each Iteration the highest ranking objects so far are shown, " 
-                "objects from previous iterations persist as long as their rank is high enough. "
+                f"Sampled Objects ranked by {fo_metric}, {order} object has "
+                "highest rank<br><sup>"
+                "For each Iteration the highest ranking objects so far are shown, "
+                "objects from previous iterations persist as long as their rank is "
+                "high enough. "
                 "Markers show if an object was actually sampled in this iteration."
                 "</sup>"
             ),
@@ -1545,9 +1610,8 @@ class Plotter:
             legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="left", x=0),
             xaxis_title="Iteration",
             yaxis_title="Rank",
-            template='plotly_dark',
+            template="plotly_dark",
             margin=dict(l=40, r=40, t=40, b=40),
-
         )
 
         fig.update_yaxes(autorange="reversed")

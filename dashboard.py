@@ -415,7 +415,6 @@ def run_dashboard(
                             dcc.Graph(id="bumpchart", clear_on_unhover=True),
                             style={"height": "100%", "width": "100%"}
                         ),
-                        dcc.Tooltip(id="image-tooltip3", direction="left"),
                     ], style={
                         "flex": 1,
                         #"border": "1px solid #ddd",
@@ -441,14 +440,13 @@ def run_dashboard(
                             dcc.Graph(id="state-space-plot", clear_on_unhover=True),
                             style={"height": "100%", "width": "100%"}
                         ),
-                        dcc.Tooltip(id="image-tooltip1", direction="top"),
+
                     ], style={
                         "flex": 1,
                         #"border": "1px solid #ddd",
                         "padding": "5px",
                         "height": "65vh",
                         "boxSizing": "border-box",
-                        "overflow": "hidden"
                     }),
 
                     # BOTTOM RIGHT
@@ -627,6 +625,8 @@ def run_dashboard(
             direction="right",
             style = {"zIndex": 999, "pointerEvents": "none", "overflow": "visible"}
         ),
+        dcc.Tooltip(id="image-tooltip3", direction="left"),
+        dcc.Tooltip(id="image-tooltip1", direction="top"),
 
     ], style={
         "display": "flex",

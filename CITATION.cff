@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+title: GFlowNet Explorer
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Florian
+    family-names: Holeczek
+    email: florian.holeczek@posteo.at
+repository-code: >-
+  https://github.com/florianholeczek/GFlowNet_Training_Vis_Pilot
+abstract: >-
+  This contains a visual analytics system to make GFlowNet
+  training more interpretable.
+keywords:
+  - GFlowNet
+  - Visual Analytics
+  - Directed Acyclic Graph
+license: MIT

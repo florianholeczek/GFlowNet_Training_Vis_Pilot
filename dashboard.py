@@ -437,7 +437,11 @@ def run_dashboard(
                     # BOTTOM LEFT
                     html.Div([
                         html.Div(
-                            dcc.Graph(id="state-space-plot", clear_on_unhover=True),
+                            dcc.Graph(
+                                id="state-space-plot",
+                                clear_on_unhover=True,
+                                style={"height": "100%", "width": "100%"}
+                            ),
                             style={"height": "100%", "width": "100%"}
                         ),
 
@@ -1284,7 +1288,10 @@ def run_dashboard(
 
         children = html.Div(
             [
-                html.Div(f"Value: {value}", style={"fontWeight": "bold"}),
+                html.Div(
+                    f"Value: {value:.2f}",
+                    style={"fontWeight": "bold", "fontFamily": "sans-serif"},
+                ),
                 html.Div(
                     [
                         html.Div(

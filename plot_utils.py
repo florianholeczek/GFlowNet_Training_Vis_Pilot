@@ -989,8 +989,8 @@ class Plotter:
                     'background-clip': 'none',
                     'shape': 'round-rectangle',
                     'width': '50px',
-                    'height': '40px',
-                    'border-width': '1px',
+                    'height': '50px',
+                    'border-width': '0px',
                     'border-color': '#000000'
                 }
             },
@@ -1006,6 +1006,7 @@ class Plotter:
                     'text-max-width': '110px',
                     'font-size': '8px',
                     'width': '150px',
+                    "border-width": "1px",
                 }
             },
             # START node default "#" (keep text label)
@@ -1013,7 +1014,7 @@ class Plotter:
                 'selector': 'node[node_type = "start"]',
                 'style': {
                     'background-color': '#BAEB9D',
-                    'background-image': 'none',  # No image for start node
+                    'background-image': 'none',
                     'label': f'data(id)',
                     'text-valign': 'center',
                     'text-halign': 'center',
@@ -1022,7 +1023,7 @@ class Plotter:
                     'width': '40px',
                     'height': '40px',
                     'border-color': '#000000',
-                    'border-width': '2px',
+                    'border-width': '0px',
                     'font-weight': 'bold',
                     'text-wrap': 'wrap',
                     'text-max-width': '55px'
@@ -1034,7 +1035,7 @@ class Plotter:
                 'style': {
                     'background-color': '#fff',
                     'height': '60px',
-                    'border-width': '3px',
+                    'border-width': '0px',
                     'border-color': '#000000'
                 }
             },
@@ -1047,11 +1048,11 @@ class Plotter:
                     'label': 'data(label)',
                     'text-valign': 'center',
                     'text-halign': 'center',
-                    'font-size': '10px',
+                    'font-size': '8px',
                     'shape': 'round-rectangle',
-                    'width': '90px',
-                    'height': '20px',
-                    'border-width': '2px',
+                    'width': '70px',
+                    'height': '18px',
+                    'border-width': '0.5px',
                     'border-color': '#000000',
                     # 'font-weight': 'bold',
                     'text-wrap': 'wrap',
@@ -1062,10 +1063,10 @@ class Plotter:
             {
                 'selector': 'edge',
                 'style': {
-                    'width': 3,
+                    'width': 2,
                     'target-arrow-shape': 'triangle',
                     'curve-style': 'bezier',
-                    'arrow-scale': 1.5
+                    'arrow-scale': 1
                 }
             }
         ]
@@ -1082,9 +1083,7 @@ class Plotter:
                         'background-fit': 'contain',
                         'background-clip': 'none',
                         'shape': 'round-rectangle',
-                        'width': '60px',
-                        'height': '45px',
-                        'border-width': '5px',
+                        'border-width': '0px',
                         'border-color': '#BAEB9D'
                     }
                 },
@@ -1302,7 +1301,15 @@ class Plotter:
             zmid=zmid,
             # customdata=customdata,
             # hovertemplate = "<<%{customdata}>><extra></extra>",
-            colorbar=dict(title=dict(text=None), orientation='h', y=1.01, yanchor='bottom')
+            colorbar=dict(
+                title=dict(text=None),
+                orientation="h",
+                y=1.01,
+                yanchor="bottom",
+                thickness=24,
+                outlinecolor="black",
+                outlinewidth=1,
+            ),
         ))
         ticks = 10*(np.arange(15)+1)+(150*page)
         fig.update_layout(

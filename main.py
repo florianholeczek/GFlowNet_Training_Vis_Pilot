@@ -75,7 +75,7 @@ def dummyimagefn(text):
     return [a*10, a*5, a]
 
 run_dashboard(
-    data="seh_small",
+    data="seh_mid",
     text_to_img_fn=imagefn_seh,
     state_aggregation_fn=state_agg_fn_seh,
     s0="#",

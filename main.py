@@ -1,3 +1,9 @@
+import ast
+import io
+
+import numpy as np
+from matplotlib import pyplot as plt
+
 from dashboard import run_dashboard
 from rdkit import Chem
 from rdkit.Chem import Draw
@@ -74,10 +80,100 @@ def dummyimagefn(text):
     a= "abcd"
     return [a*10, a*5, a]
 
+
+#Grid
+def grid_readable(states):
+    return [ast.literal_eval(s) for s in states]
+
+def grid_imagefn(state):
+    state = grid_readable([state])[0]
+    size = 20
+    length = 20
+    w = h = length * size
+    x, y = state
+    grid_lines = []
+    for i in range(length + 1):
+        pos = i * size
+        grid_lines.append(
+            f'<line x1="{pos}" y1="0" x2="{pos}" y2="{h}" stroke="lightgray"/>'
+        )
+        grid_lines.append(
+            f'<line x1="0" y1="{pos}" x2="{w}" y2="{pos}" stroke="lightgray"/>'
+        )
+    highlight = (
+        f'<rect x="{x * size}" y="{y * size}" '
+        f'width="{size}" height="{size}" fill="black"/>'
+    )
+    border = (
+        f'<rect x="0" y="0" width="{w}" height="{h}" '
+        f'fill="none" stroke="black" stroke-width="2"/>'
+    )
+    svg = f"""
+                <svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}">
+                    <g transform="scale(1,-1) translate(0,-{h})">
+                        <rect width="100%" height="100%" fill="white"/>
+                        {''.join(grid_lines)}
+                        {border}
+                        {highlight}
+                    </g>
+                </svg>
+                """
+    return base64.b64encode(svg.encode()).decode()
+
+def grid_aggregation(states):
+    length = 20
+    buffer = io.BytesIO()
+    states = grid_readable(states)
+    grid = np.ones((length, length))
+    for x, y in states:
+        grid[y, x] = 0
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.imshow(
+        grid,
+        cmap="gray",
+        vmin=0,
+        vmax=1,
+        extent=[-0.5, length - 0.5, -0.5, length - 0.5],
+        origin="lower",
+    )
+    for i in range(length + 1):
+        pos = i - 0.5
+        ax.axhline(pos, color="lightgrey", linewidth=1)
+        ax.axvline(pos, color="lightgrey", linewidth=1)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_xlim(-0.5, length - 0.5)
+    ax.set_ylim(-0.5, length - 0.5)
+    ax.set_aspect("equal")
+    plt.savefig(buffer, format="svg", bbox_inches="tight")
+    plt.close(fig)
+    buffer.seek(0)
+    svg_base64 = base64.b64encode(buffer.read()).decode("utf-8")
+    return svg_base64
+
+
+
+run_dashboard(
+    data="grid",
+    text_to_img_fn=grid_imagefn,
+    state_aggregation_fn=grid_aggregation,
+    s0="[0, 0]",
+    debug_mode=False)
+
+"""
 run_dashboard(
     data="seh_mid",
     text_to_img_fn=imagefn_seh,
     state_aggregation_fn=state_agg_fn_seh,
     s0="#",
     debug_mode=True)
-#run_dashboard(data="debugdata", text_to_img_fn=imagefn_debugdata, state_aggregation_fn= state_agg_fn_debugdata, debug_mode=True)
+"""
+
+"""
+run_dashboard(
+    data="debugdata", 
+    text_to_img_fn=imagefn_debugdata, 
+    state_aggregation_fn= state_agg_fn_debugdata, 
+    debug_mode=True
+)
+"""

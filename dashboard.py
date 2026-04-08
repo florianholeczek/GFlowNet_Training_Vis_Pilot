@@ -1096,7 +1096,6 @@ def run_dashboard(
                 return no_update
         # update build ids from table
         if selected_rows or table_data:
-            print("selected rows")
             children = set([r["id"] for r in table_data])
             unselected = children - set(selected_rows)
             new_build_ids = set(build_ids) - unselected

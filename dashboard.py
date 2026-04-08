@@ -119,7 +119,7 @@ def run_dashboard(
     conn.commit()
     conn.close()
 
-    app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
+    app = dash.Dash(__name__)
 
     # Load extra layouts for cytoscape
     cyto.load_extra_layouts()
@@ -549,7 +549,7 @@ def run_dashboard(
                                     'spacingFactor': 0.5,
                                     'animate': False
                                 },
-                                style={'flex': '1', 'height': '100%', 'width': '0px', 'background-color': '#222222'},
+                                style={'flex': '1', 'height': '100%', 'width': '0px', 'background-color': '#FFFFFF'},
                                 elements=[],
                                 stylesheet=[]
                             ),
@@ -604,10 +604,10 @@ def run_dashboard(
                         markdown_options={"html": True},
                         style_cell={
                             'fontFamily': 'Arial',
-                            'backgroundColor': '#222222',
+                            'backgroundColor': '#FFFFFF',
                         },
                         style_header={
-                            'backgroundColor': '#222222',
+                            'backgroundColor': '#FFFFFF',
                             'fontWeight': 'bold'
                         },
                         style_table={'width': '500px', 'height': '95vh', 'flex': '0 0 400px', 'overflow': 'auto'}
@@ -629,7 +629,7 @@ def run_dashboard(
             direction="right",
             style = {"zIndex": 999, "pointerEvents": "none", "overflow": "visible"}
         ),
-        dcc.Tooltip(id="image-tooltip3", direction="left"),
+        dcc.Tooltip(id="image-tooltip3", direction="bottom"),
         dcc.Tooltip(id="image-tooltip1", direction="top"),
 
     ], style={

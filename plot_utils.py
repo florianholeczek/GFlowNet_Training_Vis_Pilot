@@ -22,11 +22,12 @@ class Plotter:
         self.agg_fn = state_aggregation_fn
 
         #colorscales
-        self.cs_main = px.colors.sequential.YlGn
-        self.cs_iteration = px.colors.sequential.Teal
-        self.cs_diverging_testset = px.colors.diverging.PRGn
-        self.cs_diverging_edgechange = px.colors.diverging.PiYG
-        self.cs_diverging_dir = px.colors.diverging.balance_r
+        self.cs_main = px.colors.sequential.speed
+        self.cs_iteration = px.colors.sequential.solar
+        self.cs_diverging_testset = px.colors.diverging.RdYlGn  # Earth
+        self.cs_diverging_edgechange = px.colors.diverging.RdYlBu_r
+        self.cs_diverging_dir = px.colors.diverging.BrBG
+        self.plotly_template = "plotly_white"
 
     def html_from_imagefn(self, text):
         """
@@ -94,7 +95,7 @@ class Plotter:
             title=f"Histogram of {name}",
             xaxis_title=name,
             yaxis_title="Probability Density",
-            template="plotly_white",
+            template=self.plotly_template,
             height=200,
             width=450,
             margin=dict(l=20, r=20, t=30, b=20),
@@ -247,7 +248,7 @@ class Plotter:
                 title="Average Loss per Iteration (Samples)",
                 xaxis_title="Iteration",
                 yaxis_title="Loss",
-                template="plotly_white",
+                template=self.plotly_template,
                 height=200,
                 width=450,
                 margin=dict(l=20, r=20, t=30, b=20),
@@ -305,7 +306,7 @@ class Plotter:
             )
             metricfig.update_layout(
                 title="(Log) Reward vs Forward (Log) Probabilities for Samples",
-                template="plotly_white",
+                template=self.plotly_template,
                 height=200,
                 width=550,
                 margin=dict(l=20, r=20, t=30, b=20),
@@ -501,7 +502,7 @@ class Plotter:
             ),
             margin=dict(l=40, r=40, t=40, b=40),
             autosize=True,
-            template='plotly_dark',
+            template=self.plotly_template,
             title=title,
             modebar_remove=["lasso2d", "select2d"]
 
@@ -651,24 +652,27 @@ class Plotter:
                         pf,
                         features_valid
                     FROM (
-                        SELECT
-                            final_id,
-                            text,
-                            {", ".join(feature_cols)},
-                            {", ".join(metric_lists[0])},
-                            iteration,
-                            final_object,
-                            SUM(logprobs_forward) OVER (
-                                PARTITION BY final_id
-                            ) AS pf,
-                            features_valid,
+                        SELECT *,
                             ROW_NUMBER() OVER (
                                 PARTITION BY text
                                 ORDER BY iteration DESC
                             ) AS rn
-                        FROM trajectories
-                        WHERE iteration BETWEEN ? AND ?
-                        AND final_object = 1
+                        FROM (
+                            SELECT
+                                final_id,
+                                text,
+                                {", ".join(feature_cols)},
+                                {", ".join(metric_lists[0])},
+                                iteration,
+                                final_object,
+                                SUM(logprobs_forward) OVER (
+                                    PARTITION BY final_id
+                                ) AS pf,
+                                features_valid
+                            FROM trajectories
+                            WHERE iteration BETWEEN ? AND ?
+                        ) t
+                        WHERE final_object = 1
                     )
                     WHERE rn = 1
                 """
@@ -951,7 +955,7 @@ class Plotter:
             vmin, vmax = -10, 0
             colorscale = self.cs_main
         elif metric == "variance":
-            vmin, vmax = -3, 3
+            vmin, vmax = -2.5, 2.5
             colorscale = self.cs_diverging_edgechange
         elif metric == "frequency":
             vmin, vmax = 0, max_freq
@@ -1013,7 +1017,7 @@ class Plotter:
             {
                 'selector': 'node[node_type = "start"]',
                 'style': {
-                    'background-color': '#BAEB9D',
+                    'background-color': '#0e5a2c',
                     'background-image': 'none',
                     'label': f'data(id)',
                     'text-valign': 'center',
@@ -1084,7 +1088,7 @@ class Plotter:
                         'background-clip': 'none',
                         'shape': 'round-rectangle',
                         'border-width': '0px',
-                        'border-color': '#BAEB9D'
+                        'border-color': '#0e5a2c'
                     }
                 },
             )
@@ -1272,7 +1276,7 @@ class Plotter:
 
         if metric == "variance":
             color_scale = self.cs_diverging_edgechange
-            zmin, zmax, zmid = -3, 3, 0
+            zmin, zmax, zmid = -2.5, 2.5, 0
             colorbar_title = "Value - Mean"
             title = f"Edge Heatmap<br><sup>Difference: {direction.capitalize()} Logprobability - Mean of Edge</sup>"
         elif metric == "frequency":
@@ -1314,7 +1318,7 @@ class Plotter:
         ticks = 10*(np.arange(15)+1)+(150*page)
         fig.update_layout(
             autosize=True,
-            template='plotly_dark',
+            template=self.plotly_template,
             margin=dict(l=40, r=40, t=40, b=40),
             dragmode="select",
             title=dict(text = title, ),
@@ -1348,11 +1352,12 @@ class Plotter:
 
     def edge_hover_fig(self, edge_data):
         fig = go.Figure()
+        mode = "markers" if len(edge_data) == 1 else "lines"
 
         fig.add_trace(go.Scatter(
             x=edge_data["iteration"],
             y=edge_data["logprobs_forward"],
-            mode="lines+markers",
+            mode=mode,
             name="forward",
             line=dict(color=self.cs_diverging_dir[-3]),
             marker=dict(color=self.cs_diverging_dir[-3])
@@ -1361,7 +1366,7 @@ class Plotter:
         fig.add_trace(go.Scatter(
             x=edge_data["iteration"],
             y=edge_data["logprobs_backward"],
-            mode="lines+markers",
+            mode=mode,
             name="backward",
             line=dict(color=self.cs_diverging_dir[2]),
             marker=dict(color=self.cs_diverging_dir[2])
@@ -1375,7 +1380,7 @@ class Plotter:
             legend=dict(x=0.3, y=1.1, orientation="h", xanchor="center", yanchor="bottom"),
             xaxis_title="Iteration",
             yaxis_title="Logprobs",
-            template="plotly_white"
+            template=self.plotly_template
         )
 
         return fig
@@ -1463,7 +1468,7 @@ class Plotter:
         fig.update_layout(
             autosize=True,
             title=f"State Space of Final Objects<br><sup>Size shows {metric} for the latest iteration the object occured",
-            template='plotly_dark',
+            template=self.plotly_template,
             legend=dict(
                 itemsizing='constant',  # ensures marker size is not scaled
             ),
@@ -1531,7 +1536,7 @@ class Plotter:
         # Precompute marker sizes: circle if object was sampled in that iteration
         tmp["sampled"] = tmp.apply(
             lambda r: (
-                8
+                6
                 if (
                         (df["text"] == r["text"]) & (df["iteration"] == r["iteration"])
                 ).any()
@@ -1631,7 +1636,7 @@ class Plotter:
             legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="left", x=0),
             xaxis_title="Iteration",
             yaxis_title="Rank",
-            template="plotly_dark",
+            template=self.plotly_template,
             margin=dict(l=40, r=40, t=40, b=40),
         )
 
@@ -1691,7 +1696,7 @@ class Plotter:
             legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="left", x=0),
             xaxis_title="Iteration",
             yaxis_title="Rank",
-            template='plotly_dark',
+            template=self.plotly_template,
             margin=dict(l=40, r=40, t=40, b=40)
         )
 

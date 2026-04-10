@@ -327,7 +327,7 @@ class Plotter:
 
         # colorscales and titles
         colorscale = self.cs_main
-        title = "State Space - "
+        title = "State Projection - "
         metric_min = df["metric"].min()
         metric_max = df["metric"].max()
         if ss_style == "Hex Ratio":
@@ -1274,19 +1274,19 @@ class Plotter:
             color_scale = self.cs_diverging_edgechange
             zmin, zmax, zmid = -2.5, 2.5, 0
             colorbar_title = "Value - Mean"
-            title = f"Edge Heatmap<br><sup>Difference: {direction.capitalize()} Logprobability - Mean of Edge</sup>"
+            title = f"Transition Heatmap<br><sup>Difference: {direction.capitalize()} Logprobability - Mean of Transition</sup>"
         elif metric == "frequency":
             color_scale = self.cs_main
             zmin = 0
             zmax = df['metric_val'].max()
             zmid = None
             colorbar_title = "Frequency"
-            title = f"Edge Heatmap<br><sup>Highest frequency</sup>"
+            title = f"Transition Heatmap<br><sup>Highest frequency</sup>"
         else:  # highest or lowest
             color_scale = self.cs_main
             zmin, zmax, zmid = -10, 0, None
             colorbar_title = "Value"
-            title = f"Edge Heatmap<br><sup>{metric.capitalize()} Value of {direction.capitalize()} Logprobabilities</sup>"
+            title = f"Transition Heatmap<br><sup>{metric.capitalize()} Value of {direction.capitalize()} Logprobabilities</sup>"
 
         #heatmap_data = heatmap_data.sort_index(axis=1)
 
@@ -1328,7 +1328,7 @@ class Plotter:
                 showspikes=False,
             ),
             yaxis=dict(
-                title=f"Edge Rank ",
+                title=f"Transition Rank ",
                 ticks="outside",
                 tickvals=heatmap_data.columns[9::10],
                 ticktext=[str(int(v)) for v in ticks],
@@ -1463,7 +1463,7 @@ class Plotter:
 
         fig.update_layout(
             autosize=True,
-            title=f"State Space of Final Objects<br><sup>Size shows {metric} for the latest iteration the object occured",
+            title=f"State Projection<br><sup>Size shows {metric} for the latest iteration the object occured",
             template=self.plotly_template,
             legend=dict(
                 itemsizing='constant',  # ensures marker size is not scaled
@@ -1620,7 +1620,7 @@ class Plotter:
         fig.update_layout(
             autosize=True,
             title=(
-                f"Sampled Objects ranked by {fo_metric}, {order} object has "
+                f"Sample Ranking by {fo_metric}, {order} object has "
                 "highest rank<br><sup>"
                 "For each Iteration the highest ranking objects so far are shown, "
                 "objects from previous iterations persist as long as their rank is "
@@ -1684,7 +1684,7 @@ class Plotter:
         fig.update_layout(
             autosize=True,
             title=(
-                f"Sampled Objects ranked by {fo_metric}, {order} object has highest rank<br><sup>"
+                f"Sample Ranking by {fo_metric}, {order} object has highest rank<br><sup>"
                 "For each Iteration the highest ranking objects of this iteration are shown."
                 "</sup>"
             ),

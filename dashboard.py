@@ -1065,10 +1065,10 @@ def run_dashboard(
             layout_config['roots'] = '[id = "#"]'
 
         if add_handlers:
-            title = "Directed Acyclic Graph, Mode: Expand"
+            title = "DAG-View, Mode: Expand"
             subtitle = "Click on 'Select children' nodes to expand the Graph and click on the root to collapse it. Select a node or items from other visuals to switch to selection mode. Edge coloring: "
         else:
-            title = "Directed Acyclic Graph, Mode: Selection"
+            title = "DAG-View, Mode: Selection"
             subtitle = "Shows all trajectories going through the selected items. Clear selection or select the root to switch to expanding mode. Edge coloring: "
         if metric in ["highest", "lowest"]:
             subtitle += f"{metric.capitalize()} {direction} logprobabilities of the edge over selected iterations."

@@ -1699,3 +1699,29 @@ class Plotter:
         fig.update_yaxes(autorange="reversed")
 
         return fig
+
+    def select_all_ids_from_ids(self, selected_ids, iterations):
+        """
+        When selecting final objects in bump /state space, only one item is displayed for final_ids with the same texts.
+        This selects all texts to the selected_ids and all final_ids to these texts.
+        :param selected_ids: list of ids
+        :param iterations: iteration range
+        :return: list of ids
+        """
+        conn = sqlite3.connect(self.data)
+        placeholders = ",".join("?" for _ in selected_ids)
+        query = f"""
+        
+        SELECT DISTINCT t2.final_id
+        FROM trajectories t2
+        JOIN trajectories t1
+          ON t1.text = t2.text
+        WHERE t1.final_id IN ({placeholders})
+          AND t1.final_object = 1
+          AND t2.final_object = 1
+          AND t1.iteration BETWEEN ? AND ?
+          AND t2.iteration BETWEEN ? AND ?;
+        """
+        params = selected_ids + iterations + iterations
+        result = pd.read_sql_query(query, conn, params=params)["final_id"].tolist()
+        return result

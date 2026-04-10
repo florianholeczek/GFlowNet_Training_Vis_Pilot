@@ -734,9 +734,10 @@ def run_dashboard(
         State("selected-objects", "data"),
         State("build-ids", "data"),
         State("dag-overview-tid-list", "data"),
+        State("iteration", "value"),
         prevent_initial_call=True
     )
-    def update_selected_objects(clear_clicks, ss_select, ss_click, bump_select, dag_node, selected_tids, current_ids, build_ids, tid_list):
+    def update_selected_objects(clear_clicks, ss_select, ss_click, bump_select, dag_node, selected_tids, current_ids, build_ids, tid_list, iterations):
 
         ctx = dash.callback_context
         if not ctx.triggered:
@@ -754,7 +755,9 @@ def run_dashboard(
                 return no_update
 
             selected_ids = {pt["customdata"][0] for pt in ss_select["points"]}
-            return list(selected_ids), None, []
+            selected_ids = list(selected_ids)
+            selected_ids = plotter.select_all_ids_from_ids(selected_ids, iterations)
+            return selected_ids, None, []
 
         # ---------- State-space click ----------
         if "state-space-plot.clickData" in trigger:
@@ -765,6 +768,7 @@ def run_dashboard(
             conn = sqlite3.connect(data_path)
             query = f"SELECT id FROM current_dp WHERE hex_q = ? AND hex_r = ?"
             selected_ids = pd.read_sql_query(query, conn, params=[hex_q, hex_r])["id"].tolist()
+            selected_ids = plotter.select_all_ids_from_ids(selected_ids, iterations)
 
             return selected_ids, None, []
 
@@ -774,7 +778,9 @@ def run_dashboard(
                 return no_update, None, []
 
             selected_ids = {pt["customdata"][0] for pt in bump_select["points"]}
-            return list(selected_ids), None, []
+            selected_ids = list(selected_ids)
+            selected_ids = plotter.select_all_ids_from_ids(selected_ids, iterations)
+            return selected_ids, None, []
 
         # ---------- DAG node click ----------
         elif "dag-graph.tapNodeData" in trigger:

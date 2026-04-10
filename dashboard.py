@@ -1,15 +1,8 @@
-import sqlite3
 import warnings
-
 import dash
-import pandas as pd
 from dash import dcc, html, Input, Output, State, no_update, dash_table, ctx
-import dash_bootstrap_components as dbc
 from dash.dash_table.Format import Format, Scheme
 import dash_cytoscape as cyto
-from dash.exceptions import PreventUpdate
-from sklearn import manifold
-from umap import UMAP
 from plot_utils import *
 from pathlib import Path
 
@@ -1374,4 +1367,5 @@ def run_dashboard(
         return page, disabled_top, disabled_top, disabled_bottom
 
     # Run the dashboard
-    app.run(debug=debug_mode)
+    #app.run(debug=debug_mode)
+    return app

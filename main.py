@@ -5,12 +5,15 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from dashboard import run_dashboard
-from rdkit import Chem
-from rdkit.Chem import Draw
-from rdkit.Chem import rdFMCS
+
 import base64
 
 
+
+"""
+from rdkit import Chem
+from rdkit.Chem import Draw
+from rdkit.Chem import rdFMCS
 
 def imagefn_seh(smiles):
     if smiles is None:
@@ -61,6 +64,8 @@ def state_agg_fn_seh(smiles):
     mcs_smiles = Chem.MolToSmiles(mcs_mol)
     mcs_smiles = imagefn_seh(mcs_smiles)
     return mcs_smiles
+    
+"""
 
 #plotting function for debugdata
 def imagefn_debugdata(s):
@@ -153,12 +158,13 @@ def grid_aggregation(states):
 
 
 
-run_dashboard(
+app = run_dashboard(
     data="grid",
     text_to_img_fn=grid_imagefn,
     state_aggregation_fn=grid_aggregation,
     s0="[0, 0]",
     debug_mode=False)
+server = app.server
 
 """
 run_dashboard(
@@ -177,3 +183,7 @@ run_dashboard(
     debug_mode=True
 )
 """
+
+
+if __name__ == "__main__":
+    app.run(debug=True)

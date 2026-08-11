@@ -552,31 +552,95 @@ class Plotter:
             df = pd.read_sql_query(query, conn)
         elif method == "Hex Correlation":
             query = f"""
+            WITH relevant_finals AS (
+                SELECT DISTINCT
+                    dp.hex_r,
+                    dp.hex_q,
+                    tr.final_id,
+                    tr.text          AS final_text,
+                    tr.total_reward  AS reward
+                FROM current_dp dp
+                JOIN trajectories tr
+                    ON tr.text = dp.text
+                   AND tr.final_object = 1
+            ),
+            traj_agg AS (
+                SELECT
+                    t.final_id,
+                    rf.hex_r,
+                    rf.hex_q,
+                    rf.final_text                              AS text,
+                    rf.reward                                  AS reward,
+                    MAX(t.iteration)                           AS iteration,
+                    SUM(t.logprobs_forward)                    AS traj_logprob_forward,
+                    GROUP_CONCAT(t.text, '||')  AS sequence
+                FROM trajectories t
+                JOIN relevant_finals rf ON rf.final_id = t.final_id
+                GROUP BY t.final_id, rf.hex_r, rf.hex_q
+            ),
+            deduped AS (
+                SELECT
+                    *,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY hex_r, hex_q, text, sequence
+                        ORDER BY iteration DESC
+                    ) AS rn
+                FROM traj_agg
+            ),
+            with_max AS (
+                SELECT
+                    *,
+                    MAX(traj_logprob_forward)  OVER (PARTITION BY hex_r, hex_q, text) AS max_fwd
+                FROM deduped
+                WHERE rn = 1
+            )
+            SELECT
+                hex_r,
+                hex_q,
+                text,
+                EXP(MAX(max_fwd) + LN(SUM(EXP(traj_logprob_forward - max_fwd))))  AS forward_prob_sum,
+                MAX(reward) AS reward
+            FROM with_max
+            GROUP BY hex_r, hex_q, text
+            ORDER BY hex_r, hex_q, text;
+            """
+            df = pd.read_sql_query(query, conn)
+
+            corrs = (
+                df.groupby(["hex_r", "hex_q"])
+                .apply(lambda g: g["forward_prob_sum"].corr(g["reward"]))
+                .rename("corr")
+                .reset_index()
+            )
+
+
+
+            query = f"""
                 SELECT 
                     hex_r, 
                     hex_q,
                     SUM(CASE WHEN istestset = 1 THEN 1 ELSE 0 END) AS n_test,
-                    SUM(CASE WHEN istestset = 0 THEN 1 ELSE 0 END) AS n_samples,
-                    SUM(CASE WHEN istestset = 0 THEN LOG(total_reward) END)              AS sum_a,
-                    SUM(CASE WHEN istestset = 0 THEN pf END)                        AS sum_b,
-                    SUM(CASE WHEN istestset = 0 THEN LOG(total_reward)*LOG(total_reward) END) AS sum_a2,
-                    SUM(CASE WHEN istestset = 0 THEN pf*pf END)                     AS sum_b2,
-                    SUM(CASE WHEN istestset = 0 THEN LOG(total_reward)*pf END)           AS sum_ab
+                    SUM(CASE WHEN istestset = 0 THEN 1 ELSE 0 END) AS n_samples
                 FROM current_dp
                 GROUP BY
                     hex_r,
                     hex_q;
             """
             df = pd.read_sql_query(query, conn)
-            n = df["n_samples"]
-            num = n * df["sum_ab"] - df["sum_a"] * df["sum_b"]
-            den = np.sqrt(
-                (n * df["sum_a2"] - df["sum_a"] ** 2) *
-                (n * df["sum_b2"] - df["sum_b"] ** 2)
+
+            query = "SELECT hex_r, hex_q, log_pf, total_reward FROM current_dp WHERE istestset=0"
+            df_corr = pd.read_sql_query(query, conn)
+            df_corr = (
+                df_corr.groupby(["hex_r", "hex_q"])
+                .apply(lambda g: g["log_pf"].corr(np.log(g["total_reward"])))
+                .rename("metric")
+                .reset_index()
             )
-            df["metric"] = num / den
-            df.loc[df["n_samples"] <= 10, "metric"] = np.nan
-            df = df.drop(columns=["sum_a2", "sum_b2", "sum_a", "sum_b", "sum_ab"])
+            print(df_corr)
+            print(df)
+            df = df.merge(df_corr, on=["hex_r", "hex_q"], how="outer")
+            #df.loc[df["n_samples"] <= 10, "metric"] = np.nan
+            print(df)
 
         else:
             raise NotImplementedError("Hexbin Data Method Not Implemented")
@@ -645,7 +709,6 @@ class Plotter:
                         {", ".join(feature_cols)},
                         {", ".join(metric_lists[0])},
                         iteration,
-                        pf,
                         features_valid
                     FROM (
                         SELECT *,
@@ -661,9 +724,6 @@ class Plotter:
                                 {", ".join(metric_lists[0])},
                                 iteration,
                                 final_object,
-                                SUM(logprobs_forward) OVER (
-                                    PARTITION BY final_id
-                                ) AS pf,
                                 features_valid
                             FROM trajectories
                             WHERE iteration BETWEEN ? AND ?
@@ -753,6 +813,84 @@ class Plotter:
 
         # write
         df_dp.to_sql("current_dp", conn, if_exists="replace", index=False)
+
+        # add P_F for correlation data
+        # For each final object sum over all its trajectories the probabilities to sample them
+        # Take the trajectory with the latest iteration if there are doubles
+        query = f"""
+            WITH relevant_finals AS (
+                SELECT DISTINCT
+                    dp.hex_r,
+                    dp.hex_q,
+                    tr.final_id,
+                    tr.text          AS final_text,
+                    tr.total_reward  AS reward
+                FROM current_dp dp
+                JOIN trajectories tr
+                    ON tr.text = dp.text
+                   AND tr.final_object = 1
+               WHERE dp.istestset = 0
+            ),
+            traj_agg AS (
+                SELECT
+                    t.final_id,
+                    rf.hex_r,
+                    rf.hex_q,
+                    rf.final_text                              AS text,
+                    rf.reward                                  AS reward,
+                    MAX(t.iteration)                           AS iteration,
+                    SUM(t.logprobs_forward)                    AS traj_logprob_forward,
+                    GROUP_CONCAT(t.text, '||')  AS sequence
+                FROM trajectories t
+                JOIN relevant_finals rf ON rf.final_id = t.final_id
+                GROUP BY t.final_id, rf.hex_r, rf.hex_q
+            ),
+            deduped AS (
+                SELECT
+                    *,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY hex_r, hex_q, text, sequence
+                        ORDER BY iteration DESC
+                    ) AS rn
+                FROM traj_agg
+            ),
+            with_max AS (
+                SELECT
+                    *,
+                    MAX(traj_logprob_forward)  OVER (PARTITION BY hex_r, hex_q, text) AS max_fwd
+                FROM deduped
+                WHERE rn = 1
+            )
+            SELECT
+                hex_r,
+                hex_q,
+                text,
+                MAX(max_fwd) + LN(SUM(EXP(traj_logprob_forward - max_fwd)))  AS log_pf,
+                MAX(reward) AS reward
+            FROM with_max
+            GROUP BY hex_r, hex_q, text
+            ORDER BY hex_r, hex_q, text;
+            """
+        df = pd.read_sql_query(query, conn)
+
+        conn.execute("ALTER TABLE current_dp ADD COLUMN log_pf REAL")
+        df[["text", "log_pf"]].to_sql(
+            "temp_updates",
+            conn,
+            if_exists="replace",
+            index=False
+        )
+        conn.execute("""
+         UPDATE current_dp
+         SET log_pf = (SELECT temp_updates.log_pf
+                          FROM temp_updates
+                          WHERE temp_updates.text = current_dp.text)
+         WHERE EXISTS (SELECT 1
+                       FROM temp_updates
+                       WHERE temp_updates.text = current_dp.text)
+         """)
+        conn.commit()
+
         conn.close()
 
         return df_dp, hexbin_size

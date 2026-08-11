@@ -181,21 +181,11 @@ class Plotter:
         # Use metric plot for correlation scatter
         if ss_style == "Hex Correlation":
             query = f"""
-                        SELECT id
+                        SELECT id, total_reward AS reward, log_pf AS pf
                         FROM current_dp
                         WHERE hex_q = {hex_q} AND hex_r = {hex_r} AND istestset = 0
                     """
-            ids = pd.read_sql_query(query, conn)["id"].tolist()
-            placeholders = ",".join("?" for _ in ids)
-            query = f"""
-                        SELECT
-                            SUM(total_reward) AS reward,
-                            SUM(logprobs_forward) AS pf
-                        FROM trajectories
-                        WHERE final_id IN ({placeholders})
-                        GROUP BY final_id
-                    """
-            corr_df = pd.read_sql_query(query, conn, params=ids)
+            corr_df = pd.read_sql_query(query, conn)
             corr_df["reward"] = np.log(corr_df["reward"])
             # check if correlation is similar
             # print("corr", corr_df["reward"].corr(corr_df["pf"]))
@@ -552,70 +542,6 @@ class Plotter:
             df = pd.read_sql_query(query, conn)
         elif method == "Hex Correlation":
             query = f"""
-            WITH relevant_finals AS (
-                SELECT DISTINCT
-                    dp.hex_r,
-                    dp.hex_q,
-                    tr.final_id,
-                    tr.text          AS final_text,
-                    tr.total_reward  AS reward
-                FROM current_dp dp
-                JOIN trajectories tr
-                    ON tr.text = dp.text
-                   AND tr.final_object = 1
-            ),
-            traj_agg AS (
-                SELECT
-                    t.final_id,
-                    rf.hex_r,
-                    rf.hex_q,
-                    rf.final_text                              AS text,
-                    rf.reward                                  AS reward,
-                    MAX(t.iteration)                           AS iteration,
-                    SUM(t.logprobs_forward)                    AS traj_logprob_forward,
-                    GROUP_CONCAT(t.text, '||')  AS sequence
-                FROM trajectories t
-                JOIN relevant_finals rf ON rf.final_id = t.final_id
-                GROUP BY t.final_id, rf.hex_r, rf.hex_q
-            ),
-            deduped AS (
-                SELECT
-                    *,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY hex_r, hex_q, text, sequence
-                        ORDER BY iteration DESC
-                    ) AS rn
-                FROM traj_agg
-            ),
-            with_max AS (
-                SELECT
-                    *,
-                    MAX(traj_logprob_forward)  OVER (PARTITION BY hex_r, hex_q, text) AS max_fwd
-                FROM deduped
-                WHERE rn = 1
-            )
-            SELECT
-                hex_r,
-                hex_q,
-                text,
-                EXP(MAX(max_fwd) + LN(SUM(EXP(traj_logprob_forward - max_fwd))))  AS forward_prob_sum,
-                MAX(reward) AS reward
-            FROM with_max
-            GROUP BY hex_r, hex_q, text
-            ORDER BY hex_r, hex_q, text;
-            """
-            df = pd.read_sql_query(query, conn)
-
-            corrs = (
-                df.groupby(["hex_r", "hex_q"])
-                .apply(lambda g: g["forward_prob_sum"].corr(g["reward"]))
-                .rename("corr")
-                .reset_index()
-            )
-
-
-
-            query = f"""
                 SELECT 
                     hex_r, 
                     hex_q,
@@ -636,11 +562,8 @@ class Plotter:
                 .rename("metric")
                 .reset_index()
             )
-            print(df_corr)
-            print(df)
             df = df.merge(df_corr, on=["hex_r", "hex_q"], how="outer")
             df.loc[df["n_samples"] <= 10, "metric"] = np.nan
-            print(df)
 
         else:
             raise NotImplementedError("Hexbin Data Method Not Implemented")

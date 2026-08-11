@@ -639,7 +639,7 @@ class Plotter:
             print(df_corr)
             print(df)
             df = df.merge(df_corr, on=["hex_r", "hex_q"], how="outer")
-            #df.loc[df["n_samples"] <= 10, "metric"] = np.nan
+            df.loc[df["n_samples"] <= 10, "metric"] = np.nan
             print(df)
 
         else:
